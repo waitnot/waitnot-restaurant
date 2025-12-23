@@ -5,6 +5,59 @@ import { restaurantDB } from '../db.js';
 
 const router = express.Router();
 
+// Change password
+router.post('/change-password', async (req, res) => {
+  try {
+    console.log('Password change request received');
+    
+    const { restaurantId, currentPassword, newPassword } = req.body;
+    
+    if (!restaurantId || !currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    }
+    
+    // Get restaurant
+    const restaurant = await restaurantDB.findById(restaurantId);
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    
+    console.log('Verifying current password for restaurant:', restaurant.name);
+    
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, restaurant.password);
+    if (!isCurrentPasswordValid) {
+      console.log('Current password verification failed');
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    
+    console.log('Current password verified, updating to new password');
+    
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update password
+    const updatedRestaurant = await restaurantDB.update(restaurantId, { 
+      password: hashedNewPassword 
+    });
+    
+    if (updatedRestaurant) {
+      console.log('Password updated successfully for:', restaurant.name);
+      res.json({ message: 'Password changed successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to update password' });
+    }
+    
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Debug endpoint to check database contents
 router.get('/debug', async (req, res) => {
   try {

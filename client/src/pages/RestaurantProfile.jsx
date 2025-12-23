@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Save, User, MapPin, Phone, Mail, Clock, Star, Utensils } from 'lucide-react';
+import { Camera, Save, User, MapPin, Phone, Mail, Clock, Star, Utensils, Lock, Eye, EyeOff } from 'lucide-react';
 import { compressImage, validateImageFile } from '../utils/imageUtils';
 
 const RestaurantProfile = () => {
@@ -9,6 +9,21 @@ const RestaurantProfile = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  
+  // Password change states
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   
   const [formData, setFormData] = useState({
     name: '',
@@ -156,6 +171,70 @@ const RestaurantProfile = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordChanging(true);
+    setPasswordMessage('');
+
+    try {
+      // Validate passwords
+      if (passwordData.newPassword.length < 6) {
+        setPasswordMessage('New password must be at least 6 characters long');
+        return;
+      }
+
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        setPasswordMessage('New passwords do not match');
+        return;
+      }
+
+      const restaurantData = JSON.parse(localStorage.getItem('restaurantData'));
+      
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          restaurantId: restaurantData._id,
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setPasswordMessage('Password changed successfully!');
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+        
+        // Hide password section after successful change
+        setTimeout(() => {
+          setShowPasswordSection(false);
+          setPasswordMessage('');
+        }, 2000);
+      } else {
+        setPasswordMessage(result.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setPasswordMessage('Error changing password. Please try again.');
+    } finally {
+      setPasswordChanging(false);
+    }
+  };
+
+  const togglePasswordVisibility = (field) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
   };
 
   if (loading) {
@@ -382,6 +461,150 @@ const RestaurantProfile = () => {
                       Delivery Available
                     </span>
                   </label>
+                </div>
+
+                {/* Password Change Section */}
+                <div className="border-t pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                      <Lock className="mr-2" size={20} />
+                      Change Password
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPasswordSection(!showPasswordSection);
+                        setPasswordMessage('');
+                        setPasswordData({
+                          currentPassword: '',
+                          newPassword: '',
+                          confirmPassword: ''
+                        });
+                      }}
+                      className="text-red-600 hover:text-red-700 text-sm font-medium"
+                    >
+                      {showPasswordSection ? 'Cancel' : 'Change Password'}
+                    </button>
+                  </div>
+
+                  {showPasswordSection && (
+                    <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
+                      {passwordMessage && (
+                        <div className={`p-3 rounded-lg text-sm ${
+                          passwordMessage.includes('successfully') 
+                            ? 'bg-green-50 text-green-700 border border-green-200' 
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                          {passwordMessage}
+                        </div>
+                      )}
+
+                      <form onSubmit={handlePasswordChange}>
+                        <div className="space-y-4">
+                          {/* Current Password */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Current Password *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showPasswords.current ? 'text' : 'password'}
+                                value={passwordData.currentPassword}
+                                onChange={(e) => setPasswordData(prev => ({
+                                  ...prev,
+                                  currentPassword: e.target.value
+                                }))}
+                                required
+                                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                placeholder="Enter current password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility('current')}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                              >
+                                {showPasswords.current ? <EyeOff size={20} /> : <Eye size={20} />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* New Password */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              New Password *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showPasswords.new ? 'text' : 'password'}
+                                value={passwordData.newPassword}
+                                onChange={(e) => setPasswordData(prev => ({
+                                  ...prev,
+                                  newPassword: e.target.value
+                                }))}
+                                required
+                                minLength={6}
+                                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                placeholder="Enter new password (min 6 characters)"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility('new')}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                              >
+                                {showPasswords.new ? <EyeOff size={20} /> : <Eye size={20} />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Confirm New Password */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Confirm New Password *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showPasswords.confirm ? 'text' : 'password'}
+                                value={passwordData.confirmPassword}
+                                onChange={(e) => setPasswordData(prev => ({
+                                  ...prev,
+                                  confirmPassword: e.target.value
+                                }))}
+                                required
+                                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                placeholder="Confirm new password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility('confirm')}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                              >
+                                {showPasswords.confirm ? <EyeOff size={20} /> : <Eye size={20} />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Password Change Button */}
+                          <button
+                            type="submit"
+                            disabled={passwordChanging}
+                            className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          >
+                            {passwordChanging ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Changing Password...
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="mr-2" size={16} />
+                                Change Password
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
                 </div>
 
                 {/* Action Buttons */}
