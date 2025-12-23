@@ -1483,11 +1483,6 @@ export default function RestaurantDashboard() {
                     </div>
                   </div>
                 </div>
-                        <span className="text-red-600 text-sm">🍖 Non-Veg</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
               ))}
             </div>
 
