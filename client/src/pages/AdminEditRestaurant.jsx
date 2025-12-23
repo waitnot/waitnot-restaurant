@@ -53,6 +53,11 @@ const AdminEditRestaurant = () => {
       description: 'Enable/disable delivery service',
       category: 'Operations'
     },
+    deliveryOrders: {
+      name: 'Delivery Orders Management',
+      description: 'View and manage delivery orders',
+      category: 'Operations'
+    },
     passwordChange: {
       name: 'Password Change',
       description: 'Allow password changes',

@@ -8,9 +8,18 @@ import { useFeatures } from '../context/FeatureContext';
 
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
+  const { isFeatureEnabled } = useFeatures();
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [activeTab, setActiveTab] = useState('delivery');
+  const [activeTab, setActiveTab] = useState(() => {
+    // Set default tab based on available features
+    if (isFeatureEnabled('deliveryOrders')) return 'delivery';
+    if (isFeatureEnabled('orderManagement')) return 'dine-in';
+    if (isFeatureEnabled('menuManagement')) return 'menu';
+    if (isFeatureEnabled('qrCodeGeneration')) return 'qr';
+    if (isFeatureEnabled('orderHistory')) return 'history';
+    return 'delivery'; // fallback
+  });
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [menuForm, setMenuForm] = useState({
@@ -1137,7 +1146,7 @@ export default function RestaurantDashboard() {
 
       <div className="max-w-7xl mx-auto p-3 sm:p-4">
         <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 hide-scrollbar">
-          <FeatureGuard feature="orderManagement">
+          <FeatureGuard feature="deliveryOrders">
             <button
               onClick={() => setActiveTab('delivery')}
               className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
@@ -1193,7 +1202,19 @@ export default function RestaurantDashboard() {
           </FeatureGuard>
         </div>      
   {activeTab === 'delivery' && (
-          <div className="space-y-3 sm:space-y-4">
+          <FeatureGuard 
+            feature="deliveryOrders"
+            fallback={
+              <div className="text-center py-12 bg-white rounded-lg shadow-md">
+                <div className="text-gray-500 mb-4">
+                  <h3 className="text-lg font-semibold mb-2">Delivery Orders Disabled</h3>
+                  <p>This feature has been disabled by your administrator.</p>
+                  <p className="text-sm mt-2">Contact your administrator to enable delivery order management.</p>
+                </div>
+              </div>
+            }
+          >
+            <div className="space-y-3 sm:space-y-4">
             <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
               <h2 className="text-lg sm:text-xl font-bold text-gray-800">Home Delivery Orders</h2>
               <p className="text-gray-600 text-xs sm:text-sm">Total: {deliveryOrders.length} orders</p>
@@ -1292,7 +1313,8 @@ export default function RestaurantDashboard() {
             {deliveryOrders.length === 0 && (
               <div className="text-center py-12 text-gray-500">No delivery orders yet</div>
             )}
-          </div>
+            </div>
+          </FeatureGuard>
         )}
 
         {activeTab === 'dine-in' && (
