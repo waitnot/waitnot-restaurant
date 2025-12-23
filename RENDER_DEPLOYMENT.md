@@ -28,6 +28,8 @@ Start Command: npm start
 ```
 NODE_ENV=production
 PORT=10000
+DATABASE_URL=postgresql://neondb_owner:npg_0HWkqo9CysVg@ep-billowing-base-a4e5hyfo-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+JWT_SECRET=your_secure_jwt_secret_here_make_it_long_and_random
 ```
 
 ### 3. Advanced Settings (Optional)
@@ -53,17 +55,32 @@ https://waitnot-restaurant.onrender.com
 2. Add your domain (e.g., `yourrestaurant.com`)
 3. Update DNS records as shown
 
-### 5. Database Considerations
+### 5. Database Migration
 
-#### Current Setup (JSON Files)
-- ✅ Works perfectly on Render
-- ✅ Data persists between deployments
-- ✅ No additional setup needed
+#### PostgreSQL Setup (Neon Database)
+The app now uses PostgreSQL instead of JSON files for better performance and reliability.
 
-#### Upgrade to PostgreSQL (Later)
-```bash
-# Add to your Render service
-DATABASE_URL=postgresql://user:pass@host:port/db
+#### Automatic Migration
+On first deployment, the system will:
+1. ✅ Create all database tables automatically
+2. ✅ Migrate existing JSON data to PostgreSQL
+3. ✅ Preserve all restaurant and order data
+
+#### Manual Migration (if needed)
+If you need to run migration manually:
+1. Go to your Render service dashboard
+2. Open the "Shell" tab
+3. Run: `npm run migrate`
+
+#### Migration Verification
+Check the deployment logs for:
+```
+✅ Data migration completed successfully!
+📊 Migration Summary:
+   Restaurants: X
+   Menu Items: Y  
+   Orders: Z
+   Order Items: W
 ```
 
 ### 6. Monitoring & Logs

@@ -1,184 +1,615 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DB_PATH = path.join(__dirname, 'data');
+import { query, initDatabase, withTransaction } from './database/connection.js';
+import bcrypt from 'bcryptjs';
 
 // Initialize database
 export async function initDB() {
   try {
-    await fs.mkdir(DB_PATH, { recursive: true });
-    
-    const files = ['restaurants.json', 'orders.json'];
-    for (const file of files) {
-      const filePath = path.join(DB_PATH, file);
-      try {
-        await fs.access(filePath);
-      } catch {
-        await fs.writeFile(filePath, JSON.stringify([], null, 2));
-      }
-    }
-    console.log('✅ Local database initialized');
+    await initDatabase();
+    console.log('✅ PostgreSQL database initialized');
   } catch (error) {
     console.error('Error initializing database:', error);
+    throw error;
   }
-}
-
-// Generic read function
-async function readData(filename) {
-  try {
-    const data = await fs.readFile(path.join(DB_PATH, filename), 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
-  }
-}
-
-// Generic write function
-async function writeData(filename, data) {
-  await fs.writeFile(path.join(DB_PATH, filename), JSON.stringify(data, null, 2));
-}
-
-// Generate unique ID
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
 // Restaurant operations
 export const restaurantDB = {
   async findAll() {
-    return await readData('restaurants.json');
+    const result = await query(`
+      SELECT r.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   '_id', m.id,
+                   'name', m.name,
+                   'price', m.price,
+                   'category', m.category,
+                   'isVeg', m.is_veg,
+                   'description', m.description,
+                   'image', m.image,
+                   'available', m.available
+                 ) ORDER BY m.category, m.name
+               ) FILTER (WHERE m.id IS NOT NULL), 
+               '[]'::json
+             ) as menu
+      FROM restaurants r
+      LEFT JOIN menu_items m ON r.id = m.restaurant_id
+      GROUP BY r.id
+      ORDER BY r.name
+    `);
+    
+    return result.rows.map(row => ({
+      _id: row.id,
+      name: row.name,
+      description: row.description,
+      image: row.image,
+      rating: parseFloat(row.rating) || 0,
+      deliveryTime: row.delivery_time,
+      cuisine: row.cuisine || [],
+      address: row.address,
+      phone: row.phone,
+      email: row.email,
+      password: row.password,
+      isDeliveryAvailable: row.is_delivery_available,
+      tables: row.tables,
+      menu: row.menu || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
   },
   
   async findById(id) {
-    const restaurants = await readData('restaurants.json');
-    return restaurants.find(r => r._id === id);
+    const result = await query(`
+      SELECT r.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   '_id', m.id,
+                   'name', m.name,
+                   'price', m.price,
+                   'category', m.category,
+                   'isVeg', m.is_veg,
+                   'description', m.description,
+                   'image', m.image,
+                   'available', m.available
+                 ) ORDER BY m.category, m.name
+               ) FILTER (WHERE m.id IS NOT NULL), 
+               '[]'::json
+             ) as menu
+      FROM restaurants r
+      LEFT JOIN menu_items m ON r.id = m.restaurant_id
+      WHERE r.id = $1
+      GROUP BY r.id
+    `, [id]);
+    
+    if (result.rows.length === 0) return null;
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      name: row.name,
+      description: row.description,
+      image: row.image,
+      rating: parseFloat(row.rating) || 0,
+      deliveryTime: row.delivery_time,
+      cuisine: row.cuisine || [],
+      address: row.address,
+      phone: row.phone,
+      email: row.email,
+      password: row.password,
+      isDeliveryAvailable: row.is_delivery_available,
+      tables: row.tables,
+      menu: row.menu || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
   },
   
-  async findOne(query) {
-    const restaurants = await readData('restaurants.json');
-    return restaurants.find(r => {
-      for (const key in query) {
-        if (r[key] !== query[key]) return false;
-      }
-      return true;
-    });
+  async findOne(queryObj) {
+    const conditions = [];
+    const values = [];
+    let paramCount = 1;
+    
+    for (const [key, value] of Object.entries(queryObj)) {
+      conditions.push(`${key} = $${paramCount}`);
+      values.push(value);
+      paramCount++;
+    }
+    
+    const result = await query(`
+      SELECT r.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   '_id', m.id,
+                   'name', m.name,
+                   'price', m.price,
+                   'category', m.category,
+                   'isVeg', m.is_veg,
+                   'description', m.description,
+                   'image', m.image,
+                   'available', m.available
+                 ) ORDER BY m.category, m.name
+               ) FILTER (WHERE m.id IS NOT NULL), 
+               '[]'::json
+             ) as menu
+      FROM restaurants r
+      LEFT JOIN menu_items m ON r.id = m.restaurant_id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY r.id
+      LIMIT 1
+    `, values);
+    
+    if (result.rows.length === 0) return null;
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      name: row.name,
+      description: row.description,
+      image: row.image,
+      rating: parseFloat(row.rating) || 0,
+      deliveryTime: row.delivery_time,
+      cuisine: row.cuisine || [],
+      address: row.address,
+      phone: row.phone,
+      email: row.email,
+      password: row.password,
+      isDeliveryAvailable: row.is_delivery_available,
+      tables: row.tables,
+      menu: row.menu || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
   },
   
   async create(data) {
-    const restaurants = await readData('restaurants.json');
-    const newRestaurant = {
-      _id: generateId(),
-      ...data,
-      menu: data.menu || [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+    const hashedPassword = data.password ? await bcrypt.hash(data.password, 10) : null;
+    
+    const result = await query(`
+      INSERT INTO restaurants (
+        name, description, image, rating, delivery_time, cuisine, 
+        address, phone, email, password, is_delivery_available, tables
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      data.name,
+      data.description,
+      data.image,
+      data.rating || 0,
+      data.deliveryTime,
+      data.cuisine || [],
+      data.address,
+      data.phone,
+      data.email,
+      hashedPassword,
+      data.isDeliveryAvailable !== false,
+      data.tables || 0
+    ]);
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      name: row.name,
+      description: row.description,
+      image: row.image,
+      rating: parseFloat(row.rating) || 0,
+      deliveryTime: row.delivery_time,
+      cuisine: row.cuisine || [],
+      address: row.address,
+      phone: row.phone,
+      email: row.email,
+      password: row.password,
+      isDeliveryAvailable: row.is_delivery_available,
+      tables: row.tables,
+      menu: [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
     };
-    restaurants.push(newRestaurant);
-    await writeData('restaurants.json', restaurants);
-    return newRestaurant;
   },
   
   async update(id, data) {
-    const restaurants = await readData('restaurants.json');
-    const index = restaurants.findIndex(r => r._id === id);
-    if (index === -1) return null;
+    const updateFields = [];
+    const values = [];
+    let paramCount = 1;
     
-    restaurants[index] = {
-      ...restaurants[index],
-      ...data,
-      updatedAt: new Date().toISOString()
+    const fieldMapping = {
+      name: 'name',
+      description: 'description',
+      image: 'image',
+      rating: 'rating',
+      deliveryTime: 'delivery_time',
+      cuisine: 'cuisine',
+      address: 'address',
+      phone: 'phone',
+      email: 'email',
+      isDeliveryAvailable: 'is_delivery_available',
+      tables: 'tables'
     };
-    await writeData('restaurants.json', restaurants);
-    return restaurants[index];
+    
+    for (const [key, value] of Object.entries(data)) {
+      if (fieldMapping[key]) {
+        updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+    
+    if (updateFields.length === 0) return null;
+    
+    values.push(id);
+    const result = await query(`
+      UPDATE restaurants 
+      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramCount}
+      RETURNING *
+    `, values);
+    
+    if (result.rows.length === 0) return null;
+    
+    return await this.findById(id);
   },
   
-  async search(query) {
-    const restaurants = await readData('restaurants.json');
-    if (!query) return restaurants;
+  async search(searchQuery) {
+    if (!searchQuery) return await this.findAll();
     
-    const searchTerm = query.toLowerCase();
-    return restaurants.filter(r => {
-      const nameMatch = r.name?.toLowerCase().includes(searchTerm);
-      const cuisineMatch = r.cuisine?.some(c => c.toLowerCase().includes(searchTerm));
-      const menuMatch = r.menu?.some(m => m.name?.toLowerCase().includes(searchTerm));
-      return nameMatch || cuisineMatch || menuMatch;
-    });
+    const result = await query(`
+      SELECT DISTINCT r.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   '_id', m.id,
+                   'name', m.name,
+                   'price', m.price,
+                   'category', m.category,
+                   'isVeg', m.is_veg,
+                   'description', m.description,
+                   'image', m.image,
+                   'available', m.available
+                 ) ORDER BY m.category, m.name
+               ) FILTER (WHERE m.id IS NOT NULL), 
+               '[]'::json
+             ) as menu
+      FROM restaurants r
+      LEFT JOIN menu_items m ON r.id = m.restaurant_id
+      WHERE LOWER(r.name) LIKE LOWER($1)
+         OR EXISTS (SELECT 1 FROM unnest(r.cuisine) AS c WHERE LOWER(c) LIKE LOWER($1))
+         OR EXISTS (SELECT 1 FROM menu_items mi WHERE mi.restaurant_id = r.id AND LOWER(mi.name) LIKE LOWER($1))
+      GROUP BY r.id
+      ORDER BY r.name
+    `, [`%${searchQuery}%`]);
+    
+    return result.rows.map(row => ({
+      _id: row.id,
+      name: row.name,
+      description: row.description,
+      image: row.image,
+      rating: parseFloat(row.rating) || 0,
+      deliveryTime: row.delivery_time,
+      cuisine: row.cuisine || [],
+      address: row.address,
+      phone: row.phone,
+      email: row.email,
+      password: row.password,
+      isDeliveryAvailable: row.is_delivery_available,
+      tables: row.tables,
+      menu: row.menu || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
   },
   
   async addMenuItem(restaurantId, menuItem) {
-    const restaurant = await this.findById(restaurantId);
-    if (!restaurant) return null;
+    const result = await query(`
+      INSERT INTO menu_items (
+        restaurant_id, name, price, category, is_veg, description, image, available
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      restaurantId,
+      menuItem.name,
+      menuItem.price,
+      menuItem.category,
+      menuItem.isVeg !== false,
+      menuItem.description,
+      menuItem.image,
+      menuItem.available !== false
+    ]);
     
-    const newItem = { _id: generateId(), ...menuItem };
-    restaurant.menu.push(newItem);
-    return await this.update(restaurantId, restaurant);
+    return await this.findById(restaurantId);
   },
   
   async updateMenuItem(restaurantId, menuItemId, data) {
-    const restaurant = await this.findById(restaurantId);
-    if (!restaurant) return null;
+    const updateFields = [];
+    const values = [];
+    let paramCount = 1;
     
-    const menuIndex = restaurant.menu.findIndex(m => m._id === menuItemId);
-    if (menuIndex === -1) return null;
+    const fieldMapping = {
+      name: 'name',
+      price: 'price',
+      category: 'category',
+      isVeg: 'is_veg',
+      description: 'description',
+      image: 'image',
+      available: 'available'
+    };
     
-    restaurant.menu[menuIndex] = { ...restaurant.menu[menuIndex], ...data };
-    return await this.update(restaurantId, restaurant);
+    for (const [key, value] of Object.entries(data)) {
+      if (fieldMapping[key]) {
+        updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+    
+    if (updateFields.length === 0) return null;
+    
+    values.push(menuItemId, restaurantId);
+    const result = await query(`
+      UPDATE menu_items 
+      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramCount} AND restaurant_id = $${paramCount + 1}
+      RETURNING *
+    `, values);
+    
+    if (result.rows.length === 0) return null;
+    
+    return await this.findById(restaurantId);
   },
   
   async deleteMenuItem(restaurantId, menuItemId) {
-    const restaurant = await this.findById(restaurantId);
-    if (!restaurant) return null;
+    const result = await query(`
+      DELETE FROM menu_items 
+      WHERE id = $1 AND restaurant_id = $2
+      RETURNING *
+    `, [menuItemId, restaurantId]);
     
-    restaurant.menu = restaurant.menu.filter(m => m._id !== menuItemId);
-    return await this.update(restaurantId, restaurant);
+    if (result.rows.length === 0) return null;
+    
+    return await this.findById(restaurantId);
   }
 };
 
 // Order operations
 export const orderDB = {
   async findAll() {
-    return await readData('orders.json');
+    const result = await query(`
+      SELECT o.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   '_id', oi.id,
+                   'name', oi.name,
+                   'price', oi.price,
+                   'quantity', oi.quantity,
+                   'printedToKitchen', oi.printed_to_kitchen
+                 ) ORDER BY oi.created_at
+               ) FILTER (WHERE oi.id IS NOT NULL), 
+               '[]'::json
+             ) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      GROUP BY o.id
+      ORDER BY o.created_at DESC
+    `);
+    
+    return result.rows.map(row => ({
+      _id: row.id,
+      restaurantId: row.restaurant_id,
+      tableNumber: row.table_number,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      deliveryAddress: row.delivery_address,
+      type: row.order_type,
+      orderType: row.order_type,
+      status: row.status,
+      paymentMethod: row.payment_method,
+      paymentStatus: row.payment_status,
+      total: parseFloat(row.total_amount),
+      totalAmount: parseFloat(row.total_amount),
+      items: row.items || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
   },
   
   async findById(id) {
-    const orders = await readData('orders.json');
-    return orders.find(o => o._id === id);
+    const result = await query(`
+      SELECT o.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   '_id', oi.id,
+                   'name', oi.name,
+                   'price', oi.price,
+                   'quantity', oi.quantity,
+                   'printedToKitchen', oi.printed_to_kitchen
+                 ) ORDER BY oi.created_at
+               ) FILTER (WHERE oi.id IS NOT NULL), 
+               '[]'::json
+             ) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.id = $1
+      GROUP BY o.id
+    `, [id]);
+    
+    if (result.rows.length === 0) return null;
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      restaurantId: row.restaurant_id,
+      tableNumber: row.table_number,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      deliveryAddress: row.delivery_address,
+      type: row.order_type,
+      orderType: row.order_type,
+      status: row.status,
+      paymentMethod: row.payment_method,
+      paymentStatus: row.payment_status,
+      total: parseFloat(row.total_amount),
+      totalAmount: parseFloat(row.total_amount),
+      items: row.items || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
   },
   
   async findByRestaurant(restaurantId) {
-    const orders = await readData('orders.json');
-    return orders.filter(o => o.restaurantId === restaurantId)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const result = await query(`
+      SELECT o.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   '_id', oi.id,
+                   'name', oi.name,
+                   'price', oi.price,
+                   'quantity', oi.quantity,
+                   'printedToKitchen', oi.printed_to_kitchen
+                 ) ORDER BY oi.created_at
+               ) FILTER (WHERE oi.id IS NOT NULL), 
+               '[]'::json
+             ) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.restaurant_id = $1
+      GROUP BY o.id
+      ORDER BY o.created_at DESC
+    `, [restaurantId]);
+    
+    return result.rows.map(row => ({
+      _id: row.id,
+      restaurantId: row.restaurant_id,
+      tableNumber: row.table_number,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      deliveryAddress: row.delivery_address,
+      type: row.order_type,
+      orderType: row.order_type,
+      status: row.status,
+      paymentMethod: row.payment_method,
+      paymentStatus: row.payment_status,
+      total: parseFloat(row.total_amount),
+      totalAmount: parseFloat(row.total_amount),
+      items: row.items || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
   },
   
   async create(data) {
-    const orders = await readData('orders.json');
-    const newOrder = {
-      _id: generateId(),
-      ...data,
-      status: data.status || 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    orders.push(newOrder);
-    await writeData('orders.json', orders);
-    return newOrder;
+    return await withTransaction(async (client) => {
+      // Insert order
+      const orderResult = await client.query(`
+        INSERT INTO orders (
+          restaurant_id, table_number, customer_name, customer_phone, 
+          delivery_address, order_type, status, payment_method, 
+          payment_status, total_amount
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *
+      `, [
+        data.restaurantId,
+        data.tableNumber,
+        data.customerName,
+        data.customerPhone,
+        data.deliveryAddress,
+        data.type || data.orderType || 'dine-in',
+        data.status || 'pending',
+        data.paymentMethod || 'cash',
+        data.paymentStatus || 'pending',
+        data.total || data.totalAmount
+      ]);
+      
+      const order = orderResult.rows[0];
+      
+      // Insert order items
+      if (data.items && data.items.length > 0) {
+        for (const item of data.items) {
+          await client.query(`
+            INSERT INTO order_items (
+              order_id, menu_item_id, name, price, quantity, printed_to_kitchen
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+          `, [
+            order.id,
+            item.menuItemId || null,
+            item.name,
+            item.price,
+            item.quantity || 1,
+            item.printedToKitchen || false
+          ]);
+        }
+      }
+      
+      // Return the complete order with items
+      return await this.findById(order.id);
+    });
   },
   
   async update(id, data) {
-    const orders = await readData('orders.json');
-    const index = orders.findIndex(o => o._id === id);
-    if (index === -1) return null;
+    // Handle items update separately
+    if (data.items) {
+      await withTransaction(async (client) => {
+        // Delete existing items
+        await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+        
+        // Insert updated items
+        for (const item of data.items) {
+          await client.query(`
+            INSERT INTO order_items (
+              order_id, menu_item_id, name, price, quantity, printed_to_kitchen
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+          `, [
+            id,
+            item.menuItemId || null,
+            item.name,
+            item.price,
+            item.quantity || 1,
+            item.printedToKitchen || false
+          ]);
+        }
+      });
+      
+      delete data.items; // Remove items from update data
+    }
     
-    orders[index] = {
-      ...orders[index],
-      ...data,
-      updatedAt: new Date().toISOString()
+    // Update order fields
+    const updateFields = [];
+    const values = [];
+    let paramCount = 1;
+    
+    const fieldMapping = {
+      tableNumber: 'table_number',
+      customerName: 'customer_name',
+      customerPhone: 'customer_phone',
+      deliveryAddress: 'delivery_address',
+      type: 'order_type',
+      orderType: 'order_type',
+      status: 'status',
+      paymentMethod: 'payment_method',
+      paymentStatus: 'payment_status',
+      total: 'total_amount',
+      totalAmount: 'total_amount'
     };
-    await writeData('orders.json', orders);
-    return orders[index];
+    
+    for (const [key, value] of Object.entries(data)) {
+      if (fieldMapping[key]) {
+        updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+    
+    if (updateFields.length > 0) {
+      values.push(id);
+      await query(`
+        UPDATE orders 
+        SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $${paramCount}
+      `, values);
+    }
+    
+    return await this.findById(id);
   }
 };

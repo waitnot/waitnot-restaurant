@@ -1,6 +1,7 @@
 {
   "name": "waitnot",
   "version": "1.0.0",
+  "type": "module",
   "description": "Restaurant Discovery & Smart Ordering System",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
