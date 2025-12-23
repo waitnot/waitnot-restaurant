@@ -70,12 +70,6 @@ export default function RestaurantLogin() {
           <p className="text-gray-600 text-sm">
             Need an account? Contact your administrator
           </p>
-          <button
-            onClick={() => navigate('/admin-login')}
-            className="text-primary hover:underline text-sm mt-2"
-          >
-            Admin Login →
-          </button>
         </div>
       </div>
     </div>
