@@ -128,11 +128,42 @@ router.put('/:id/menu/:menuId', async (req, res) => {
 // Delete menu item
 router.delete('/:id/menu/:menuId', async (req, res) => {
   try {
+    console.log('🗑️ Delete menu item request:', req.params.menuId);
+    
     const restaurant = await restaurantDB.deleteMenuItem(req.params.id, req.params.menuId);
-    if (!restaurant) return res.status(404).json({ error: 'Restaurant or menu item not found' });
-    res.json(restaurant);
+    if (!restaurant) {
+      console.log('❌ Restaurant or menu item not found');
+      return res.status(404).json({ error: 'Restaurant or menu item not found' });
+    }
+    
+    // Check if the item was soft deleted (marked as unavailable) or hard deleted
+    const deletedItem = restaurant.menu.find(item => item._id === req.params.menuId);
+    
+    if (deletedItem && !deletedItem.available) {
+      console.log('ℹ️ Menu item soft deleted (marked unavailable)');
+      res.json({
+        ...restaurant,
+        message: 'Menu item has been removed from availability. It cannot be permanently deleted because it exists in order history.'
+      });
+    } else {
+      console.log('✅ Menu item permanently deleted');
+      res.json({
+        ...restaurant,
+        message: 'Menu item permanently deleted.'
+      });
+    }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error deleting menu item:', error);
+    
+    // Provide user-friendly error messages
+    if (error.message.includes('foreign key constraint') || error.message.includes('violates')) {
+      res.status(400).json({ 
+        error: 'Cannot delete menu item because it exists in order history. The item has been marked as unavailable instead.',
+        type: 'constraint_violation'
+      });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
   }
 });
 

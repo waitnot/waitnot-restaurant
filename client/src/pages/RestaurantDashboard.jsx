@@ -139,13 +139,38 @@ export default function RestaurantDashboard() {
   };
 
   const deleteMenuItem = async (menuId) => {
-    if (!window.confirm('Delete this item?')) return;
+    if (!window.confirm('Are you sure you want to delete this menu item?')) return;
+    
     try {
       const restaurantId = localStorage.getItem('restaurantId');
-      await axios.delete(`/api/restaurants/${restaurantId}/menu/${menuId}`);
+      const response = await axios.delete(`/api/restaurants/${restaurantId}/menu/${menuId}`);
+      
+      // Handle the response message
+      if (response.data.message) {
+        if (response.data.message.includes('marked unavailable') || response.data.message.includes('order history')) {
+          alert('⚠️ Menu item removed from availability\n\nThis item cannot be permanently deleted because it exists in order history. It has been marked as unavailable instead.');
+        } else {
+          alert('✅ Menu item deleted successfully');
+        }
+      }
+      
       fetchRestaurant(restaurantId);
     } catch (error) {
       console.error('Error deleting menu item:', error);
+      
+      if (error.response?.data?.error) {
+        if (error.response.data.type === 'constraint_violation') {
+          alert('⚠️ Cannot Delete Menu Item\n\nThis item exists in order history and cannot be permanently deleted. It has been marked as unavailable instead.');
+        } else {
+          alert('❌ Error: ' + error.response.data.error);
+        }
+      } else {
+        alert('❌ Failed to delete menu item. Please try again.');
+      }
+      
+      // Refresh the restaurant data even if there was an error (in case of soft delete)
+      const restaurantId = localStorage.getItem('restaurantId');
+      fetchRestaurant(restaurantId);
     }
   };
 
@@ -1377,14 +1402,23 @@ export default function RestaurantDashboard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {restaurant.menu.map((item) => (
-                <div key={item._id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div key={item._id} className={`bg-white rounded-lg shadow-md overflow-hidden ${
+                  !item.available ? 'opacity-60 border-2 border-red-200' : ''
+                }`}>
+                  {/* Unavailable Badge */}
+                  {!item.available && (
+                    <div className="bg-red-500 text-white text-xs px-2 py-1 text-center">
+                      UNAVAILABLE - Removed from menu
+                    </div>
+                  )}
+                  
                   {/* Item Image */}
                   {item.image && (
                     <div className="h-32 bg-gray-100">
                       <img 
                         src={item.image} 
                         alt={item.name} 
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover ${!item.available ? 'grayscale' : ''}`}
                         onError={(e) => {
                           e.target.style.display = 'none';
                         }}
@@ -1394,7 +1428,9 @@ export default function RestaurantDashboard() {
                   
                   <div className="p-4">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-gray-800">{item.name}</h3>
+                      <h3 className={`font-bold ${!item.available ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                        {item.name}
+                      </h3>
                       <div className="flex gap-2">
                         <button
                           onClick={() => {
@@ -1403,26 +1439,50 @@ export default function RestaurantDashboard() {
                             setShowMenuForm(true);
                           }}
                           className="text-blue-500 hover:text-blue-700"
+                          title={!item.available ? 'Edit unavailable item' : 'Edit item'}
                         >
                           <Edit size={18} />
                         </button>
                         <button
                           onClick={() => deleteMenuItem(item._id)}
                           className="text-red-500 hover:text-red-700"
+                          title={!item.available ? 'Permanently delete (if possible)' : 'Delete item'}
                         >
                           <Trash2 size={18} />
                         </button>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">{item.description}</p>
+                    <p className={`text-sm mb-2 ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {item.description}
+                    </p>
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-bold text-primary">₹{item.price}</span>
-                      <span className="text-sm text-gray-600">{item.category}</span>
+                      <span className={`text-lg font-bold ${!item.available ? 'text-gray-400 line-through' : 'text-primary'}`}>
+                        ₹{item.price}
+                      </span>
+                      <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {item.category}
+                      </span>
                     </div>
-                    <div className="mt-2">
-                      {item.isVeg ? (
-                        <span className="text-green-600 text-sm">🌱 Veg</span>
-                      ) : (
+                    <div className="mt-2 flex justify-between items-center">
+                      <div>
+                        {item.isVeg ? (
+                          <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-green-600'}`}>
+                            🌱 Veg
+                          </span>
+                        ) : (
+                          <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-red-600'}`}>
+                            🍖 Non-Veg
+                          </span>
+                        )}
+                      </div>
+                      {!item.available && (
+                        <span className="text-xs text-red-500 font-medium">
+                          In Order History
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
                         <span className="text-red-600 text-sm">🍖 Non-Veg</span>
                       )}
                     </div>

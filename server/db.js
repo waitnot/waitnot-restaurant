@@ -359,15 +359,81 @@ export const restaurantDB = {
   },
   
   async deleteMenuItem(restaurantId, menuItemId) {
-    const result = await query(`
-      DELETE FROM menu_items 
-      WHERE id = $1 AND restaurant_id = $2
-      RETURNING *
-    `, [menuItemId, restaurantId]);
-    
-    if (result.rows.length === 0) return null;
-    
-    return await this.findById(restaurantId);
+    try {
+      console.log('🗑️ Attempting to delete menu item:', menuItemId);
+      
+      // First, check if this menu item is referenced in any orders
+      const orderItemsCheck = await query(`
+        SELECT COUNT(*) as count 
+        FROM order_items 
+        WHERE menu_item_id = $1
+      `, [menuItemId]);
+      
+      const orderItemsCount = parseInt(orderItemsCheck.rows[0].count);
+      console.log('📊 Menu item referenced in', orderItemsCount, 'order items');
+      
+      if (orderItemsCount > 0) {
+        console.log('⚠️ Cannot delete menu item - referenced in orders. Using soft delete instead.');
+        
+        // Soft delete: mark as unavailable instead of deleting
+        const result = await query(`
+          UPDATE menu_items 
+          SET available = false, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1 AND restaurant_id = $2
+          RETURNING *
+        `, [menuItemId, restaurantId]);
+        
+        if (result.rows.length === 0) {
+          console.log('❌ Menu item not found for soft delete');
+          return null;
+        }
+        
+        console.log('✅ Menu item marked as unavailable (soft delete)');
+        return await this.findById(restaurantId);
+      } else {
+        console.log('✅ Safe to hard delete - no order references');
+        
+        // Hard delete: actually remove from database
+        const result = await query(`
+          DELETE FROM menu_items 
+          WHERE id = $1 AND restaurant_id = $2
+          RETURNING *
+        `, [menuItemId, restaurantId]);
+        
+        if (result.rows.length === 0) {
+          console.log('❌ Menu item not found for deletion');
+          return null;
+        }
+        
+        console.log('✅ Menu item permanently deleted');
+        return await this.findById(restaurantId);
+      }
+    } catch (error) {
+      console.error('❌ Menu item deletion failed:', error);
+      
+      // If it's a foreign key constraint error, try soft delete as fallback
+      if (error.message.includes('foreign key constraint') || error.message.includes('violates')) {
+        console.log('🔄 Foreign key constraint detected, falling back to soft delete...');
+        
+        try {
+          const result = await query(`
+            UPDATE menu_items 
+            SET available = false, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND restaurant_id = $2
+            RETURNING *
+          `, [menuItemId, restaurantId]);
+          
+          if (result.rows.length > 0) {
+            console.log('✅ Fallback soft delete successful');
+            return await this.findById(restaurantId);
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback soft delete also failed:', fallbackError);
+        }
+      }
+      
+      throw error;
+    }
   }
 };
 
