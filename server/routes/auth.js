@@ -130,40 +130,12 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Restaurant register
+// Restaurant register - DISABLED: Only admins can create restaurants
 router.post('/register', async (req, res) => {
-  try {
-    console.log('Registration attempt for email:', req.body.email);
-    
-    // Check if restaurant already exists
-    const existingRestaurant = await restaurantDB.findOne({ email: req.body.email });
-    if (existingRestaurant) {
-      console.log('Restaurant already exists with email:', req.body.email);
-      return res.status(400).json({ error: 'Restaurant already exists with this email' });
-    }
-    
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
-    console.log('Password hashed, creating restaurant...');
-    
-    const restaurant = await restaurantDB.create({
-      ...req.body,
-      password: hashedPassword
-    });
-    
-    console.log('Restaurant created successfully:', restaurant.name);
-    
-    const token = jwt.sign(
-      { id: restaurant._id },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '7d' }
-    );
-    
-    const { password: _, ...restaurantData } = restaurant;
-    res.status(201).json({ token, restaurant: restaurantData });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: error.message });
-  }
+  res.status(403).json({ 
+    error: 'Public registration is disabled. Please contact an administrator to create a restaurant account.',
+    adminLoginUrl: '/admin-login'
+  });
 });
 
 export default router;

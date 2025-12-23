@@ -12,6 +12,160 @@ export async function initDB() {
   }
 }
 
+// Admin operations
+export const adminDB = {
+  async findAll() {
+    const result = await query(`
+      SELECT id, username, email, full_name, role, is_active, created_at, updated_at
+      FROM admins
+      WHERE is_active = true
+      ORDER BY created_at DESC
+    `);
+    
+    return result.rows.map(row => ({
+      _id: row.id,
+      username: row.username,
+      email: row.email,
+      fullName: row.full_name,
+      role: row.role,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  },
+  
+  async findById(id) {
+    const result = await query(`
+      SELECT id, username, email, full_name, role, is_active, created_at, updated_at
+      FROM admins
+      WHERE id = $1 AND is_active = true
+    `, [id]);
+    
+    if (result.rows.length === 0) return null;
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      username: row.username,
+      email: row.email,
+      fullName: row.full_name,
+      role: row.role,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  },
+  
+  async findOne(queryObj) {
+    const conditions = [];
+    const values = [];
+    let paramCount = 1;
+    
+    for (const [key, value] of Object.entries(queryObj)) {
+      const dbField = key === 'fullName' ? 'full_name' : key;
+      conditions.push(`${dbField} = $${paramCount}`);
+      values.push(value);
+      paramCount++;
+    }
+    
+    const result = await query(`
+      SELECT *
+      FROM admins
+      WHERE ${conditions.join(' AND ')} AND is_active = true
+      LIMIT 1
+    `, values);
+    
+    if (result.rows.length === 0) return null;
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      username: row.username,
+      email: row.email,
+      fullName: row.full_name,
+      role: row.role,
+      isActive: row.is_active,
+      password: row.password, // Include password for authentication
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  },
+  
+  async create(data) {
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    
+    const result = await query(`
+      INSERT INTO admins (username, email, password, full_name, role)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [
+      data.username,
+      data.email,
+      hashedPassword,
+      data.fullName,
+      data.role || 'admin'
+    ]);
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      username: row.username,
+      email: row.email,
+      fullName: row.full_name,
+      role: row.role,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  },
+  
+  async update(id, data) {
+    const updateFields = [];
+    const values = [];
+    let paramCount = 1;
+    
+    const fieldMapping = {
+      username: 'username',
+      email: 'email',
+      fullName: 'full_name',
+      role: 'role',
+      isActive: 'is_active'
+    };
+    
+    for (const [key, value] of Object.entries(data)) {
+      if (fieldMapping[key]) {
+        updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+    
+    if (updateFields.length === 0) return null;
+    
+    values.push(id);
+    const result = await query(`
+      UPDATE admins 
+      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramCount}
+      RETURNING *
+    `, values);
+    
+    if (result.rows.length === 0) return null;
+    
+    const row = result.rows[0];
+    return {
+      _id: row.id,
+      username: row.username,
+      email: row.email,
+      fullName: row.full_name,
+      role: row.role,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+};
+
 // Restaurant operations
 export const restaurantDB = {
   async findAll() {

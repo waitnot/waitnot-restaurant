@@ -1,4 +1,4 @@
-import { initDB, restaurantDB } from './db.js';
+import { initDB, restaurantDB, adminDB } from './db.js';
 import bcrypt from 'bcryptjs';
 
 async function ensureStartupData() {
@@ -8,6 +8,34 @@ async function ensureStartupData() {
     // Initialize database
     await initDB();
     console.log('✅ Database initialized');
+    
+    // Check if any admins exist, create default admin if none
+    const admins = await adminDB.findAll();
+    console.log(`👤 Found ${admins.length} admins in database`);
+    
+    if (admins.length === 0) {
+      console.log('🔄 No admins found, creating default admin...');
+      
+      const defaultAdmin = {
+        username: 'admin',
+        email: 'admin@waitnot.com',
+        password: 'admin123',
+        fullName: 'System Administrator',
+        role: 'admin'
+      };
+      
+      try {
+        const admin = await adminDB.create(defaultAdmin);
+        console.log(`✅ Created default admin: ${admin.username} (${admin.email})`);
+      } catch (error) {
+        console.error('❌ Error creating default admin:', error.message);
+      }
+    } else {
+      console.log('✅ Admins already exist in database');
+      admins.forEach(a => {
+        console.log(`   👤 ${a.fullName} (${a.username})`);
+      });
+    }
     
     // Check if any restaurants exist
     const restaurants = await restaurantDB.findAll();
@@ -82,8 +110,13 @@ async function ensureStartupData() {
     }
     
     console.log('\n📝 Available login credentials:');
-    console.log('   Email: king@gmail.com | Password: password123');
-    console.log('   Email: spice@example.com | Password: password123');
+    console.log('   🔐 Admin Login:');
+    console.log('      Username: admin | Password: admin123');
+    console.log('      URL: /admin-login');
+    console.log('   🏪 Restaurant Login:');
+    console.log('      Email: king@gmail.com | Password: password123');
+    console.log('      Email: spice@example.com | Password: password123');
+    console.log('      URL: /restaurant-login');
     console.log('\n🚀 Startup checks completed successfully!');
     
   } catch (error) {

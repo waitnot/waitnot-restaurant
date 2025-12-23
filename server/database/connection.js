@@ -39,6 +39,21 @@ export async function initDatabase() {
     // Enable UUID extension
     await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
     
+    // Create admins table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        full_name VARCHAR(255) NOT NULL,
+        role VARCHAR(20) DEFAULT 'admin',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
     // Create restaurants table
     await client.query(`
       CREATE TABLE IF NOT EXISTS restaurants (
@@ -111,6 +126,8 @@ export async function initDatabase() {
     `);
     
     // Create indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_restaurants_email ON restaurants(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_menu_items_restaurant_id ON menu_items(restaurant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_restaurant_id ON orders(restaurant_id)');

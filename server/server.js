@@ -15,6 +15,7 @@ import restaurantRoutes from './routes/restaurants.js';
 import orderRoutes from './routes/orders.js';
 import authRoutes from './routes/auth.js';
 import analyticsRoutes from './routes/analytics.js';
+import adminRoutes from './routes/admin.js';
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {

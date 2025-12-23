@@ -4,6 +4,19 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Admins table (for system administrators)
+CREATE TABLE IF NOT EXISTS admins (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    role VARCHAR(20) DEFAULT 'admin',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Restaurants table
 CREATE TABLE IF NOT EXISTS restaurants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -68,6 +81,8 @@ CREATE TABLE IF NOT EXISTS order_items (
 );
 
 -- Indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);
+CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);
 CREATE INDEX IF NOT EXISTS idx_restaurants_email ON restaurants(email);
 CREATE INDEX IF NOT EXISTS idx_menu_items_restaurant_id ON menu_items(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category);
@@ -86,6 +101,9 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers to automatically update updated_at
+CREATE TRIGGER update_admins_updated_at BEFORE UPDATE ON admins
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_restaurants_updated_at BEFORE UPDATE ON restaurants
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -97,6 +115,16 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
 
 -- Sample data (optional - for testing)
 -- You can remove this section if you don't want sample data
+
+-- Insert default admin user
+INSERT INTO admins (username, email, password, full_name, role) 
+VALUES (
+    'admin',
+    'admin@waitnot.com',
+    '$2a$10$example.hash.here', -- You'll need to hash this properly
+    'System Administrator',
+    'admin'
+) ON CONFLICT (email) DO NOTHING;
 
 -- Insert sample restaurant
 INSERT INTO restaurants (name, description, email, password, cuisine, address, phone, tables) 
