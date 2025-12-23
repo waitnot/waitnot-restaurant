@@ -6,14 +6,65 @@ const router = express.Router();
 // Create order
 router.post('/', async (req, res) => {
   try {
+    console.log('📝 Order creation request received');
+    console.log('Order data:', JSON.stringify(req.body, null, 2));
+    
+    // Validate required fields
+    const { restaurantId, items, total, totalAmount } = req.body;
+    
+    if (!restaurantId) {
+      console.log('❌ Missing restaurantId');
+      return res.status(400).json({ error: 'Restaurant ID is required' });
+    }
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      console.log('❌ Missing or empty items array');
+      return res.status(400).json({ error: 'Order items are required' });
+    }
+    
+    if (!total && !totalAmount) {
+      console.log('❌ Missing total amount');
+      return res.status(400).json({ error: 'Order total is required' });
+    }
+    
+    console.log('✅ Order validation passed, creating order...');
+    
     const order = await orderDB.create(req.body);
     
-    const io = req.app.get('io');
-    io.to(`restaurant-${order.restaurantId}`).emit('new-order', order);
+    console.log('✅ Order created successfully:', order._id);
+    
+    // Send real-time notification
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`restaurant-${order.restaurantId}`).emit('new-order', order);
+        console.log('📡 Real-time notification sent to restaurant');
+      }
+    } catch (socketError) {
+      console.log('⚠️ Socket notification failed:', socketError.message);
+      // Don't fail the order creation if socket fails
+    }
     
     res.status(201).json(order);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Order creation failed:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to place order';
+    
+    if (error.message.includes('connect')) {
+      errorMessage = 'Database connection error. Please try again.';
+    } else if (error.message.includes('violates')) {
+      errorMessage = 'Invalid order data. Please check your order details.';
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Request timeout. Please try again.';
+    }
+    
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

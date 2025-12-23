@@ -501,51 +501,90 @@ export const orderDB = {
   },
   
   async create(data) {
-    return await withTransaction(async (client) => {
-      // Insert order
-      const orderResult = await client.query(`
-        INSERT INTO orders (
-          restaurant_id, table_number, customer_name, customer_phone, 
-          delivery_address, order_type, status, payment_method, 
-          payment_status, total_amount
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `, [
-        data.restaurantId,
-        data.tableNumber,
-        data.customerName,
-        data.customerPhone,
-        data.deliveryAddress,
-        data.type || data.orderType || 'dine-in',
-        data.status || 'pending',
-        data.paymentMethod || 'cash',
-        data.paymentStatus || 'pending',
-        data.total || data.totalAmount
-      ]);
+    try {
+      console.log('🔄 Creating order in database...');
+      console.log('Order data received:', {
+        restaurantId: data.restaurantId,
+        itemCount: data.items?.length || 0,
+        total: data.total || data.totalAmount,
+        customerName: data.customerName,
+        tableNumber: data.tableNumber
+      });
       
-      const order = orderResult.rows[0];
-      
-      // Insert order items
-      if (data.items && data.items.length > 0) {
-        for (const item of data.items) {
-          await client.query(`
-            INSERT INTO order_items (
-              order_id, menu_item_id, name, price, quantity, printed_to_kitchen
-            ) VALUES ($1, $2, $3, $4, $5, $6)
-          `, [
-            order.id,
-            item.menuItemId || null,
-            item.name,
-            item.price,
-            item.quantity || 1,
-            item.printedToKitchen || false
-          ]);
+      return await withTransaction(async (client) => {
+        // Insert order
+        console.log('📝 Inserting order record...');
+        const orderResult = await client.query(`
+          INSERT INTO orders (
+            restaurant_id, table_number, customer_name, customer_phone, 
+            delivery_address, order_type, status, payment_method, 
+            payment_status, total_amount
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING *
+        `, [
+          data.restaurantId,
+          data.tableNumber,
+          data.customerName,
+          data.customerPhone,
+          data.deliveryAddress,
+          data.type || data.orderType || 'dine-in',
+          data.status || 'pending',
+          data.paymentMethod || 'cash',
+          data.paymentStatus || 'pending',
+          data.total || data.totalAmount
+        ]);
+        
+        const order = orderResult.rows[0];
+        console.log('✅ Order record created with ID:', order.id);
+        
+        // Insert order items
+        if (data.items && data.items.length > 0) {
+          console.log(`📝 Inserting ${data.items.length} order items...`);
+          for (const item of data.items) {
+            await client.query(`
+              INSERT INTO order_items (
+                order_id, menu_item_id, name, price, quantity, printed_to_kitchen
+              ) VALUES ($1, $2, $3, $4, $5, $6)
+            `, [
+              order.id,
+              item.menuItemId || null,
+              item.name,
+              item.price,
+              item.quantity || 1,
+              item.printedToKitchen || false
+            ]);
+          }
+          console.log('✅ Order items inserted successfully');
         }
-      }
-      
-      // Return the complete order with items
-      return await this.findById(order.id);
-    });
+        
+        // Return simplified order object to avoid complex queries during creation
+        const completeOrder = {
+          _id: order.id,
+          restaurantId: order.restaurant_id,
+          tableNumber: order.table_number,
+          customerName: order.customer_name,
+          customerPhone: order.customer_phone,
+          deliveryAddress: order.delivery_address,
+          type: order.order_type,
+          orderType: order.order_type,
+          status: order.status,
+          paymentMethod: order.payment_method,
+          paymentStatus: order.payment_status,
+          total: parseFloat(order.total_amount),
+          totalAmount: parseFloat(order.total_amount),
+          items: data.items || [],
+          createdAt: order.created_at,
+          updatedAt: order.updated_at
+        };
+        
+        console.log('✅ Order creation completed successfully');
+        return completeOrder;
+      });
+    } catch (error) {
+      console.error('❌ Order creation failed:', error);
+      console.error('Error details:', error.message);
+      throw error;
+    }
   },
   
   async update(id, data) {
