@@ -22,6 +22,7 @@ export default function RestaurantLogin() {
       
       localStorage.setItem('restaurantToken', data.token);
       localStorage.setItem('restaurantId', data.restaurant._id);
+      localStorage.setItem('restaurantData', JSON.stringify(data.restaurant));
       navigate('/restaurant-dashboard');
     } catch (error) {
       alert(error.response?.data?.error || 'Authentication failed');

@@ -6,6 +6,7 @@ import Checkout from './pages/Checkout';
 import QROrder from './pages/QROrder';
 import RestaurantDashboard from './pages/RestaurantDashboard';
 import RestaurantLogin from './pages/RestaurantLogin';
+import RestaurantProfile from './pages/RestaurantProfile';
 import PrinterSettings from './pages/PrinterSettings';
 import Analytics from './pages/Analytics';
 import { CartProvider } from './context/CartContext';
@@ -22,6 +23,7 @@ function App() {
             <Route path="/qr/:restaurantId/:tableNumber" element={<QROrder />} />
             <Route path="/restaurant-login" element={<RestaurantLogin />} />
             <Route path="/restaurant-dashboard" element={<RestaurantDashboard />} />
+            <Route path="/restaurant-profile" element={<RestaurantProfile />} />
             <Route path="/printer-settings" element={<PrinterSettings />} />
             <Route path="/analytics" element={<Analytics />} />
           </Routes>

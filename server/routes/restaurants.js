@@ -68,6 +68,28 @@ router.patch('/:id/tables', async (req, res) => {
   }
 });
 
+// Update restaurant profile
+router.put('/:id', async (req, res) => {
+  try {
+    console.log('Updating restaurant profile:', req.params.id);
+    console.log('Update data:', req.body);
+    
+    const restaurant = await restaurantDB.update(req.params.id, req.body);
+    if (!restaurant) {
+      console.log('Restaurant not found:', req.params.id);
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    
+    console.log('Restaurant updated successfully:', restaurant.name);
+    
+    const { password, ...rest } = restaurant;
+    res.json(rest);
+  } catch (error) {
+    console.error('Error updating restaurant:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get restaurant by ID
 router.get('/:id', async (req, res) => {
   try {

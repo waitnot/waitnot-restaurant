@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3 } from 'lucide-react';
+import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User } from 'lucide-react';
 import axios from 'axios';
 import io from 'socket.io-client';
 
@@ -1049,6 +1049,7 @@ export default function RestaurantDashboard() {
   const logout = () => {
     localStorage.removeItem('restaurantToken');
     localStorage.removeItem('restaurantId');
+    localStorage.removeItem('restaurantData');
     navigate('/restaurant-login');
   };
 
@@ -1072,6 +1073,13 @@ export default function RestaurantDashboard() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-primary truncate">{restaurant.name}</h1>
           <div className="flex items-center gap-2 sm:gap-4">
+            <button 
+              onClick={() => navigate('/restaurant-profile')}
+              className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
+            >
+              <User size={18} className="sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Profile</span>
+            </button>
             <button 
               onClick={() => navigate('/analytics')}
               className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
