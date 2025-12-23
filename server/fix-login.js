@@ -1,4 +1,4 @@
-import { initDB, restaurantDB } from './server/db.js';
+import { initDB, restaurantDB } from './db.js';
 import bcrypt from 'bcryptjs';
 
 async function fixLogin() {

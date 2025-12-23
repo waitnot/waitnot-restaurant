@@ -223,6 +223,7 @@ export const restaurantDB = {
       address: 'address',
       phone: 'phone',
       email: 'email',
+      password: 'password',
       isDeliveryAvailable: 'is_delivery_available',
       tables: 'tables'
     };
