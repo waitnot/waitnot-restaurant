@@ -25,9 +25,36 @@ const io = new Server(httpServer, {
   cors: { origin: '*' }
 });
 
-app.use(cors());
+// CORS configuration with Edge browser support
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://waitnot-restaurant.onrender.com', 'https://your-domain.com'] 
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // For legacy browser support (IE11, various SmartTVs)
+}));
 app.use(express.json({ limit: '10mb' })); // Increase payload limit for base64 videos
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Health check endpoint for Render and monitoring services
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Basic API status endpoint
+app.get('/api/status', (req, res) => {
+  res.status(200).json({ 
+    status: 'API is running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Initialize database and ensure startup data
 try {

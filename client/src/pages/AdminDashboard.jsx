@@ -318,6 +318,7 @@ const AdminDashboard = () => {
                           <button
                             onClick={() => navigate(`/admin/restaurant/${restaurant._id}/edit`)}
                             className="text-indigo-600 hover:text-indigo-900"
+                            title="Edit Features"
                           >
                             <Edit className="w-4 h-4" />
                           </button>

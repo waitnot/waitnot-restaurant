@@ -206,6 +206,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      features: row.features || {},
       menu: row.menu || [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -253,6 +254,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      features: row.features || {},
       menu: row.menu || [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -311,6 +313,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      features: row.features || {},
       menu: row.menu || [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -379,13 +382,19 @@ export const restaurantDB = {
       email: 'email',
       password: 'password',
       isDeliveryAvailable: 'is_delivery_available',
-      tables: 'tables'
+      tables: 'tables',
+      features: 'features'
     };
     
     for (const [key, value] of Object.entries(data)) {
       if (fieldMapping[key]) {
-        updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
-        values.push(value);
+        if (key === 'features') {
+          updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
+          values.push(JSON.stringify(value));
+        } else {
+          updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
+          values.push(value);
+        }
         paramCount++;
       }
     }

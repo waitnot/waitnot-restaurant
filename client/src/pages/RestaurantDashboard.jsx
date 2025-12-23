@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User } from 'lucide-react';
 import axios from 'axios';
 import io from 'socket.io-client';
+import FeatureGuard from '../components/FeatureGuard';
+import { useFeatures } from '../context/FeatureContext';
 
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
@@ -1098,27 +1100,33 @@ export default function RestaurantDashboard() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-primary truncate">{restaurant.name}</h1>
           <div className="flex items-center gap-2 sm:gap-4">
-            <button 
-              onClick={() => navigate('/restaurant-profile')}
-              className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
-            >
-              <User size={18} className="sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Profile</span>
-            </button>
-            <button 
-              onClick={() => navigate('/analytics')}
-              className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
-            >
-              <BarChart3 size={18} className="sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Analytics</span>
-            </button>
-            <button 
-              onClick={() => navigate('/printer-settings')}
-              className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
-            >
-              <Settings size={18} className="sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Printer Settings</span>
-            </button>
+            <FeatureGuard feature="profileEdit">
+              <button 
+                onClick={() => navigate('/restaurant-profile')}
+                className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
+              >
+                <User size={18} className="sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Profile</span>
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="analytics">
+              <button 
+                onClick={() => navigate('/analytics')}
+                className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
+              >
+                <BarChart3 size={18} className="sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Analytics</span>
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="printerSettings">
+              <button 
+                onClick={() => navigate('/printer-settings')}
+                className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
+              >
+                <Settings size={18} className="sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Printer Settings</span>
+              </button>
+            </FeatureGuard>
             <button onClick={logout} className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base">
               <LogOut size={18} className="sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">Logout</span>
@@ -1129,50 +1137,60 @@ export default function RestaurantDashboard() {
 
       <div className="max-w-7xl mx-auto p-3 sm:p-4">
         <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 hide-scrollbar">
-          <button
-            onClick={() => setActiveTab('delivery')}
-            className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'delivery' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-            }`}
-          >
-            <span className="hidden sm:inline">Delivery Orders</span>
-            <span className="sm:hidden">Delivery</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('dine-in')}
-            className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'dine-in' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-            }`}
-          >
-            <span className="hidden sm:inline">Table Orders</span>
-            <span className="sm:hidden">Tables</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('menu')}
-            className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'menu' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-            }`}
-          >
-            Menu
-          </button>
-          <button
-            onClick={() => setActiveTab('qr')}
-            className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'qr' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-            }`}
-          >
-            <span className="hidden sm:inline">QR Codes</span>
-            <span className="sm:hidden">QR</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'history' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-            }`}
-          >
-            <span className="hidden sm:inline">Order History</span>
-            <span className="sm:hidden">History</span>
-          </button>
+          <FeatureGuard feature="orderManagement">
+            <button
+              onClick={() => setActiveTab('delivery')}
+              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'delivery' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Delivery Orders</span>
+              <span className="sm:hidden">Delivery</span>
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="orderManagement">
+            <button
+              onClick={() => setActiveTab('dine-in')}
+              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'dine-in' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Table Orders</span>
+              <span className="sm:hidden">Tables</span>
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="menuManagement">
+            <button
+              onClick={() => setActiveTab('menu')}
+              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'menu' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              Menu
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="qrCodeGeneration">
+            <button
+              onClick={() => setActiveTab('qr')}
+              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'qr' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">QR Codes</span>
+              <span className="sm:hidden">QR</span>
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="orderHistory">
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'history' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Order History</span>
+              <span className="sm:hidden">History</span>
+            </button>
+          </FeatureGuard>
         </div>      
   {activeTab === 'delivery' && (
           <div className="space-y-3 sm:space-y-4">
@@ -1214,21 +1232,25 @@ export default function RestaurantDashboard() {
                 <div className="mb-3 flex gap-2">
                   {/* Kitchen Print Button - Smart Visibility */}
                   {order.items.some(item => !item.printed_to_kitchen) && (
-                    <button
-                      onClick={() => printKitchenOrderIndividual(order)}
-                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
-                    >
-                      🍳 Print Bill (Kitchen)
-                    </button>
+                    <FeatureGuard feature="printerSettings">
+                      <button
+                        onClick={() => printKitchenOrderIndividual(order)}
+                        className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
+                      >
+                        🍳 Print Bill (Kitchen)
+                      </button>
+                    </FeatureGuard>
                   )}
                   
                   {/* Cash Counter Print Receipt Button */}
-                  <button
-                    onClick={() => printIndividualReceipt(order)}
-                    className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
-                  >
-                    🖨️ Print Receipt
-                  </button>
+                  <FeatureGuard feature="printerSettings">
+                    <button
+                      onClick={() => printIndividualReceipt(order)}
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
+                    >
+                      🖨️ Print Receipt
+                    </button>
+                  </FeatureGuard>
                 </div>
 
                 <div className="flex gap-2">
@@ -1355,21 +1377,25 @@ export default function RestaurantDashboard() {
                     <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                       {/* Kitchen Print Bill Button - Smart Visibility */}
                       {hasUnprintedKitchenItems(tableOrders) && (
-                        <button
-                          onClick={() => printKitchenOrder(tableNum, tableOrders)}
-                          className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                        >
-                          🍳 <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Kitchen</span>
-                        </button>
+                        <FeatureGuard feature="printerSettings">
+                          <button
+                            onClick={() => printKitchenOrder(tableNum, tableOrders)}
+                            className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                          >
+                            🍳 <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Kitchen</span>
+                          </button>
+                        </FeatureGuard>
                       )}
                       
                       {/* Print Receipt Button (Cash Counter) */}
-                      <button
-                        onClick={() => printReceipt(tableNum, tableOrders, tableTotal)}
-                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                      >
-                        🖨️ <span className="hidden sm:inline">Print Receipt</span><span className="sm:hidden">Receipt</span>
-                      </button>
+                      <FeatureGuard feature="printerSettings">
+                        <button
+                          onClick={() => printReceipt(tableNum, tableOrders, tableTotal)}
+                          className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                        >
+                          🖨️ <span className="hidden sm:inline">Print Receipt</span><span className="sm:hidden">Receipt</span>
+                        </button>
+                      </FeatureGuard>
                       
                       {/* Generate Final Bill Button */}
                       <button
@@ -1392,13 +1418,15 @@ export default function RestaurantDashboard() {
 
         {activeTab === 'menu' && (
           <div>
-            <button
-              onClick={() => setShowMenuForm(true)}
-              className="mb-4 sm:mb-6 bg-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm sm:text-base"
-            >
-              <Plus size={18} className="sm:w-5 sm:h-5" />
-              Add Menu Item
-            </button>
+            <FeatureGuard feature="menuManagement">
+              <button
+                onClick={() => setShowMenuForm(true)}
+                className="mb-4 sm:mb-6 bg-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm sm:text-base"
+              >
+                <Plus size={18} className="sm:w-5 sm:h-5" />
+                Add Menu Item
+              </button>
+            </FeatureGuard>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {restaurant.menu.map((item) => (
@@ -1432,24 +1460,28 @@ export default function RestaurantDashboard() {
                         {item.name}
                       </h3>
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingItem(item);
-                            setMenuForm(item);
-                            setShowMenuForm(true);
-                          }}
-                          className="text-blue-500 hover:text-blue-700"
-                          title={!item.available ? 'Edit unavailable item' : 'Edit item'}
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => deleteMenuItem(item._id)}
-                          className="text-red-500 hover:text-red-700"
-                          title={!item.available ? 'Permanently delete (if possible)' : 'Delete item'}
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <FeatureGuard feature="menuManagement">
+                          <button
+                            onClick={() => {
+                              setEditingItem(item);
+                              setMenuForm(item);
+                              setShowMenuForm(true);
+                            }}
+                            className="text-blue-500 hover:text-blue-700"
+                            title={!item.available ? 'Edit unavailable item' : 'Edit item'}
+                          >
+                            <Edit size={18} />
+                          </button>
+                        </FeatureGuard>
+                        <FeatureGuard feature="menuManagement">
+                          <button
+                            onClick={() => deleteMenuItem(item._id)}
+                            className="text-red-500 hover:text-red-700"
+                            title={!item.available ? 'Permanently delete (if possible)' : 'Delete item'}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </FeatureGuard>
                       </div>
                     </div>
                     <p className={`text-sm mb-2 ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -1715,13 +1747,15 @@ export default function RestaurantDashboard() {
                 >
                   🐛 Debug
                 </button>
-                <button
-                  onClick={addTable}
-                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 flex items-center gap-2 text-sm sm:text-base"
-                >
-                  <Plus size={18} />
-                  Add Table
-                </button>
+                <FeatureGuard feature="tableManagement">
+                  <button
+                    onClick={addTable}
+                    className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 flex items-center gap-2 text-sm sm:text-base"
+                  >
+                    <Plus size={18} />
+                    Add Table
+                  </button>
+                </FeatureGuard>
               </div>
             </div>
             {restaurant.tables === 0 ? (
@@ -1742,13 +1776,15 @@ export default function RestaurantDashboard() {
                     <div key={tableNum} className="bg-white rounded-lg shadow-md p-4 text-center relative">
                       {/* Delete Button */}
                       {tableNum === restaurant.tables && (
-                        <button
-                          onClick={() => deleteTable(tableNum)}
-                          className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
-                          title="Delete this table"
-                        >
-                          <X size={16} />
-                        </button>
+                        <FeatureGuard feature="tableManagement">
+                          <button
+                            onClick={() => deleteTable(tableNum)}
+                            className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                            title="Delete this table"
+                          >
+                            <X size={16} />
+                          </button>
+                        </FeatureGuard>
                       )}
                       
                       <div id={`qr-table-${tableNum}`} className="bg-white p-3 rounded-lg mb-3 inline-block border-2 border-gray-200">
@@ -1769,12 +1805,14 @@ export default function RestaurantDashboard() {
                       >
                         Test Link
                       </a>
-                      <button
-                        onClick={() => downloadQRCode(tableNum, qrUrl)}
-                        className="text-sm bg-primary text-white px-4 py-2 rounded-lg hover:bg-red-600 w-full"
-                      >
-                        📥 Download QR
-                      </button>
+                      <FeatureGuard feature="qrCodeGeneration">
+                        <button
+                          onClick={() => downloadQRCode(tableNum, qrUrl)}
+                          className="text-sm bg-primary text-white px-4 py-2 rounded-lg hover:bg-red-600 w-full"
+                        >
+                          📥 Download QR
+                        </button>
+                      </FeatureGuard>
                     </div>
                   );
                 })}
@@ -1880,24 +1918,26 @@ export default function RestaurantDashboard() {
 
                     {/* Print Receipt Button for History */}
                     <div className="mt-3">
-                      <button
-                        onClick={() => {
-                          if (orderGroup.length === 1) {
-                            // Single order - print individual receipt
-                            printIndividualReceipt(orderGroup[0]);
-                          } else {
-                            // Multiple orders - print combined receipt like table bill
-                            printReceipt(
-                              isDineIn ? firstOrder.tableNumber : 'Delivery', 
-                              orderGroup, 
-                              totalAmount
-                            );
-                          }
-                        }}
-                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
-                      >
-                        🖨️ Print Receipt
-                      </button>
+                      <FeatureGuard feature="printerSettings">
+                        <button
+                          onClick={() => {
+                            if (orderGroup.length === 1) {
+                              // Single order - print individual receipt
+                              printIndividualReceipt(orderGroup[0]);
+                            } else {
+                              // Multiple orders - print combined receipt like table bill
+                              printReceipt(
+                                isDineIn ? firstOrder.tableNumber : 'Delivery', 
+                                orderGroup, 
+                                totalAmount
+                              );
+                            }
+                          }}
+                          className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
+                        >
+                          🖨️ Print Receipt
+                        </button>
+                      </FeatureGuard>
                     </div>
                   </div>
                 );

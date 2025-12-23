@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { adminDB, restaurantDB } from '../db.js';
+import { query } from '../database/connection.js';
 
 const router = express.Router();
 
@@ -143,6 +144,52 @@ router.put('/restaurants/:id', async (req, res) => {
     res.json(restaurantData);
   } catch (error) {
     console.error('Admin restaurant update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update restaurant features (admin only)
+router.put('/restaurants/:id/features', async (req, res) => {
+  try {
+    // Verify admin token
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Admin authentication required' });
+    }
+    
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'admin_secret');
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+    } catch (tokenError) {
+      return res.status(401).json({ error: 'Invalid admin token' });
+    }
+    
+    const { features } = req.body;
+    
+    // Update restaurant features
+    const result = await query(`
+      UPDATE restaurants 
+      SET features = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `, [JSON.stringify(features), req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    
+    const restaurant = result.rows[0];
+    const { password: _, ...restaurantData } = restaurant;
+    
+    res.json({
+      ...restaurantData,
+      features: restaurant.features
+    });
+    
+  } catch (error) {
+    console.error('Admin restaurant features update error:', error);
     res.status(500).json({ error: error.message });
   }
 });

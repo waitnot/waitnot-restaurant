@@ -11,5 +11,21 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  build: {
+    target: ['es2015', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
+    polyfillModulePreload: true,
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom']
+        }
+      }
+    }
+  },
+  define: {
+    global: 'globalThis'
   }
 })

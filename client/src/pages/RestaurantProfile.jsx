@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Save, User, MapPin, Phone, Mail, Clock, Star, Utensils, Lock, Eye, EyeOff } from 'lucide-react';
 import { compressImage, validateImageFile } from '../utils/imageUtils';
+import FeatureGuard from '../components/FeatureGuard';
 
 const RestaurantProfile = () => {
   const navigate = useNavigate();
@@ -277,38 +278,40 @@ const RestaurantProfile = () => {
               {/* Left Column */}
               <div className="space-y-6">
                 {/* Restaurant Image */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Restaurant Image
-                  </label>
-                  <div className="flex flex-col items-center">
-                    <div className="relative w-48 h-48 bg-gray-200 rounded-lg overflow-hidden mb-4">
-                      {imagePreview ? (
-                        <img 
-                          src={imagePreview} 
-                          alt="Restaurant" 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400">
-                          <Camera size={48} />
-                        </div>
-                      )}
-                      <label className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                        <Camera className="text-white" size={24} />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="hidden"
-                        />
-                      </label>
+                <FeatureGuard feature="imageUpload">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Restaurant Image
+                    </label>
+                    <div className="flex flex-col items-center">
+                      <div className="relative w-48 h-48 bg-gray-200 rounded-lg overflow-hidden mb-4">
+                        {imagePreview ? (
+                          <img 
+                            src={imagePreview} 
+                            alt="Restaurant" 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <Camera size={48} />
+                          </div>
+                        )}
+                        <label className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+                          <Camera className="text-white" size={24} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-sm text-gray-500 text-center">
+                        Click to upload image (Max 5MB)
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-500 text-center">
-                      Click to upload image (Max 5MB)
-                    </p>
                   </div>
-                </div>
+                </FeatureGuard>
 
                 {/* Basic Information */}
                 <div>
@@ -464,28 +467,29 @@ const RestaurantProfile = () => {
                 </div>
 
                 {/* Password Change Section */}
-                <div className="border-t pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-medium text-gray-900 flex items-center">
-                      <Lock className="mr-2" size={20} />
-                      Change Password
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPasswordSection(!showPasswordSection);
-                        setPasswordMessage('');
-                        setPasswordData({
-                          currentPassword: '',
-                          newPassword: '',
-                          confirmPassword: ''
-                        });
-                      }}
-                      className="text-red-600 hover:text-red-700 text-sm font-medium"
-                    >
-                      {showPasswordSection ? 'Cancel' : 'Change Password'}
-                    </button>
-                  </div>
+                <FeatureGuard feature="passwordChange">
+                  <div className="border-t pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                        <Lock className="mr-2" size={20} />
+                        Change Password
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPasswordSection(!showPasswordSection);
+                          setPasswordMessage('');
+                          setPasswordData({
+                            currentPassword: '',
+                            newPassword: '',
+                            confirmPassword: ''
+                          });
+                        }}
+                        className="text-red-600 hover:text-red-700 text-sm font-medium"
+                      >
+                        {showPasswordSection ? 'Cancel' : 'Change Password'}
+                      </button>
+                    </div>
 
                   {showPasswordSection && (
                     <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
@@ -606,6 +610,7 @@ const RestaurantProfile = () => {
                     </div>
                   )}
                 </div>
+                </FeatureGuard>
 
                 {/* Action Buttons */}
                 <div className="flex gap-4 pt-6">

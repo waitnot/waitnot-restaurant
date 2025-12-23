@@ -32,6 +32,29 @@ CREATE TABLE IF NOT EXISTS restaurants (
     password VARCHAR(255) NOT NULL,
     is_delivery_available BOOLEAN DEFAULT true,
     tables INTEGER DEFAULT 0,
+    -- Feature permissions (JSONB for flexible feature management)
+    features JSONB DEFAULT '{
+        "menuManagement": true,
+        "orderManagement": true,
+        "analytics": true,
+        "profileEdit": true,
+        "printerSettings": true,
+        "qrCodeGeneration": true,
+        "tableManagement": true,
+        "deliveryToggle": true,
+        "passwordChange": true,
+        "imageUpload": true,
+        "menuCategories": true,
+        "orderHistory": true,
+        "realTimeOrders": true,
+        "customerInfo": true,
+        "salesReports": true,
+        "menuItemToggle": true,
+        "bulkOperations": true,
+        "exportData": true,
+        "notifications": true,
+        "multiLanguage": true
+    }'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
