@@ -181,8 +181,9 @@ export const restaurantDB = {
                    'isVeg', m.is_veg,
                    'description', m.description,
                    'image', m.image,
-                   'available', m.available
-                 ) ORDER BY m.category, m.name
+                   'available', m.available,
+                   'displayOrder', m.display_order
+                 ) ORDER BY m.display_order ASC, m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -226,8 +227,9 @@ export const restaurantDB = {
                    'isVeg', m.is_veg,
                    'description', m.description,
                    'image', m.image,
-                   'available', m.available
-                 ) ORDER BY m.category, m.name
+                   'available', m.available,
+                   'displayOrder', m.display_order
+                 ) ORDER BY m.display_order ASC, m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -284,8 +286,9 @@ export const restaurantDB = {
                    'isVeg', m.is_veg,
                    'description', m.description,
                    'image', m.image,
-                   'available', m.available
-                 ) ORDER BY m.category, m.name
+                   'available', m.available,
+                   'displayOrder', m.display_order
+                 ) ORDER BY m.display_order ASC, m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -429,8 +432,9 @@ export const restaurantDB = {
                    'isVeg', m.is_veg,
                    'description', m.description,
                    'image', m.image,
-                   'available', m.available
-                 ) ORDER BY m.category, m.name
+                   'available', m.available,
+                   'displayOrder', m.display_order
+                 ) ORDER BY m.display_order ASC, m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -464,10 +468,19 @@ export const restaurantDB = {
   },
   
   async addMenuItem(restaurantId, menuItem) {
+    // Get the next display_order value
+    const maxOrderResult = await query(`
+      SELECT COALESCE(MAX(display_order), 0) + 1 as next_order
+      FROM menu_items 
+      WHERE restaurant_id = $1
+    `, [restaurantId]);
+    
+    const nextOrder = maxOrderResult.rows[0].next_order;
+    
     const result = await query(`
       INSERT INTO menu_items (
-        restaurant_id, name, price, category, is_veg, description, image, available
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        restaurant_id, name, price, category, is_veg, description, image, available, display_order
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [
       restaurantId,
@@ -477,7 +490,8 @@ export const restaurantDB = {
       menuItem.isVeg !== false,
       menuItem.description,
       menuItem.image,
-      menuItem.available !== false
+      menuItem.available !== false,
+      nextOrder
     ]);
     
     return await this.findById(restaurantId);
@@ -495,7 +509,8 @@ export const restaurantDB = {
       isVeg: 'is_veg',
       description: 'description',
       image: 'image',
-      available: 'available'
+      available: 'available',
+      displayOrder: 'display_order'
     };
     
     for (const [key, value] of Object.entries(data)) {
