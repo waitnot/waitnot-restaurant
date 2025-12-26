@@ -39,7 +39,7 @@ export default function RestaurantDashboard() {
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [menuForm, setMenuForm] = useState({
-    name: '', price: '', category: 'Starters', description: '', isVeg: true, image: ''
+    name: '', price: '', category: '', description: '', isVeg: true, image: ''
   });
   const [imageUploadMethod, setImageUploadMethod] = useState('url'); // 'url' or 'upload'
   const [imageFile, setImageFile] = useState(null);
@@ -159,7 +159,7 @@ export default function RestaurantDashboard() {
       fetchRestaurant(restaurantId);
       setShowMenuForm(false);
       setEditingItem(null);
-      setMenuForm({ name: '', price: '', category: 'Starters', description: '', isVeg: true });
+      setMenuForm({ name: '', price: '', category: '', description: '', isVeg: true });
     } catch (error) {
       console.error('Error saving menu item:', error);
     }
@@ -1572,16 +1572,14 @@ export default function RestaurantDashboard() {
                     </div>
                     <div>
                       <label className="block text-gray-700 mb-2">Category</label>
-                      <select
+                      <input
+                        type="text"
+                        required
                         value={menuForm.category}
                         onChange={(e) => setMenuForm({...menuForm, category: e.target.value})}
+                        placeholder="Enter category (e.g., Starters, Main Course, Desserts, Drinks)"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      >
-                        <option>Starters</option>
-                        <option>Main Course</option>
-                        <option>Desserts</option>
-                        <option>Drinks</option>
-                      </select>
+                      />
                     </div>
                     <div>
                       <label className="block text-gray-700 mb-2">Description</label>
@@ -1723,7 +1721,7 @@ export default function RestaurantDashboard() {
                         onClick={() => {
                           setShowMenuForm(false);
                           setEditingItem(null);
-                          setMenuForm({ name: '', price: '', category: 'Starters', description: '', isVeg: true, image: '' });
+                          setMenuForm({ name: '', price: '', category: '', description: '', isVeg: true, image: '' });
                           setImageFile(null);
                         }}
                         className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
