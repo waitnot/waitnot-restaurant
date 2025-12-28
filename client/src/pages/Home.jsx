@@ -1,347 +1,401 @@
-import { useState, useEffect } from 'react';
-import { Search, MapPin, Clock, Star, Smartphone, QrCode, Utensils, Users, CheckCircle, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import axios from 'axios';
-import { convertNumerals } from '../utils/numberFormatter';
+import { useState } from 'react';
+import { QrCode, Smartphone, Clock, TrendingUp, Shield, Zap, BarChart3, CreditCard, Bell, Users, CheckCircle, ArrowRight, Star, MapPin } from 'lucide-react';
 
 export default function Home() {
-  const { t, i18n } = useTranslation();
-  const [restaurants, setRestaurants] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showRestaurants, setShowRestaurants] = useState(false);
-
-  useEffect(() => {
-    if (searchQuery.trim()) {
-      fetchRestaurants();
-      setShowRestaurants(true);
-    } else {
-      setShowRestaurants(false);
-      setRestaurants([]);
-    }
-  }, [searchQuery]);
-
-  const fetchRestaurants = async () => {
-    try {
-      const params = {};
-      if (searchQuery) params.q = searchQuery;
-      
-      const { data } = await axios.get('/api/restaurants/search', { params });
-      setRestaurants(data);
-    } catch (error) {
-      console.error('Error fetching restaurants:', error);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Hero Section */}
-      <div className="bg-gradient-to-br from-primary via-red-500 to-secondary text-white">
-        <div className="max-w-7xl mx-auto px-4 py-16 sm:py-24">
+      <div className="bg-gradient-to-br from-red-600 to-black text-white">
+        <div className="max-w-7xl mx-auto px-4 py-20 sm:py-32">
           <div className="text-center">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6">
-              Welcome to <span className="text-yellow-300">WaitNot</span>
-            </h1>
-            <p className="text-xl sm:text-2xl mb-8 text-red-100 max-w-3xl mx-auto">
-              Revolutionizing restaurant dining with QR code ordering, seamless payments, and instant service
+            {/* Logo */}
+            <div className="mb-8">
+              <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold mb-4">
+                <span className="text-white">Wait</span><span className="text-red-400">Not</span>
+              </h1>
+              <div className="w-24 h-1 bg-red-500 mx-auto"></div>
+            </div>
+            
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 text-gray-100">
+              The Future of Restaurant Technology
+            </h2>
+            <p className="text-xl sm:text-2xl mb-12 text-gray-200 max-w-4xl mx-auto leading-relaxed">
+              Revolutionize your restaurant operations with QR code ordering, real-time analytics, 
+              and seamless payment processing. Increase efficiency, reduce costs, and delight customers.
             </p>
             
-            {/* Search Section */}
-            <div className="max-w-2xl mx-auto mb-8">
-              <div className="relative">
-                <Search className="absolute left-4 top-4 text-gray-400" size={24} />
-                <input
-                  type="text"
-                  placeholder="Search restaurants by name..."
-                  className="w-full pl-12 pr-4 py-4 text-gray-800 border-0 rounded-xl focus:outline-none focus:ring-4 focus:ring-white/30 text-lg shadow-lg"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              {searchQuery && (
-                <p className="text-sm text-red-100 mt-2">
-                  {restaurants.length} restaurant{restaurants.length !== 1 ? 's' : ''} found
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link
-                to="/restaurant-login"
-                className="bg-white text-primary px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors flex items-center gap-2"
-              >
-                <Utensils size={20} />
-                Restaurant Login
-              </Link>
-              <Link
-                to="/admin-login"
-                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-primary transition-colors flex items-center gap-2"
-              >
-                <Users size={20} />
-                Admin Portal
-              </Link>
+            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+              <button className="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-105 shadow-lg">
+                Get Started Today
+              </button>
+              <button className="border-2 border-white text-white hover:bg-white hover:text-black px-10 py-4 rounded-lg font-bold text-lg transition-all">
+                Watch Demo
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Restaurant Results */}
-      {showRestaurants && (
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">
-            Search Results
-          </h2>
-          
-          {restaurants.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              {restaurants.map((restaurant) => (
-                <Link
-                  key={restaurant._id}
-                  to={`/restaurant/${restaurant._id}`}
-                  className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow"
-                >
-                  <div className="h-48 bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
-                    {restaurant.image ? (
-                      <img src={restaurant.image} alt={restaurant.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-white text-4xl font-bold">{restaurant.name[0]}</span>
-                    )}
-                  </div>
-                  
-                  <div className="p-4">
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">{restaurant.name}</h3>
-                    <p className="text-gray-600 text-sm mb-3">{restaurant.cuisine?.join(', ')}</p>
-                    
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-1 text-yellow-500">
-                        <Star size={16} fill="currentColor" />
-                        <span className="font-semibold">{convertNumerals(restaurant.rating, i18n.language)}</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-1 text-gray-600">
-                        <Clock size={16} />
-                        <span>
-                          {(() => {
-                            const time = restaurant.deliveryTime || '30-40 min';
-                            const timeWithoutMin = time.replace(/\s*min\s*$/i, '');
-                            return `${convertNumerals(timeWithoutMin, i18n.language)} min`;
-                          })()}
-                        </span>
-                      </div>
-                      
-                      {restaurant.isDeliveryAvailable && (
-                        <div className="flex items-center gap-1 text-green-600">
-                          <MapPin size={16} />
-                          <span>Delivery</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              ))}
+      {/* Benefits for Restaurants Section */}
+      <div className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl font-bold text-black mb-6">
+              Transform Your Restaurant Business
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Join hundreds of restaurants already using WaitNot to increase revenue, 
+              reduce operational costs, and provide exceptional customer experiences.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Restaurant Benefit 1 */}
+            <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-red-600 hover:shadow-xl transition-shadow">
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                <TrendingUp className="text-red-600" size={32} />
+              </div>
+              <h3 className="text-2xl font-bold text-black mb-4">Increase Revenue by 35%</h3>
+              <p className="text-gray-600 mb-4">
+                Faster table turnover, reduced wait times, and upselling opportunities through digital menus 
+                lead to significant revenue growth.
+              </p>
+              <ul className="text-sm text-gray-500 space-y-2">
+                <li>• Faster order processing</li>
+                <li>• Higher order accuracy</li>
+                <li>• Automated upselling suggestions</li>
+              </ul>
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No restaurants found. Try a different search term.</p>
+
+            {/* Restaurant Benefit 2 */}
+            <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-red-600 hover:shadow-xl transition-shadow">
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                <BarChart3 className="text-red-600" size={32} />
+              </div>
+              <h3 className="text-2xl font-bold text-black mb-4">Real-Time Analytics</h3>
+              <p className="text-gray-600 mb-4">
+                Make data-driven decisions with comprehensive insights into sales, popular items, 
+                peak hours, and customer preferences.
+              </p>
+              <ul className="text-sm text-gray-500 space-y-2">
+                <li>• Sales performance tracking</li>
+                <li>• Menu optimization insights</li>
+                <li>• Customer behavior analysis</li>
+              </ul>
             </div>
-          )}
+
+            {/* Restaurant Benefit 3 */}
+            <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-red-600 hover:shadow-xl transition-shadow">
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                <Users className="text-red-600" size={32} />
+              </div>
+              <h3 className="text-2xl font-bold text-black mb-4">Reduce Staff Costs</h3>
+              <p className="text-gray-600 mb-4">
+                Automate order taking and payment processing, allowing your staff to focus on 
+                food preparation and customer service.
+              </p>
+              <ul className="text-sm text-gray-500 space-y-2">
+                <li>• Automated order management</li>
+                <li>• Reduced training requirements</li>
+                <li>• Optimized staff allocation</li>
+              </ul>
+            </div>
+
+            {/* Restaurant Benefit 4 */}
+            <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-red-600 hover:shadow-xl transition-shadow">
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                <CreditCard className="text-red-600" size={32} />
+              </div>
+              <h3 className="text-2xl font-bold text-black mb-4">Seamless Payments</h3>
+              <p className="text-gray-600 mb-4">
+                Accept UPI, cards, and cash payments with automatic reconciliation and 
+                detailed transaction reporting.
+              </p>
+              <ul className="text-sm text-gray-500 space-y-2">
+                <li>• Multiple payment options</li>
+                <li>• Instant payment confirmation</li>
+                <li>• Automated accounting</li>
+              </ul>
+            </div>
+
+            {/* Restaurant Benefit 5 */}
+            <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-red-600 hover:shadow-xl transition-shadow">
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                <Shield className="text-red-600" size={32} />
+              </div>
+              <h3 className="text-2xl font-bold text-black mb-4">Contactless & Safe</h3>
+              <p className="text-gray-600 mb-4">
+                Provide a completely contactless dining experience that customers love and 
+                meets all health and safety requirements.
+              </p>
+              <ul className="text-sm text-gray-500 space-y-2">
+                <li>• Zero physical contact</li>
+                <li>• Digital menu updates</li>
+                <li>• Hygienic operations</li>
+              </ul>
+            </div>
+
+            {/* Restaurant Benefit 6 */}
+            <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-red-600 hover:shadow-xl transition-shadow">
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                <Zap className="text-red-600" size={32} />
+              </div>
+              <h3 className="text-2xl font-bold text-black mb-4">Quick Setup</h3>
+              <p className="text-gray-600 mb-4">
+                Get started in minutes with our easy setup process. No complex hardware 
+                or lengthy training required.
+              </p>
+              <ul className="text-sm text-gray-500 space-y-2">
+                <li>• 5-minute setup process</li>
+                <li>• No additional hardware</li>
+                <li>• Instant QR code generation</li>
+              </ul>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* Features Section */}
-      {!showRestaurants && (
-        <>
-          <div className="max-w-7xl mx-auto px-4 py-16">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">
-                Why Choose WaitNot?
-              </h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Experience the future of dining with our innovative QR-based ordering system
+      {/* Benefits for Customers Section */}
+      <div className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl font-bold text-black mb-6">
+              Exceptional Customer Experience
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Delight your customers with a modern, convenient, and personalized dining experience 
+              that keeps them coming back.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            {/* Customer Benefits List */}
+            <div className="space-y-8">
+              <div className="flex items-start space-x-4">
+                <div className="bg-red-600 text-white p-3 rounded-full flex-shrink-0">
+                  <QrCode size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-black mb-2">Instant Ordering</h3>
+                  <p className="text-gray-600">
+                    Simply scan the QR code at your table to browse the menu and place orders instantly. 
+                    No waiting for waiters or downloading apps.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="bg-red-600 text-white p-3 rounded-full flex-shrink-0">
+                  <Smartphone size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-black mb-2">Mobile Payments</h3>
+                  <p className="text-gray-600">
+                    Pay seamlessly with UPI, cards, or cash. Secure transactions with instant 
+                    confirmation and digital receipts.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="bg-red-600 text-white p-3 rounded-full flex-shrink-0">
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-black mb-2">Real-Time Updates</h3>
+                  <p className="text-gray-600">
+                    Get live updates on your order status. Know exactly when your food is being 
+                    prepared and when it will be served.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="bg-red-600 text-white p-3 rounded-full flex-shrink-0">
+                  <CheckCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-black mb-2">Order Accuracy</h3>
+                  <p className="text-gray-600">
+                    Eliminate miscommunication with digital ordering. Your order is exactly 
+                    what you selected, every time.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Element */}
+            <div className="bg-gradient-to-br from-red-50 to-gray-100 rounded-2xl p-8 text-center">
+              <div className="bg-white rounded-xl p-8 shadow-lg">
+                <QrCode size={120} className="text-red-600 mx-auto mb-6" />
+                <h3 className="text-2xl font-bold text-black mb-4">Scan & Order</h3>
+                <p className="text-gray-600 mb-6">
+                  Experience the future of dining with our QR code technology
+                </p>
+                <div className="flex justify-center space-x-4">
+                  <div className="bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm font-semibold">
+                    No App Required
+                  </div>
+                  <div className="bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm font-semibold">
+                    Instant Access
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* How It Works Section */}
+      <div className="py-20 bg-black text-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl font-bold mb-6">
+              How It Works
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Get started in just 3 simple steps and transform your restaurant operations today
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Step 1 */}
+            <div className="text-center">
+              <div className="bg-red-600 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl font-bold">
+                1
+              </div>
+              <h3 className="text-2xl font-bold mb-4">Setup Your Restaurant</h3>
+              <p className="text-gray-300 leading-relaxed">
+                Create your account, add your menu items, and customize your restaurant profile. 
+                Generate QR codes for your tables in minutes.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {/* Feature 1 */}
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center hover:shadow-xl transition-shadow">
-                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <QrCode className="text-primary" size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">QR Code Ordering</h3>
-                <p className="text-gray-600">
-                  Simply scan the QR code at your table to browse the menu and place orders instantly. No waiting for waiters!
-                </p>
+            {/* Step 2 */}
+            <div className="text-center">
+              <div className="bg-red-600 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl font-bold">
+                2
               </div>
-
-              {/* Feature 2 */}
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center hover:shadow-xl transition-shadow">
-                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Smartphone className="text-primary" size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Mobile Payments</h3>
-                <p className="text-gray-600">
-                  Pay seamlessly with UPI, cards, or cash. Secure transactions with instant confirmation and receipts.
-                </p>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center hover:shadow-xl transition-shadow">
-                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Clock className="text-primary" size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Real-time Updates</h3>
-                <p className="text-gray-600">
-                  Get live updates on your order status. Know exactly when your food is being prepared and served.
-                </p>
-              </div>
-
-              {/* Feature 4 */}
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center hover:shadow-xl transition-shadow">
-                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Utensils className="text-primary" size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Multi-cuisine Options</h3>
-                <p className="text-gray-600">
-                  Discover restaurants serving various cuisines. Filter by categories and find exactly what you're craving.
-                </p>
-              </div>
-
-              {/* Feature 5 */}
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center hover:shadow-xl transition-shadow">
-                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Users className="text-primary" size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Group Ordering</h3>
-                <p className="text-gray-600">
-                  Perfect for families and groups. Multiple people can add items to the same table order simultaneously.
-                </p>
-              </div>
-
-              {/* Feature 6 */}
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center hover:shadow-xl transition-shadow">
-                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle className="text-primary" size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Contactless Service</h3>
-                <p className="text-gray-600">
-                  Enjoy a completely contactless dining experience. Safe, hygienic, and convenient for everyone.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* How It Works Section */}
-          <div className="bg-gray-100 py-16">
-            <div className="max-w-7xl mx-auto px-4">
-              <div className="text-center mb-16">
-                <h2 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">
-                  How It Works
-                </h2>
-                <p className="text-xl text-gray-600">
-                  Get started in just 3 simple steps
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Step 1 */}
-                <div className="text-center">
-                  <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold">
-                    1
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Scan QR Code</h3>
-                  <p className="text-gray-600">
-                    Use your phone camera to scan the QR code placed on your restaurant table
-                  </p>
-                </div>
-
-                {/* Step 2 */}
-                <div className="text-center">
-                  <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold">
-                    2
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Browse & Order</h3>
-                  <p className="text-gray-600">
-                    Explore the menu, filter by categories, and add your favorite items to cart
-                  </p>
-                </div>
-
-                {/* Step 3 */}
-                <div className="text-center">
-                  <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold">
-                    3
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Pay & Enjoy</h3>
-                  <p className="text-gray-600">
-                    Complete payment and relax while your fresh food is prepared and served
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* CTA Section */}
-          <div className="bg-primary text-white py-16">
-            <div className="max-w-4xl mx-auto px-4 text-center">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-6">
-                Ready to Transform Your Dining Experience?
-              </h2>
-              <p className="text-xl mb-8 text-red-100">
-                Join thousands of satisfied customers who have discovered the future of restaurant dining
+              <h3 className="text-2xl font-bold mb-4">Customers Scan & Order</h3>
+              <p className="text-gray-300 leading-relaxed">
+                Customers scan the QR code at their table, browse your menu, and place orders 
+                directly from their phones. No app downloads required.
               </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={() => {
-                    document.querySelector('input[type="text"]').focus();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="bg-white text-primary px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Search size={20} />
-                  Find Restaurants
-                  <ArrowRight size={20} />
-                </button>
-              </div>
             </div>
-          </div>
 
-          {/* Footer */}
-          <div className="bg-gray-800 text-white py-12">
-            <div className="max-w-7xl mx-auto px-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div>
-                  <h3 className="text-2xl font-bold mb-4 text-yellow-300">WaitNot</h3>
-                  <p className="text-gray-300">
-                    Revolutionizing the restaurant industry with innovative QR-based ordering and payment solutions.
-                  </p>
-                </div>
-                
-                <div>
-                  <h4 className="text-lg font-semibold mb-4">For Restaurants</h4>
-                  <ul className="space-y-2 text-gray-300">
-                    <li><Link to="/restaurant-login" className="hover:text-white">Restaurant Login</Link></li>
-                    <li><Link to="/admin-login" className="hover:text-white">Admin Portal</Link></li>
-                  </ul>
-                </div>
-                
-                <div>
-                  <h4 className="text-lg font-semibold mb-4">Features</h4>
-                  <ul className="space-y-2 text-gray-300">
-                    <li>QR Code Ordering</li>
-                    <li>Mobile Payments</li>
-                    <li>Real-time Updates</li>
-                    <li>Contactless Service</li>
-                  </ul>
-                </div>
+            {/* Step 3 */}
+            <div className="text-center">
+              <div className="bg-red-600 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl font-bold">
+                3
               </div>
-              
-              <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
-                <p>&copy; 2024 WaitNot. All rights reserved.</p>
-              </div>
+              <h3 className="text-2xl font-bold mb-4">Manage & Grow</h3>
+              <p className="text-gray-300 leading-relaxed">
+                Receive orders instantly, track performance with analytics, and grow your business 
+                with data-driven insights and improved efficiency.
+              </p>
             </div>
           </div>
-        </>
-      )}
+        </div>
+      </div>
+
+      {/* Statistics Section */}
+      <div className="py-20 bg-red-600 text-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+              <div className="text-4xl sm:text-5xl font-bold mb-2">500+</div>
+              <div className="text-red-100 text-lg">Restaurants</div>
+            </div>
+            <div>
+              <div className="text-4xl sm:text-5xl font-bold mb-2">50K+</div>
+              <div className="text-red-100 text-lg">Orders Processed</div>
+            </div>
+            <div>
+              <div className="text-4xl sm:text-5xl font-bold mb-2">35%</div>
+              <div className="text-red-100 text-lg">Revenue Increase</div>
+            </div>
+            <div>
+              <div className="text-4xl sm:text-5xl font-bold mb-2">99.9%</div>
+              <div className="text-red-100 text-lg">Uptime</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="py-20 bg-gradient-to-r from-black to-red-900 text-white">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-4xl sm:text-5xl font-bold mb-6">
+            Ready to Transform Your Restaurant?
+          </h2>
+          <p className="text-xl mb-8 text-gray-200 leading-relaxed">
+            Join hundreds of successful restaurants using WaitNot to increase revenue, 
+            reduce costs, and delight customers every day.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-6 justify-center mb-8">
+            <button className="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-105 shadow-lg">
+              Start Free Trial
+            </button>
+            <button className="border-2 border-white text-white hover:bg-white hover:text-black px-10 py-4 rounded-lg font-bold text-lg transition-all">
+              Schedule Demo
+            </button>
+          </div>
+          
+          <p className="text-gray-300 text-sm">
+            No setup fees • 30-day free trial • Cancel anytime
+          </p>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-black text-white py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="md:col-span-2">
+              <h3 className="text-3xl font-bold mb-4">
+                <span className="text-white">Wait</span><span className="text-red-500">Not</span>
+              </h3>
+              <p className="text-gray-300 mb-6 leading-relaxed">
+                Revolutionizing the restaurant industry with innovative QR-based ordering 
+                and payment solutions. Helping restaurants increase efficiency, reduce costs, 
+                and provide exceptional customer experiences.
+              </p>
+              <div className="flex space-x-4">
+                <div className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold">
+                  Trusted by 500+ Restaurants
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-lg font-semibold mb-4 text-red-400">Features</h4>
+              <ul className="space-y-3 text-gray-300">
+                <li>QR Code Ordering</li>
+                <li>Real-time Analytics</li>
+                <li>Mobile Payments</li>
+                <li>Order Management</li>
+                <li>Customer Insights</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="text-lg font-semibold mb-4 text-red-400">Benefits</h4>
+              <ul className="space-y-3 text-gray-300">
+                <li>Increase Revenue</li>
+                <li>Reduce Costs</li>
+                <li>Improve Efficiency</li>
+                <li>Contactless Service</li>
+                <li>Better Customer Experience</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
+            <p>&copy; 2024 WaitNot. All rights reserved. Transforming restaurants, one QR code at a time.</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
