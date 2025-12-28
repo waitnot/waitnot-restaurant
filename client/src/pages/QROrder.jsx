@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Minus, Banknote, Smartphone, CheckCircle } from 'lucide-react';
+import { Plus, Minus, Banknote, Smartphone, CheckCircle, Leaf } from 'lucide-react';
 import axios from 'axios';
 
 export default function QROrder() {
@@ -8,6 +8,7 @@ export default function QROrder() {
   const navigate = useNavigate();
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
@@ -218,6 +219,15 @@ export default function QROrder() {
 
   if (!restaurant) return <div className="text-center py-12">Loading...</div>;
 
+  // Get unique categories from menu items
+  const uniqueCategories = [...new Set(restaurant.menu.map(item => item.category))];
+  const categories = ['All', ...uniqueCategories];
+  
+  // Filter menu based on selected category
+  const filteredMenu = selectedCategory === 'All' 
+    ? restaurant.menu 
+    : restaurant.menu.filter(item => item.category === selectedCategory);
+
   if (orderPlaced) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -245,54 +255,76 @@ export default function QROrder() {
         {/* Menu */}
         {!showCheckout ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-20">
-              {restaurant.menu.map((item) => {
+            {/* Category Filter */}
+            <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2 hide-scrollbar">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full whitespace-nowrap text-sm sm:text-base ${
+                    selectedCategory === category
+                      ? 'bg-primary text-white'
+                      : 'bg-white text-gray-700 border border-gray-300'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            {/* Menu List - Horizontal Cards */}
+            <div className="space-y-3 sm:space-y-4 mb-20">
+              {filteredMenu.map((item) => {
                 const quantity = cart.find(i => i._id === item._id)?.quantity || 0;
                 
                 return (
-                  <div key={item._id} className="bg-white rounded-lg shadow overflow-hidden">
+                  <div key={item._id} className="bg-white rounded-lg shadow-md overflow-hidden flex">
                     {/* Item Image */}
-                    <div className="h-40 bg-gradient-to-r from-accent to-secondary flex items-center justify-center relative">
+                    <div className="w-28 sm:w-32 h-28 sm:h-32 bg-gradient-to-r from-accent to-secondary flex items-center justify-center flex-shrink-0 relative">
                       {item.image ? (
                         <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-white text-3xl">🍽️</span>
                       )}
                       {item.isVeg && (
-                        <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded">
-                          <span className="text-sm">🌱</span>
+                        <div className="absolute top-1 left-1 bg-white p-1 rounded shadow-sm">
+                          <Leaf size={14} className="text-green-600" />
                         </div>
                       )}
                     </div>
                     
-                    <div className="p-4">
-                      <h3 className="font-bold text-gray-800">{item.name}</h3>
-                      <p className="text-sm text-gray-600">{item.description}</p>
-                      <p className="text-lg font-bold text-primary mt-2">₹{item.price}</p>
+                    {/* Item Details */}
+                    <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1">{item.name}</h3>
+                        <p className="text-gray-600 text-xs sm:text-sm mb-2 line-clamp-2">{item.description}</p>
+                        <p className="text-lg sm:text-xl font-bold text-primary">₹{item.price}</p>
+                      </div>
                     </div>
                     
-                    <div className="px-4 pb-4">
+                    {/* Add to Cart Button */}
+                    <div className="flex items-center p-3 sm:p-4">
                       {quantity === 0 ? (
                         <button
                           onClick={() => addToCart(item)}
-                          className="w-full bg-primary text-white py-2 rounded-lg hover:bg-red-600"
+                          className="bg-primary text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-red-600 transition-colors font-semibold text-sm sm:text-base whitespace-nowrap"
                         >
                           Add
                         </button>
                       ) : (
-                        <div className="flex items-center justify-between bg-primary text-white rounded-lg p-2">
+                        <div className="flex items-center gap-2 sm:gap-3 bg-primary text-white rounded-lg px-2 sm:px-3 py-2">
                           <button
                             onClick={() => updateQuantity(item._id, quantity - 1)}
                             className="p-1 hover:bg-red-600 rounded"
                           >
-                            <Minus size={20} />
+                            <Minus size={18} />
                           </button>
-                          <span className="font-bold">{quantity}</span>
+                          <span className="font-bold min-w-[20px] text-center">{quantity}</span>
                           <button
                             onClick={() => updateQuantity(item._id, quantity + 1)}
                             className="p-1 hover:bg-red-600 rounded"
                           >
-                            <Plus size={20} />
+                            <Plus size={18} />
                           </button>
                         </div>
                       )}
