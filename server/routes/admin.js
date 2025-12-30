@@ -104,11 +104,19 @@ router.get('/restaurants', async (req, res) => {
     
     const restaurants = await restaurantDB.findAll();
     
-    // Remove passwords from response
+    // Remove passwords from response and ensure features are included
     const safeRestaurants = restaurants.map(r => {
       const { password, ...rest } = r;
-      return rest;
+      return {
+        ...rest,
+        features: rest.features || {}
+      };
     });
+    
+    console.log('Admin fetching restaurants, count:', safeRestaurants.length);
+    if (safeRestaurants.length > 0) {
+      console.log('First restaurant features:', safeRestaurants[0].features);
+    }
     
     res.json(safeRestaurants);
   } catch (error) {
@@ -190,6 +198,56 @@ router.put('/restaurants/:id/features', async (req, res) => {
     
   } catch (error) {
     console.error('Admin restaurant features update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Toggle QR ordering for restaurant (admin only)
+router.put('/restaurants/:id/qr-ordering', async (req, res) => {
+  try {
+    // Verify admin token
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Admin authentication required' });
+    }
+    
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'admin_secret');
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+    } catch (tokenError) {
+      return res.status(401).json({ error: 'Invalid admin token' });
+    }
+    
+    const { enabled } = req.body;
+    
+    // Update QR ordering status
+    const result = await query(`
+      UPDATE restaurants 
+      SET features = jsonb_set(features, '{qrOrderingEnabled}', $1::jsonb),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, name, features->'qrOrderingEnabled' as qr_ordering_enabled
+    `, [JSON.stringify(enabled), req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    
+    const restaurant = result.rows[0];
+    
+    console.log(`Admin ${enabled ? 'enabled' : 'disabled'} QR ordering for restaurant: ${restaurant.name}`);
+    
+    res.json({
+      success: true,
+      message: `QR ordering ${enabled ? 'enabled' : 'disabled'} for ${restaurant.name}`,
+      restaurantId: restaurant.id,
+      qrOrderingEnabled: restaurant.qr_ordering_enabled
+    });
+    
+  } catch (error) {
+    console.error('Admin QR ordering toggle error:', error);
     res.status(500).json({ error: error.message });
   }
 });

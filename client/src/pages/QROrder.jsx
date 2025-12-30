@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Minus, Banknote, Smartphone, CheckCircle, Leaf } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Plus, Minus, Banknote, Smartphone, CheckCircle, Leaf, AlertTriangle, Phone, Mail } from 'lucide-react';
 import axios from 'axios';
 
 export default function QROrder() {
   const { restaurantId, tableNumber } = useParams();
-  const navigate = useNavigate();
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -130,6 +129,11 @@ export default function QROrder() {
     try {
       const { data } = await axios.get(`/api/restaurants/${restaurantId}`);
       setRestaurant(data);
+      
+      // Check if QR ordering is enabled
+      if (data.features && data.features.qrOrderingEnabled === false) {
+        console.log('QR ordering is disabled for this restaurant');
+      }
     } catch (error) {
       console.error('Error fetching restaurant:', error);
     }
@@ -218,6 +222,52 @@ export default function QROrder() {
   };
 
   if (!restaurant) return <div className="text-center py-12">Loading...</div>;
+
+  // Check if QR ordering is disabled
+  if (restaurant.features && restaurant.features.qrOrderingEnabled === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+          <div className="mb-6">
+            <AlertTriangle size={64} className="text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">QR Ordering Unavailable</h2>
+            <p className="text-gray-600 mb-6">
+              QR ordering has been temporarily disabled for {restaurant.name}. 
+              Please contact the restaurant directly to place your order.
+            </p>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-800 mb-2">Contact Information</h3>
+              <div className="space-y-2 text-sm">
+                {restaurant.phone && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Phone size={16} className="text-gray-500" />
+                    <a href={`tel:${restaurant.phone}`} className="text-blue-600 hover:underline">
+                      {restaurant.phone}
+                    </a>
+                  </div>
+                )}
+                {restaurant.email && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Mail size={16} className="text-gray-500" />
+                    <a href={`mailto:${restaurant.email}`} className="text-blue-600 hover:underline">
+                      {restaurant.email}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="text-xs text-gray-500">
+              Table {tableNumber} • {restaurant.name}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Get unique categories from menu items
   const uniqueCategories = [...new Set(restaurant.menu.map(item => item.category))];

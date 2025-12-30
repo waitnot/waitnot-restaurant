@@ -47,6 +47,8 @@ const AdminDashboard = () => {
       
       if (restaurantsResponse.ok) {
         const restaurantsData = await restaurantsResponse.json();
+        console.log('Admin restaurants data:', restaurantsData);
+        console.log('First restaurant features:', restaurantsData[0]?.features);
         setRestaurants(restaurantsData);
       }
 
@@ -69,6 +71,46 @@ const AdminDashboard = () => {
     }
   };
 
+  const toggleQROrdering = async (restaurantId, currentStatus) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`/api/admin/restaurants/${restaurantId}/qr-ordering`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ enabled: !currentStatus })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('QR ordering toggled:', result.message);
+        
+        // Update the restaurant in the local state
+        setRestaurants(restaurants.map(restaurant => 
+          restaurant._id === restaurantId 
+            ? { 
+                ...restaurant, 
+                features: { 
+                  ...restaurant.features, 
+                  qrOrderingEnabled: !currentStatus 
+                }
+              }
+            : restaurant
+        ));
+        
+        alert(result.message);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error toggling QR ordering:', error);
+      alert('Failed to toggle QR ordering');
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminData');
@@ -79,7 +121,6 @@ const AdminDashboard = () => {
     restaurant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     restaurant.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -267,6 +308,9 @@ const AdminDashboard = () => {
                       Tables
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      QR Ordering
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Created
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -303,6 +347,18 @@ const AdminDashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {restaurant.tables || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => toggleQROrdering(restaurant._id, restaurant.features?.qrOrderingEnabled)}
+                          className={`px-3 py-1 text-xs rounded-full font-medium ${
+                            restaurant.features?.qrOrderingEnabled !== false
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                              : 'bg-red-100 text-red-800 hover:bg-red-200'
+                          }`}
+                        >
+                          {restaurant.features?.qrOrderingEnabled !== false ? 'Enabled' : 'Disabled'}
+                        </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(restaurant.createdAt).toLocaleDateString()}
