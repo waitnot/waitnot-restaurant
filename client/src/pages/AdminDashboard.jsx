@@ -13,6 +13,7 @@ import {
   Search,
   Filter
 } from 'lucide-react';
+import { trackAdminEvent, trackAuthEvent } from '../utils/analytics';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -73,6 +74,13 @@ const AdminDashboard = () => {
 
   const toggleQROrdering = async (restaurantId, currentStatus) => {
     try {
+      // Track admin action
+      trackAdminEvent('toggle_qr_ordering', 'QR_Ordering_Control', {
+        restaurant_id: restaurantId,
+        action: currentStatus ? 'disable' : 'enable',
+        previous_status: currentStatus
+      });
+      
       const token = localStorage.getItem('adminToken');
       const response = await fetch(`/api/admin/restaurants/${restaurantId}/qr-ordering`, {
         method: 'PUT',
@@ -86,6 +94,12 @@ const AdminDashboard = () => {
       if (response.ok) {
         const result = await response.json();
         console.log('QR ordering toggled:', result.message);
+        
+        // Track successful toggle
+        trackAdminEvent('qr_ordering_toggle_success', 'QR_Ordering_Control', {
+          restaurant_id: restaurantId,
+          new_status: !currentStatus
+        });
         
         // Update the restaurant in the local state
         setRestaurants(restaurants.map(restaurant => 
@@ -103,15 +117,29 @@ const AdminDashboard = () => {
         alert(result.message);
       } else {
         const error = await response.json();
+        
+        // Track failed toggle
+        trackAdminEvent('qr_ordering_toggle_failed', 'QR_Ordering_Control', {
+          restaurant_id: restaurantId,
+          error: error.error
+        });
+        
         alert(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error toggling QR ordering:', error);
+      
+      // Track error
+      trackAdminEvent('qr_ordering_toggle_error', 'QR_Ordering_Control', {
+        restaurant_id: restaurantId,
+        error: error.message
+      });
       alert('Failed to toggle QR ordering');
     }
   };
 
   const logout = () => {
+    trackAuthEvent('logout', 'admin');
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminData');
     navigate('/admin-login');

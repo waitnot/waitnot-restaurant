@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus, Minus, Banknote, Smartphone, CheckCircle, Leaf, AlertTriangle, Phone, Mail } from 'lucide-react';
 import axios from 'axios';
+import { trackQROrderEvent, trackMenuEvent, trackOrderEvent } from '../utils/analytics';
 
 export default function QROrder() {
   const { restaurantId, tableNumber } = useParams();
@@ -140,6 +141,14 @@ export default function QROrder() {
   };
 
   const addToCart = (item) => {
+    // Track menu item addition
+    trackMenuEvent('add_to_cart', item.name, item.category, item.price);
+    trackQROrderEvent('add_to_cart', restaurantId, tableNumber, {
+      item_name: item.name,
+      item_price: item.price,
+      item_category: item.category
+    });
+    
     const existing = cart.find(i => i._id === item._id);
     if (existing) {
       setCart(cart.map(i => 
@@ -151,6 +160,22 @@ export default function QROrder() {
   };
 
   const updateQuantity = (itemId, quantity) => {
+    const item = cart.find(i => i._id === itemId);
+    if (item) {
+      if (quantity === 0) {
+        trackMenuEvent('remove_from_cart', item.name, item.category, item.price);
+        trackQROrderEvent('remove_from_cart', restaurantId, tableNumber, {
+          item_name: item.name
+        });
+      } else {
+        trackMenuEvent('update_quantity', item.name, item.category, item.price);
+        trackQROrderEvent('update_quantity', restaurantId, tableNumber, {
+          item_name: item.name,
+          new_quantity: quantity
+        });
+      }
+    }
+    
     if (quantity === 0) {
       setCart(cart.filter(i => i._id !== itemId));
     } else {
@@ -162,6 +187,16 @@ export default function QROrder() {
 
   const placeOrder = async () => {
     try {
+      // Track order placement
+      const orderId = `${restaurantId}_${tableNumber}_${Date.now()}`;
+      trackOrderEvent('place_order', orderId, total, cart.length);
+      trackQROrderEvent('place_order', restaurantId, tableNumber, {
+        total_amount: total,
+        item_count: cart.length,
+        payment_method: paymentMethod,
+        customer_name: customerInfo.name
+      });
+      
       // Save customer info for future orders
       saveCustomerInfo(customerInfo.name, customerInfo.phone);
       
@@ -183,6 +218,10 @@ export default function QROrder() {
       };
 
       await axios.post('/api/orders', orderData);
+      
+      // Track successful order
+      trackOrderEvent('order_success', orderId, total, cart.length);
+      
       setOrderPlaced(true);
       setTimeout(() => {
         // Don't navigate away, allow ordering again
@@ -193,6 +232,10 @@ export default function QROrder() {
       }, 2000);
     } catch (error) {
       console.error('Error placing order:', error);
+      
+      // Track order failure
+      trackOrderEvent('order_failed', `${restaurantId}_${tableNumber}_${Date.now()}`, total, cart.length);
+      
       alert('Failed to place order');
     }
   };

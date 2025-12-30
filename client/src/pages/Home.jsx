@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { QrCode, Smartphone, Clock, TrendingUp, Shield, Zap, BarChart3, CreditCard, Users, CheckCircle, Star, Play, X, Check, Minus } from 'lucide-react';
 import SEO from '../components/SEO';
+import { trackEvent, trackWhatsAppEvent, trackPricingEvent, trackEngagement } from '../utils/analytics';
 
 export default function Home() {
   const [showDemoModal, setShowDemoModal] = useState(false);
@@ -17,6 +18,7 @@ export default function Home() {
 
   // Scroll to CTA section
   const scrollToCTA = () => {
+    trackEvent('click', 'Navigation', 'Get_Started_Today_Button');
     const ctaSection = document.getElementById('cta-section');
     if (ctaSection) {
       ctaSection.scrollIntoView({ behavior: 'smooth' });
@@ -24,7 +26,8 @@ export default function Home() {
   };
 
   // Open WhatsApp with pre-filled message
-  const openWhatsApp = () => {
+  const openWhatsApp = (context = 'Start_Free_Trial') => {
+    trackWhatsAppEvent('click', context);
     const phoneNumber = '916364039135';
     const message = encodeURIComponent(
       `Hi! I'm interested in starting a free trial of WaitNot for my restaurant. Could you please help me get started with the QR code ordering system?
@@ -700,7 +703,10 @@ Thank you!`
               </div>
 
               <button 
-                onClick={openWhatsApp}
+                onClick={() => {
+                  trackPricingEvent('click', 'Starter Plan', 99);
+                  openWhatsApp('Starter_Plan_99');
+                }}
                 className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               >
                 <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
@@ -785,7 +791,10 @@ Thank you!`
               </div>
 
               <button 
-                onClick={openWhatsApp}
+                onClick={() => {
+                  trackPricingEvent('click', 'Pro Plan', 2999);
+                  openWhatsApp('Pro_Plan_2999');
+                }}
                 className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-xl hover:shadow-2xl relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform translate-x-[-100%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
@@ -851,7 +860,10 @@ Thank you!`
               </div>
 
               <button 
-                onClick={openWhatsApp}
+                onClick={() => {
+                  trackPricingEvent('click', 'Premium Plan', 6999);
+                  openWhatsApp('Premium_Plan_6999');
+                }}
                 className="w-full bg-gradient-to-r from-purple-600 to-black hover:from-purple-700 hover:to-gray-900 text-white py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-xl hover:shadow-2xl border border-purple-500/30 flex items-center justify-center gap-2"
               >
                 <div className="text-xl">🚀</div>
@@ -1034,7 +1046,10 @@ Thank you!`
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center mb-8">
             <button 
-              onClick={openWhatsApp}
+              onClick={() => {
+                trackEvent('click', 'CTA', 'Start_Free_Trial_Main');
+                openWhatsApp('Main_CTA_Free_Trial');
+              }}
               className="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-105 shadow-lg"
             >
               Start Free Trial

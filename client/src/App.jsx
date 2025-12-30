@@ -17,13 +17,21 @@ import AdminEditRestaurant from './pages/AdminEditRestaurant';
 import NotFound from './pages/NotFound';
 import { CartProvider } from './context/CartContext';
 import { FeatureProvider } from './context/FeatureContext';
+import { useAnalytics } from './hooks/useAnalytics';
+
+// Analytics wrapper component
+function AnalyticsWrapper({ children }) {
+  useAnalytics();
+  return children;
+}
 
 function App() {
   return (
     <HelmetProvider>
       <CartProvider>
         <Router>
-          <div className="min-h-screen bg-gray-50">
+          <AnalyticsWrapper>
+            <div className="min-h-screen bg-gray-50">
             <Routes>
               <Route path="/" element={<><Navbar /><Home /></>} />
               <Route path="/restaurant/:id" element={<><Navbar /><RestaurantPage /></>} />
@@ -41,6 +49,7 @@ function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
+          </AnalyticsWrapper>
         </Router>
       </CartProvider>
     </HelmetProvider>
