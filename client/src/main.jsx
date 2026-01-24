@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './polyfills' // Import polyfills for Edge browser compatibility
+import './config/environment' // Initialize environment configuration first
 import './config/axios' // Configure axios for production
 import './config/api' // Configure API for production
 import App from './App.jsx'

@@ -12,7 +12,7 @@ export default defineConfig(({ command, mode }) => {
       ...(isDev && {
         proxy: {
           '/api': {
-            target: 'http://localhost:5000',
+            target: 'https://waitnot-restaurant.onrender.com',
             changeOrigin: true
           }
         }

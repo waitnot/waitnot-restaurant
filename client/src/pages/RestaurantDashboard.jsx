@@ -56,10 +56,10 @@ export default function RestaurantDashboard() {
     fetchRestaurant(restaurantId);
     fetchOrders(restaurantId);
 
-    // Connect to production server WebSocket
-    const socketUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:5000' 
-      : 'https://waitnot-restaurant.onrender.com';
+    // Force production server WebSocket - NO localhost allowed
+    const socketUrl = 'https://waitnot-restaurant.onrender.com';
+    
+    console.log('🔌 WebSocket - FORCED PRODUCTION:', socketUrl);
     
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
