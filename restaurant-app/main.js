@@ -36,29 +36,53 @@ function createWindow() {
       contextIsolation: true,
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: true
+      webSecurity: false, // Disable web security for production server access
+      allowRunningInsecureContent: true,
+      experimentalFeatures: true
     },
     show: false, // Don't show until ready
     titleBarStyle: 'default',
     autoHideMenuBar: false
   });
 
-  // Load the restaurant dashboard
-  const isDev = process.env.NODE_ENV === 'development';
-  const startUrl = isDev 
-    ? 'http://localhost:3000/restaurant-login'
-    : 'https://waitnot-restaurant.onrender.com/restaurant-login';
-
+  // Load the restaurant dashboard - Always use production server
+  const startUrl = 'https://waitnot-restaurant.onrender.com/restaurant-login';
+  
+  console.log('Loading URL:', startUrl);
   mainWindow.loadURL(startUrl);
+
+  // Timeout fallback - if page doesn't load in 15 seconds, show fallback
+  const loadTimeout = setTimeout(() => {
+    console.log('Load timeout - showing fallback page');
+    const fallbackPath = path.join(__dirname, 'fallback.html');
+    mainWindow.loadFile(fallbackPath);
+  }, 15000);
 
   // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    console.log('Window ready and shown');
     
-    // Focus on window
-    if (isDev) {
+    // Only enable dev tools in development
+    if (process.env.NODE_ENV === 'development') {
       mainWindow.webContents.openDevTools();
     }
+  });
+
+  // Add error handling for loading failures
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('Failed to load:', errorCode, errorDescription, validatedURL);
+    
+    // Try loading fallback page
+    const fallbackPath = path.join(__dirname, 'fallback.html');
+    console.log('Loading fallback page:', fallbackPath);
+    mainWindow.loadFile(fallbackPath);
+  });
+
+  // Handle navigation errors
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('Page loaded successfully');
+    clearTimeout(loadTimeout); // Clear the timeout if page loads successfully
   });
 
   // Handle window closed

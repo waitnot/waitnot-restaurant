@@ -39,6 +39,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "fallback.html",
       "renderer/**/*",
       "assets/**/*",
       "sounds/**/*",

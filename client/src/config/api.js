@@ -1,11 +1,19 @@
 // API configuration for both axios and fetch
-const API_BASE_URL = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:5000'  // Development server
-  : 'https://waitnot-restaurant.onrender.com';  // Production server
+const isDesktopApp = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron');
+const API_BASE_URL = isDesktopApp 
+  ? 'https://waitnot-restaurant.onrender.com'  // Always use production for desktop app
+  : process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:5000'  // Development server
+    : 'https://waitnot-restaurant.onrender.com';  // Production server
+
+console.log('API Base URL:', API_BASE_URL);
+console.log('Is Desktop App:', isDesktopApp);
 
 // Enhanced fetch wrapper with automatic base URL
 export const apiRequest = async (endpoint, options = {}) => {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  
+  console.log('API Fetch Request:', options.method || 'GET', url);
   
   // Add default headers
   const defaultHeaders = {
@@ -29,6 +37,8 @@ export const apiRequest = async (endpoint, options = {}) => {
       ...options,
       headers,
     });
+
+    console.log('API Fetch Response:', response.status, url);
 
     // Handle 401 errors (unauthorized)
     if (response.status === 401) {

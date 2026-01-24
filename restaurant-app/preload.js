@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 // Inject custom styles for better desktop experience
 window.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM Content Loaded in desktop app');
+  
   const style = document.createElement('style');
   style.textContent = `
     /* Desktop app specific styles */
@@ -100,6 +102,8 @@ window.addEventListener('DOMContentLoaded', () => {
       indicator.remove();
     }, 500);
   }, 3000);
+  
+  console.log('Desktop app styles and indicator added');
 });
 
 // Enhanced error handling
