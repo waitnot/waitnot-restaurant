@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User } from 'lucide-react';
 import axios from 'axios';
 import io from 'socket.io-client';
 import FeatureGuard from '../components/FeatureGuard';
@@ -1185,182 +1185,6 @@ export default function RestaurantDashboard() {
     navigate('/restaurant-login');
   };
 
-  const installDesktopApp = () => {
-    try {
-      // Track the install button click
-      trackRestaurantEvent('install_desktop_app_clicked', restaurant._id, {
-        restaurant_name: restaurant.name
-      });
-
-      // Show desktop app options
-      const choice = window.confirm(`🖥️ WaitNot Desktop App Options
-
-Choose your preferred installation method:
-
-✅ OK = Download Professional Desktop App (.exe)
-❌ Cancel = Download Quick Launcher (.bat)
-
-Professional Desktop App:
-• Native Windows application
-• Auto-updates and offline support
-• Enhanced printing and notifications
-• Professional installer
-
-Quick Launcher:
-• Simple batch file
-• Requires Node.js installation
-• For developers and tech-savvy users`);
-
-      if (choice) {
-        // Download professional desktop app
-        downloadDesktopApp();
-      } else {
-        // Generate batch file launcher
-        generateBatchLauncher();
-      }
-
-    } catch (error) {
-      console.error('Error with desktop app options:', error);
-      alert('❌ Failed to process desktop app request. Please try again.');
-      
-      // Track error
-      trackRestaurantEvent('desktop_app_error', restaurant._id, {
-        error: error.message
-      });
-    }
-  };
-
-  const downloadDesktopApp = () => {
-    try {
-      // Track professional app download
-      trackRestaurantEvent('professional_desktop_app_clicked', restaurant._id, {
-        restaurant_name: restaurant.name
-      });
-
-      // Show download instructions for professional app
-      alert(`🚀 WaitNot Professional Desktop App
-
-📥 Download Instructions:
-1. Contact our support team for the latest desktop app
-2. WhatsApp: +91 6364039135
-3. Or visit our website for download links
-
-✨ Professional App Features:
-• Native Windows application (.exe)
-• One-click installation with desktop shortcut
-• Auto-updates when new versions are available
-• Enhanced printing support for receipts
-• Offline mode indicators
-• Professional UI optimized for desktop
-• Secure and sandboxed environment
-
-📱 We'll send you the download link via WhatsApp!`);
-
-      // Open WhatsApp for support
-      const whatsappMessage = encodeURIComponent(`Hello! I would like to download the WaitNot Professional Desktop App for my restaurant: ${restaurant.name}. Please send me the download link. Thank you!`);
-      window.open(`https://wa.me/916364039135?text=${whatsappMessage}`, '_blank');
-
-      // Track WhatsApp contact
-      trackRestaurantEvent('desktop_app_whatsapp_contact', restaurant._id, {
-        restaurant_name: restaurant.name
-      });
-
-    } catch (error) {
-      console.error('Error with professional desktop app:', error);
-      alert('❌ Failed to process professional app request. Please try again.');
-    }
-  };
-
-  const generateBatchLauncher = () => {
-    try {
-      // Generate personalized batch file content
-      const restaurantName = restaurant.name.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-');
-      const batchContent = `@echo off
-title ${restaurant.name} - WaitNot Restaurant Dashboard
-color 0B
-echo.
-echo ========================================
-echo    ${restaurant.name}
-echo    WaitNot Restaurant Dashboard
-echo ========================================
-echo.
-echo Opening ${restaurant.name} Dashboard...
-echo.
-
-REM Check if servers are running, if not start them
-tasklist /FI "WINDOWTITLE eq WaitNot Server*" 2>NUL | find /I /N "cmd.exe">NUL
-if "%ERRORLEVEL%"=="1" (
-    echo Starting backend server...
-    start "WaitNot Server" cmd /k "cd /d server && npm start"
-    timeout /t 5 /nobreak >nul
-)
-
-tasklist /FI "WINDOWTITLE eq WaitNot Client*" 2>NUL | find /I /N "cmd.exe">NUL
-if "%ERRORLEVEL%"=="1" (
-    echo Starting frontend client...
-    start "WaitNot Client" cmd /k "cd /d client && npm run dev"
-    timeout /t 8 /nobreak >nul
-)
-
-REM Open Restaurant Dashboard directly
-start http://localhost:3000/restaurant-login
-
-echo.
-echo ✅ ${restaurant.name} Dashboard opened!
-echo.
-echo 🔐 Restaurant Credentials:
-echo    Email: ${restaurant.email || 'your-email@example.com'}
-echo    Password: [Your Password]
-echo.
-echo 💡 Tip: Bookmark this for quick access!
-echo    For Professional Desktop App, contact: +91 6364039135
-echo.
-echo Press any key to close...
-pause >nul`;
-
-      // Create and download the batch file
-      const blob = new Blob([batchContent], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = `${restaurantName}-WaitNot-Launcher.bat`;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-
-      // Show success message
-      alert(`✅ Quick Launcher Downloaded!
-
-📁 File: ${restaurantName}-WaitNot-Launcher.bat
-
-📋 Installation Instructions:
-1. Save the downloaded file to your desktop
-2. Double-click the file to launch your restaurant dashboard
-3. Create a desktop shortcut for easy access
-
-⚠️ Requirements:
-• Node.js must be installed on your computer
-• WaitNot source code must be available locally
-
-🚀 For a better experience, consider the Professional Desktop App:
-• No technical requirements
-• Professional installer
-• Auto-updates and enhanced features
-• Contact +91 6364039135 for download
-
-💡 Pro Tip: Right-click the file and "Send to Desktop" for quick access!`);
-
-      // Track successful download
-      trackRestaurantEvent('batch_launcher_downloaded', restaurant._id, {
-        restaurant_name: restaurant.name,
-        file_name: `${restaurantName}-WaitNot-Launcher.bat`
-      });
-
-    } catch (error) {
-      console.error('Error generating batch launcher:', error);
-      alert('❌ Failed to generate batch launcher. Please try again.');
-    }
-  };
-
   if (!restaurant) return <div className="text-center py-12">Loading...</div>;
 
   const statusColors = {
@@ -1381,15 +1205,6 @@ pause >nul`;
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-primary truncate">{restaurant.name}</h1>
           <div className="flex items-center gap-2 sm:gap-4">
-            <button 
-              onClick={installDesktopApp}
-              className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base bg-green-50 hover:bg-green-100 px-2 sm:px-3 py-1 sm:py-2 rounded-lg border border-green-200 transition-colors"
-              title="Download desktop launcher for quick access"
-            >
-              <Download size={18} className="sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Install Desktop App</span>
-              <span className="sm:hidden">Install</span>
-            </button>
             <FeatureGuard feature="profileEdit">
               <button 
                 onClick={() => navigate('/restaurant-profile')}
