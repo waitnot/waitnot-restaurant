@@ -6,6 +6,15 @@ const fs = require('fs');
 // Keep a global reference of the window object
 let mainWindow;
 
+// Hide console window in production
+if (process.env.NODE_ENV !== 'development') {
+  // Hide console window for production builds
+  if (process.platform === 'win32') {
+    app.commandLine.appendSwitch('disable-logging');
+    app.commandLine.appendSwitch('disable-dev-shm-usage');
+  }
+}
+
 // Enable live reload for development
 if (process.env.NODE_ENV === 'development') {
   require('electron-reload')(__dirname, {
@@ -21,6 +30,7 @@ function createWindow() {
     height: 900,
     minWidth: 1200,
     minHeight: 800,
+    icon: path.join(__dirname, 'logo.png'), // Set window icon
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

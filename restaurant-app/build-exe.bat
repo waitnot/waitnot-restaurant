@@ -18,7 +18,23 @@ if %ERRORLEVEL% NEQ 0 (
 echo ✅ Node.js is installed
 echo.
 
-echo Step 2: Installing dependencies...
+echo Step 2: Checking logo file...
+if not exist "logo.png" (
+    echo ⚠️ Logo not found, copying from client directory...
+    copy "..\client\public\logo.png" "logo.png" >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo ❌ Failed to copy logo.png!
+        echo Please ensure logo.png exists in client\public\ directory
+        pause
+        exit /b 1
+    )
+    echo ✅ Logo copied successfully
+) else (
+    echo ✅ Logo file found
+)
+echo.
+
+echo Step 3: Installing dependencies...
 npm install
 if %ERRORLEVEL% NEQ 0 (
     echo ❌ Failed to install dependencies!
@@ -28,7 +44,7 @@ if %ERRORLEVEL% NEQ 0 (
 echo ✅ Dependencies installed
 echo.
 
-echo Step 3: Building Windows executable...
+echo Step 4: Building Windows executable...
 echo This may take a few minutes to download Electron binaries...
 npm run build-win
 if %ERRORLEVEL% NEQ 0 (

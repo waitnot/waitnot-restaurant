@@ -41,6 +41,8 @@
       "preload.js",
       "renderer/**/*",
       "assets/**/*",
+      "sounds/**/*",
+      "logo.png",
       "node_modules/**/*"
     ],
     "extraMetadata": {
@@ -56,13 +58,15 @@
           ]
         }
       ],
+      "icon": "logo.png",
       "requestedExecutionLevel": "asInvoker",
       "publisherName": "WaitNot Team",
       "verifyUpdateCodeSignature": false
     },
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.business"
+      "category": "public.app-category.business",
+      "icon": "logo.png"
     },
     "linux": {
       "target": [
@@ -73,7 +77,8 @@
           ]
         }
       ],
-      "category": "Office"
+      "category": "Office",
+      "icon": "logo.png"
     },
     "nsis": {
       "oneClick": false,
@@ -90,6 +95,9 @@
       "artifactName": "${productName} Setup ${version}.${ext}",
       "uninstallDisplayName": "${productName}",
       "license": "build/license.txt"
+    },
+    "extraMetadata": {
+      "main": "main.js"
     }
   }
 }

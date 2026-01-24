@@ -56,8 +56,35 @@ export default function RestaurantDashboard() {
     fetchRestaurant(restaurantId);
     fetchOrders(restaurantId);
 
-    const socket = io('http://localhost:5000');
+    // Connect to production server WebSocket
+    const socketUrl = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:5000' 
+      : 'https://waitnot-restaurant.onrender.com';
+    
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      timeout: 20000,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      maxReconnectionAttempts: 5
+    });
+    
     socket.emit('join-restaurant', restaurantId);
+    
+    socket.on('connect', () => {
+      console.log('Connected to WaitNot server');
+      // Re-join restaurant room on reconnection
+      socket.emit('join-restaurant', restaurantId);
+    });
+    
+    socket.on('disconnect', () => {
+      console.log('Disconnected from WaitNot server');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+    });
     
     socket.on('new-order', (order) => {
       setOrders(prev => [order, ...prev]);
@@ -1411,55 +1438,100 @@ pause >nul`;
           <FeatureGuard feature="deliveryOrders">
             <button
               onClick={() => setActiveTab('delivery')}
-              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'delivery' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
             >
               <span className="hidden sm:inline">Delivery Orders</span>
               <span className="sm:hidden">Delivery</span>
+              {deliveryOrders.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'delivery' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {deliveryOrders.length}
+                </span>
+              )}
             </button>
           </FeatureGuard>
           <FeatureGuard feature="orderManagement">
             <button
               onClick={() => setActiveTab('dine-in')}
-              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'dine-in' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
             >
               <span className="hidden sm:inline">Table Orders</span>
               <span className="sm:hidden">Tables</span>
+              {dineInOrders.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'dine-in' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {dineInOrders.length}
+                </span>
+              )}
             </button>
           </FeatureGuard>
           <FeatureGuard feature="menuManagement">
             <button
               onClick={() => setActiveTab('menu')}
-              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'menu' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
             >
               Menu
+              {restaurant?.menu?.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'menu' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {restaurant.menu.length}
+                </span>
+              )}
             </button>
           </FeatureGuard>
           <FeatureGuard feature="qrCodeGeneration">
             <button
               onClick={() => setActiveTab('qr')}
-              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'qr' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
             >
               <span className="hidden sm:inline">QR Codes</span>
               <span className="sm:hidden">QR</span>
+              {restaurant?.tables > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'qr' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {restaurant.tables}
+                </span>
+              )}
             </button>
           </FeatureGuard>
           <FeatureGuard feature="orderHistory">
             <button
               onClick={() => setActiveTab('history')}
-              className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'history' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
             >
               <span className="hidden sm:inline">Order History</span>
               <span className="sm:hidden">History</span>
+              {orders.filter(o => o.status === 'completed').length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'history' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {orders.filter(o => o.status === 'completed').length}
+                </span>
+              )}
             </button>
           </FeatureGuard>
         </div>      
