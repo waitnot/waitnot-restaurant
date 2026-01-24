@@ -45,11 +45,20 @@ function createWindow() {
     autoHideMenuBar: false
   });
 
-  // Load the restaurant dashboard - Always use production server
-  const startUrl = 'https://waitnot-restaurant.onrender.com/restaurant-login';
+  // Load the built React app locally, but API calls will go to production
+  const isDev = process.env.NODE_ENV === 'development';
+  const startUrl = isDev 
+    ? 'http://localhost:3000/restaurant-login'  // Development: load from dev server
+    : path.join(__dirname, 'renderer', 'index.html');  // Production: load built files locally
   
   console.log('Loading URL:', startUrl);
-  mainWindow.loadURL(startUrl);
+  
+  if (isDev) {
+    mainWindow.loadURL(startUrl);
+  } else {
+    // Load the built React app files locally
+    mainWindow.loadFile(startUrl);
+  }
 
   // Timeout fallback - if page doesn't load in 15 seconds, show fallback
   const loadTimeout = setTimeout(() => {
