@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
@@ -18,6 +18,18 @@ import NotFound from './pages/NotFound';
 import { CartProvider } from './context/CartContext';
 import { FeatureProvider } from './context/FeatureContext';
 import { useAnalytics } from './hooks/useAnalytics';
+
+// Detect if running in Electron desktop app
+const isDesktopApp = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron');
+
+// Use HashRouter for desktop app, BrowserRouter for web
+const Router = isDesktopApp ? HashRouter : BrowserRouter;
+
+console.log('🔧 Router Configuration:', {
+  isDesktopApp,
+  routerType: isDesktopApp ? 'HashRouter' : 'BrowserRouter',
+  userAgent: window.navigator.userAgent
+});
 
 // Analytics wrapper component
 function AnalyticsWrapper({ children }) {

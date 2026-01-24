@@ -36,9 +36,14 @@ function createWindow() {
       contextIsolation: true,
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false, // Disable web security for production server access
+      webSecurity: false, // Disable web security for local file access
       allowRunningInsecureContent: true,
-      experimentalFeatures: true
+      experimentalFeatures: true,
+      // Additional settings for local file loading
+      allowDisplayingInsecureContent: true,
+      allowRunningInsecureContent: true,
+      nodeIntegrationInWorker: false,
+      nodeIntegrationInSubFrames: false
     },
     show: false, // Don't show until ready
     titleBarStyle: 'default',
@@ -47,17 +52,39 @@ function createWindow() {
 
   // Load the built React app locally, but API calls will go to production
   const isDev = process.env.NODE_ENV === 'development';
-  const startUrl = isDev 
-    ? 'http://localhost:3000/restaurant-login'  // Development: load from dev server
-    : path.join(__dirname, 'renderer', 'index.html');  // Production: load built files locally
-  
-  console.log('Loading URL:', startUrl);
   
   if (isDev) {
+    // Development: load from dev server
+    const startUrl = 'http://localhost:3000/restaurant-login';
+    console.log('Development mode - Loading URL:', startUrl);
     mainWindow.loadURL(startUrl);
   } else {
-    // Load the built React app files locally
-    mainWindow.loadFile(startUrl);
+    // Production: load built files locally
+    const indexPath = path.join(__dirname, 'renderer', 'index.html');
+    console.log('Production mode - Loading file:', indexPath);
+    
+    // Load the main index.html file (React Router will handle routing)
+    mainWindow.loadFile(indexPath).then(() => {
+      console.log('✅ Local files loaded successfully');
+      
+      // Navigate to restaurant login page after loading
+      setTimeout(() => {
+        mainWindow.webContents.executeJavaScript(`
+          console.log('🔧 Current location:', window.location.href);
+          if (!window.location.hash || window.location.hash === '#/') {
+            console.log('🔄 Navigating to restaurant login...');
+            window.location.hash = '#/restaurant-login';
+          }
+        `);
+      }, 1000);
+    }).catch((error) => {
+      console.error('❌ Failed to load local files:', error);
+      
+      // Fallback to fallback page
+      const fallbackPath = path.join(__dirname, 'fallback.html');
+      console.log('Loading fallback page:', fallbackPath);
+      mainWindow.loadFile(fallbackPath);
+    });
   }
 
   // Timeout fallback - if page doesn't load in 15 seconds, show fallback
@@ -277,6 +304,18 @@ function createMenu() {
 
 // App event handlers
 app.whenReady().then(() => {
+  // Register custom protocol for local files
+  protocol.registerFileProtocol('app', (request, callback) => {
+    const url = request.url.substr(6); // Remove 'app://' prefix
+    const filePath = path.join(__dirname, 'renderer', url);
+    
+    if (fs.existsSync(filePath)) {
+      callback({ path: filePath });
+    } else {
+      callback({ error: -6 }); // FILE_NOT_FOUND
+    }
+  });
+
   // Register custom protocol for local sound files
   protocol.registerFileProtocol('app-sounds', (request, callback) => {
     const url = request.url.substr(12); // Remove 'app-sounds://' prefix
