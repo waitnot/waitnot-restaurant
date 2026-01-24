@@ -80,7 +80,7 @@ echo   • They can install and run from desktop
 echo   • Auto-updates will work with installer version
 echo.
 echo 🌐 Network Connection:
-echo   • App connects to: https://waitnot-restaurant-management.onrender.com
+echo   • App connects to: https://waitnot-restaurant.onrender.com
 echo   • Requires internet connection to function
 echo   • All data is stored on your server (secure)
 echo.
