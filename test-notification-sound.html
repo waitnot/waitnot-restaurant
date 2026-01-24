@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Notification Sound</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        .info {
+            background: #f3f4f6;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔔 WaitNot Notification Sound Test</h1>
+    
+    <div class="info">
+        <h3>Testing the new WAV notification sound:</h3>
+        <p><strong>File:</strong> mixkit-success-software-tone-2865.wav</p>
+        <p><strong>Location:</strong> /sounds/new-order.wav</p>
+    </div>
+
+    <button onclick="testSound()">🔊 Test Notification Sound</button>
+    <button onclick="testVolume(0.3)">🔉 Test Low Volume</button>
+    <button onclick="testVolume(1.0)">🔊 Test High Volume</button>
+
+    <div id="status" style="margin-top: 20px; font-weight: bold;"></div>
+
+    <script>
+        let audio = null;
+
+        function initAudio() {
+            try {
+                audio = new Audio('/sounds/new-order.wav');
+                audio.preload = 'auto';
+                
+                audio.addEventListener('canplaythrough', () => {
+                    document.getElementById('status').innerHTML = '✅ Sound file loaded successfully!';
+                    document.getElementById('status').style.color = 'green';
+                });
+                
+                audio.addEventListener('error', (e) => {
+                    document.getElementById('status').innerHTML = '❌ Failed to load sound file: ' + e.message;
+                    document.getElementById('status').style.color = 'red';
+                });
+                
+                audio.load();
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Audio not supported: ' + error.message;
+                document.getElementById('status').style.color = 'red';
+            }
+        }
+
+        function testSound() {
+            if (!audio) {
+                initAudio();
+                setTimeout(testSound, 1000);
+                return;
+            }
+
+            try {
+                audio.currentTime = 0;
+                audio.volume = 0.7;
+                
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            document.getElementById('status').innerHTML = '🎵 Playing notification sound...';
+                            document.getElementById('status').style.color = 'blue';
+                        })
+                        .catch((error) => {
+                            document.getElementById('status').innerHTML = '❌ Failed to play: ' + error.message;
+                            document.getElementById('status').style.color = 'red';
+                        });
+                }
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Error playing sound: ' + error.message;
+                document.getElementById('status').style.color = 'red';
+            }
+        }
+
+        function testVolume(volume) {
+            if (!audio) {
+                initAudio();
+                setTimeout(() => testVolume(volume), 1000);
+                return;
+            }
+
+            try {
+                audio.currentTime = 0;
+                audio.volume = volume;
+                
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            document.getElementById('status').innerHTML = `🎵 Playing at ${Math.round(volume * 100)}% volume...`;
+                            document.getElementById('status').style.color = 'blue';
+                        })
+                        .catch((error) => {
+                            document.getElementById('status').innerHTML = '❌ Failed to play: ' + error.message;
+                            document.getElementById('status').style.color = 'red';
+                        });
+                }
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Error playing sound: ' + error.message;
+                document.getElementById('status').style.color = 'red';
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', initAudio);
+    </script>
+</body>
+</html>

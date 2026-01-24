@@ -6,6 +6,7 @@ import io from 'socket.io-client';
 import FeatureGuard from '../components/FeatureGuard';
 import { useFeatures } from '../context/FeatureContext';
 import { trackRestaurantEvent } from '../utils/analytics';
+import notificationSound from '../utils/notificationSound';
 
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
@@ -60,6 +61,17 @@ export default function RestaurantDashboard() {
     
     socket.on('new-order', (order) => {
       setOrders(prev => [order, ...prev]);
+      
+      // Play notification sound for new order
+      notificationSound.playNewOrderSound();
+      
+      // Track new order event
+      trackRestaurantEvent('new_order_received', restaurantId, {
+        order_id: order._id,
+        order_type: order.orderType,
+        total_amount: order.totalAmount,
+        customer_name: order.customerName
+      });
     });
 
     socket.on('order-updated', (updatedOrder) => {
@@ -116,6 +128,46 @@ export default function RestaurantDashboard() {
       console.error('Error loading printer settings:', error);
       return defaultSettings;
     }
+  };
+
+  // Notification Sound Settings
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [notificationEnabled, setNotificationEnabled] = useState(() => notificationSound.getEnabled());
+  const [notificationVolume, setNotificationVolume] = useState(() => notificationSound.getVolume());
+
+  const handleNotificationToggle = (enabled) => {
+    setNotificationEnabled(enabled);
+    notificationSound.setEnabled(enabled);
+    
+    // Track notification settings change
+    trackRestaurantEvent('notification_settings_changed', restaurant?._id, {
+      enabled: enabled,
+      volume: notificationVolume
+    });
+  };
+
+  const handleVolumeChange = (volume) => {
+    setNotificationVolume(volume);
+    notificationSound.setVolume(volume);
+    
+    // Track volume change
+    trackRestaurantEvent('notification_volume_changed', restaurant?._id, {
+      volume: volume
+    });
+  };
+
+  const testNotificationSound = () => {
+    const success = notificationSound.testSound();
+    if (success) {
+      alert('🔊 Test sound played successfully!');
+    } else {
+      alert('❌ Failed to play test sound. Please check your browser settings and ensure sound is enabled.');
+    }
+    
+    // Track test sound
+    trackRestaurantEvent('notification_sound_tested', restaurant?._id, {
+      success: success
+    });
   };
 
   // Check if table has unprinted items for kitchen
@@ -1338,6 +1390,14 @@ pause >nul`;
                 <span className="hidden sm:inline">Printer Settings</span>
               </button>
             </FeatureGuard>
+            <button 
+              onClick={() => setShowNotificationSettings(true)}
+              className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
+              title="Notification sound settings"
+            >
+              <span className="text-lg">🔔</span>
+              <span className="hidden sm:inline">Notifications</span>
+            </button>
             <button onClick={logout} className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base">
               <LogOut size={18} className="sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">Logout</span>
@@ -2159,6 +2219,107 @@ pause >nul`;
           </div>
         )}
       </div>
+
+      {/* Notification Settings Modal */}
+      {showNotificationSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800">🔔 Notification Settings</h2>
+              <button
+                onClick={() => setShowNotificationSettings(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Enable/Disable Notifications */}
+              <div>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <span className="text-gray-700 font-semibold">Order Notification Sound</span>
+                    <p className="text-sm text-gray-500">Play sound when new orders arrive</p>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={notificationEnabled}
+                      onChange={(e) => handleNotificationToggle(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div className={`w-12 h-6 rounded-full transition-colors ${
+                      notificationEnabled ? 'bg-primary' : 'bg-gray-300'
+                    }`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+                        notificationEnabled ? 'translate-x-6' : 'translate-x-0.5'
+                      } mt-0.5`}></div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {/* Volume Control */}
+              {notificationEnabled && (
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2">
+                    Volume: {Math.round(notificationVolume * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={notificationVolume}
+                    onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>🔇 Quiet</span>
+                    <span>🔊 Loud</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Test Sound Button */}
+              {notificationEnabled && (
+                <div>
+                  <button
+                    onClick={testNotificationSound}
+                    className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 px-4 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
+                  >
+                    🔊 Test Notification Sound
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Click to test the notification sound
+                  </p>
+                </div>
+              )}
+
+              {/* Info Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-800 mb-2">ℹ️ How it works</h3>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• Sound plays automatically when new orders arrive</li>
+                  <li>• Works for both dine-in and delivery orders</li>
+                  <li>• Browser must allow audio playback</li>
+                  <li>• Settings are saved for this restaurant</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowNotificationSettings(false)}
+                className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-red-600 font-semibold"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain, protocol } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const fs = require('fs');
 
 // Keep a global reference of the window object
 let mainWindow;
@@ -233,6 +234,18 @@ function createMenu() {
 
 // App event handlers
 app.whenReady().then(() => {
+  // Register custom protocol for local sound files
+  protocol.registerFileProtocol('app-sounds', (request, callback) => {
+    const url = request.url.substr(12); // Remove 'app-sounds://' prefix
+    const soundPath = path.join(__dirname, 'sounds', url);
+    
+    if (fs.existsSync(soundPath)) {
+      callback({ path: soundPath });
+    } else {
+      callback({ error: -6 }); // FILE_NOT_FOUND
+    }
+  });
+
   createWindow();
   createMenu();
 
