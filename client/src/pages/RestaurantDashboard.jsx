@@ -1113,6 +1113,87 @@ export default function RestaurantDashboard() {
         restaurant_name: restaurant.name
       });
 
+      // Show desktop app options
+      const choice = window.confirm(`🖥️ WaitNot Desktop App Options
+
+Choose your preferred installation method:
+
+✅ OK = Download Professional Desktop App (.exe)
+❌ Cancel = Download Quick Launcher (.bat)
+
+Professional Desktop App:
+• Native Windows application
+• Auto-updates and offline support
+• Enhanced printing and notifications
+• Professional installer
+
+Quick Launcher:
+• Simple batch file
+• Requires Node.js installation
+• For developers and tech-savvy users`);
+
+      if (choice) {
+        // Download professional desktop app
+        downloadDesktopApp();
+      } else {
+        // Generate batch file launcher
+        generateBatchLauncher();
+      }
+
+    } catch (error) {
+      console.error('Error with desktop app options:', error);
+      alert('❌ Failed to process desktop app request. Please try again.');
+      
+      // Track error
+      trackRestaurantEvent('desktop_app_error', restaurant._id, {
+        error: error.message
+      });
+    }
+  };
+
+  const downloadDesktopApp = () => {
+    try {
+      // Track professional app download
+      trackRestaurantEvent('professional_desktop_app_clicked', restaurant._id, {
+        restaurant_name: restaurant.name
+      });
+
+      // Show download instructions for professional app
+      alert(`🚀 WaitNot Professional Desktop App
+
+📥 Download Instructions:
+1. Contact our support team for the latest desktop app
+2. WhatsApp: +91 6364039135
+3. Or visit our website for download links
+
+✨ Professional App Features:
+• Native Windows application (.exe)
+• One-click installation with desktop shortcut
+• Auto-updates when new versions are available
+• Enhanced printing support for receipts
+• Offline mode indicators
+• Professional UI optimized for desktop
+• Secure and sandboxed environment
+
+📱 We'll send you the download link via WhatsApp!`);
+
+      // Open WhatsApp for support
+      const whatsappMessage = encodeURIComponent(`Hello! I would like to download the WaitNot Professional Desktop App for my restaurant: ${restaurant.name}. Please send me the download link. Thank you!`);
+      window.open(`https://wa.me/916364039135?text=${whatsappMessage}`, '_blank');
+
+      // Track WhatsApp contact
+      trackRestaurantEvent('desktop_app_whatsapp_contact', restaurant._id, {
+        restaurant_name: restaurant.name
+      });
+
+    } catch (error) {
+      console.error('Error with professional desktop app:', error);
+      alert('❌ Failed to process professional app request. Please try again.');
+    }
+  };
+
+  const generateBatchLauncher = () => {
+    try {
       // Generate personalized batch file content
       const restaurantName = restaurant.name.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-');
       const batchContent = `@echo off
@@ -1153,6 +1234,7 @@ echo    Email: ${restaurant.email || 'your-email@example.com'}
 echo    Password: [Your Password]
 echo.
 echo 💡 Tip: Bookmark this for quick access!
+echo    For Professional Desktop App, contact: +91 6364039135
 echo.
 echo Press any key to close...
 pause >nul`;
@@ -1167,7 +1249,7 @@ pause >nul`;
       URL.revokeObjectURL(url);
 
       // Show success message
-      alert(`✅ Desktop App Installer Downloaded!
+      alert(`✅ Quick Launcher Downloaded!
 
 📁 File: ${restaurantName}-WaitNot-Launcher.bat
 
@@ -1176,27 +1258,27 @@ pause >nul`;
 2. Double-click the file to launch your restaurant dashboard
 3. Create a desktop shortcut for easy access
 
-🚀 Your personalized launcher will:
-• Start WaitNot servers automatically
-• Open your restaurant dashboard
-• Display your restaurant credentials
+⚠️ Requirements:
+• Node.js must be installed on your computer
+• WaitNot source code must be available locally
+
+🚀 For a better experience, consider the Professional Desktop App:
+• No technical requirements
+• Professional installer
+• Auto-updates and enhanced features
+• Contact +91 6364039135 for download
 
 💡 Pro Tip: Right-click the file and "Send to Desktop" for quick access!`);
 
       // Track successful download
-      trackRestaurantEvent('desktop_app_downloaded', restaurant._id, {
+      trackRestaurantEvent('batch_launcher_downloaded', restaurant._id, {
         restaurant_name: restaurant.name,
         file_name: `${restaurantName}-WaitNot-Launcher.bat`
       });
 
     } catch (error) {
-      console.error('Error generating desktop app:', error);
-      alert('❌ Failed to generate desktop app. Please try again.');
-      
-      // Track error
-      trackRestaurantEvent('desktop_app_error', restaurant._id, {
-        error: error.message
-      });
+      console.error('Error generating batch launcher:', error);
+      alert('❌ Failed to generate batch launcher. Please try again.');
     }
   };
 

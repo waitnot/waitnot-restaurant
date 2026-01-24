@@ -1,0 +1,95 @@
+{
+  "name": "waitnot-restaurant-app",
+  "version": "1.0.0",
+  "description": "WaitNot Restaurant Management Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish=never"
+  },
+  "keywords": [
+    "restaurant",
+    "management",
+    "waitnot",
+    "pos",
+    "orders"
+  ],
+  "author": "WaitNot Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
+  },
+  "build": {
+    "appId": "com.waitnot.restaurant",
+    "productName": "WaitNot Restaurant",
+    "copyright": "Copyright © 2024 WaitNot Team",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "extraMetadata": {
+      "description": "Complete Restaurant Management System with Order Management, Menu Management, QR Code Ordering, and Analytics Dashboard"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "WaitNot Team",
+      "verifyUpdateCodeSignature": false
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "WaitNot Restaurant",
+      "runAfterFinish": true,
+      "menuCategory": "WaitNot",
+      "deleteAppDataOnUninstall": false,
+      "packElevateHelper": true,
+      "perMachine": false,
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "uninstallDisplayName": "${productName}",
+      "license": "build/license.txt"
+    }
+  }
+}
