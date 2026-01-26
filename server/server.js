@@ -27,11 +27,33 @@ const io = new Server(httpServer, {
   cors: { origin: '*' }
 });
 
-// CORS configuration with Edge browser support
+// CORS configuration with Edge browser support and Vercel domains
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [
+      'https://waitnot-restaurant.onrender.com',
+      'https://waitnot-restaurant-app.vercel.app',
+      'https://your-domain.com'
+    ] 
+  : [
+      'http://localhost:3000', 
+      'http://localhost:3001', 
+      'http://localhost:3002'
+    ];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://waitnot-restaurant.onrender.com', 'https://your-domain.com'] 
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list or is a Vercel preview deployment
+    if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Log blocked origins for debugging
+    console.log('❌ CORS blocked origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
