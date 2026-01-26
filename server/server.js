@@ -16,6 +16,8 @@ import orderRoutes from './routes/orders.js';
 import authRoutes from './routes/auth.js';
 import analyticsRoutes from './routes/analytics.js';
 import adminRoutes from './routes/admin.js';
+import feedbackRoutes from './routes/feedback.js';
+import thirdPartyOrderRoutes from './routes/thirdPartyOrders.js';
 
 dotenv.config();
 
@@ -31,7 +33,7 @@ app.use(cors({
     ? ['https://waitnot-restaurant.onrender.com', 'https://your-domain.com'] 
     : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   optionsSuccessStatus: 200 // For legacy browser support (IE11, various SmartTVs)
 }));
@@ -72,6 +74,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/third-party', thirdPartyOrderRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {

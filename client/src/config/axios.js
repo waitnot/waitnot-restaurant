@@ -1,9 +1,20 @@
 import axios from 'axios';
 
-// Force production server URL for ALL scenarios - NO localhost allowed
-const baseURL = 'https://waitnot-restaurant.onrender.com';
+// Use localhost for development, production server for desktop app
+const isDesktopApp = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron');
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-console.log('🔧 Axios Configuration - FORCED PRODUCTION:', baseURL);
+const baseURL = isDesktopApp 
+  ? 'https://waitnot-restaurant.onrender.com'  // Desktop app always uses production
+  : isDevelopment 
+    ? 'http://localhost:5000'  // Development uses local server
+    : 'https://waitnot-restaurant.onrender.com';  // Production uses production server
+
+console.log('🔧 Axios Configuration:', {
+  isDesktopApp,
+  isDevelopment,
+  baseURL
+});
 
 // Set default base URL
 axios.defaults.baseURL = baseURL;

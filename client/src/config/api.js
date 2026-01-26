@@ -1,7 +1,18 @@
-// Force production server URL for ALL scenarios - NO localhost allowed
-const API_BASE_URL = 'https://waitnot-restaurant.onrender.com';
+// Use localhost for development, production server for desktop app
+const isDesktopApp = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron');
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-console.log('🔧 API Configuration - FORCED PRODUCTION:', API_BASE_URL);
+const API_BASE_URL = isDesktopApp 
+  ? 'https://waitnot-restaurant.onrender.com'  // Desktop app always uses production
+  : isDevelopment 
+    ? 'http://localhost:5000'  // Development uses local server
+    : 'https://waitnot-restaurant.onrender.com';  // Production uses production server
+
+console.log('🔧 API Configuration:', {
+  isDesktopApp,
+  isDevelopment,
+  API_BASE_URL
+});
 
 // Enhanced fetch wrapper with automatic base URL
 export const apiRequest = async (endpoint, options = {}) => {

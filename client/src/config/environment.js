@@ -1,38 +1,60 @@
 // Environment configuration for WaitNot
-// FORCED PRODUCTION MODE - NO localhost connections allowed
+// Smart environment detection for different deployment scenarios
 
-// Production server URL - ONLY option
+// Detect if running in Electron desktop app
+const isDesktopApp = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron');
+
+// Detect if running in development mode
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// Production server URL
 const PRODUCTION_SERVER = 'https://waitnot-restaurant.onrender.com';
 
-// Get the server URL - ALWAYS production
+// Development server URL  
+const DEVELOPMENT_SERVER = 'http://localhost:5000';
+
+// Get the correct server URL based on environment
 export const getServerUrl = () => {
-  console.log('🌐 FORCED PRODUCTION SERVER');
+  if (isDesktopApp) {
+    console.log('🖥️ Desktop app detected - using production server');
+    return PRODUCTION_SERVER;
+  }
+  
+  if (isDevelopment) {
+    console.log('🔧 Development environment detected - using local server');
+    return DEVELOPMENT_SERVER;
+  }
+  
+  console.log('🌐 Production environment detected - using production server');
   return PRODUCTION_SERVER;
 };
 
-// Get WebSocket URL - ALWAYS production
+// Get WebSocket URL (same as server URL)
 export const getWebSocketUrl = () => {
-  return PRODUCTION_SERVER;
+  return getServerUrl();
 };
 
-// Environment info for debugging - ALWAYS production
+// Environment info for debugging
 export const getEnvironmentInfo = () => {
   return {
-    isDesktopApp: true,
-    isProduction: true,
-    nodeEnv: 'production',
-    protocol: 'https:',
-    hostname: 'waitnot-restaurant.onrender.com',
+    isDesktopApp,
+    isDevelopment,
+    nodeEnv: process.env.NODE_ENV,
+    protocol: window.location.protocol,
+    hostname: window.location.hostname,
     userAgent: window.navigator.userAgent,
-    serverUrl: PRODUCTION_SERVER,
-    webSocketUrl: PRODUCTION_SERVER
+    serverUrl: getServerUrl(),
+    webSocketUrl: getWebSocketUrl()
   };
 };
 
 // Log environment info on load
-console.log('🔍 FORCED PRODUCTION Configuration:', getEnvironmentInfo());
+console.log('🔍 Environment Configuration:', getEnvironmentInfo());
 
 // Export constants
 export {
-  PRODUCTION_SERVER
+  isDesktopApp,
+  isDevelopment,
+  PRODUCTION_SERVER,
+  DEVELOPMENT_SERVER
 };

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Plus, Minus, Banknote, Smartphone, CheckCircle, Leaf, AlertTriangle, Phone, Mail } from 'lucide-react';
 import axios from 'axios';
 import { trackQROrderEvent, trackMenuEvent, trackOrderEvent } from '../utils/analytics';
+import FeedbackForm from '../components/FeedbackForm';
 
 export default function QROrder() {
   const { restaurantId, tableNumber } = useParams();
@@ -14,6 +15,8 @@ export default function QROrder() {
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [paymentStatus, setPaymentStatus] = useState('pending'); // pending, processing, success, failed
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [lastOrderId, setLastOrderId] = useState(null);
 
   // Get UPI settings
   const getUpiSettings = () => {
@@ -217,18 +220,28 @@ export default function QROrder() {
         paymentMethod
       };
 
-      await axios.post('/api/orders', orderData);
+      const response = await axios.post('/api/orders', orderData);
+      const createdOrder = response.data;
+      setLastOrderId(createdOrder._id);
       
       // Track successful order
       trackOrderEvent('order_success', orderId, total, cart.length);
       
       setOrderPlaced(true);
       setTimeout(() => {
-        // Don't navigate away, allow ordering again
+        // Show feedback option after order success message
+        const wantsFeedback = window.confirm(
+          '🎉 Order placed successfully!\n\nYour food will be served shortly.\n\nWould you like to share feedback about your experience?\n\nClick OK to leave feedback, Cancel to continue ordering.'
+        );
+        
         setOrderPlaced(false);
         setCart([]);
         setShowCheckout(false);
         setPaymentStatus('pending'); // Reset payment status
+        
+        if (wantsFeedback) {
+          setShowFeedback(true);
+        }
       }, 2000);
     } catch (error) {
       console.error('Error placing order:', error);
@@ -258,9 +271,16 @@ export default function QROrder() {
       handleUpiPayment();
     } else {
       // Handle cash payment
-      alert('✅ Order placed! Pay with cash at the table when food is served.');
+      const wantsFeedback = window.confirm(
+        '✅ Order placed! Pay with cash at the table when food is served.\n\nWould you like to share feedback about your experience?\n\nClick OK to leave feedback, Cancel to continue.'
+      );
       setPaymentStatus('success'); // Cash payment is always successful (pay at table)
-      placeOrder();
+      
+      if (wantsFeedback) {
+        setShowFeedback(true);
+      } else {
+        placeOrder();
+      }
     }
   };
 
@@ -328,7 +348,15 @@ export default function QROrder() {
           <CheckCircle size={80} className="text-green-500 mx-auto mb-4" />
           <h2 className="text-3xl font-bold text-gray-800 mb-2">Order Placed!</h2>
           <p className="text-gray-600 mb-4">Your food will be served shortly</p>
-          <p className="text-sm text-gray-500">Table {tableNumber}</p>
+          <p className="text-sm text-gray-500 mb-6">Table {tableNumber}</p>
+          
+          {/* Feedback Button */}
+          <button
+            onClick={() => setShowFeedback(true)}
+            className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-red-600 font-semibold shadow-lg"
+          >
+            💬 Share Feedback
+          </button>
         </div>
       </div>
     );
@@ -338,9 +366,17 @@ export default function QROrder() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-primary text-white p-4 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold">{restaurant.name}</h1>
-          <p className="text-sm">Table {tableNumber}</p>
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold">{restaurant.name}</h1>
+            <p className="text-sm">Table {tableNumber}</p>
+          </div>
+          <button
+            onClick={() => setShowFeedback(true)}
+            className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+          >
+            💬 Feedback
+          </button>
         </div>
       </div>
 
@@ -594,6 +630,19 @@ export default function QROrder() {
           </div>
         )}
       </div>
+      
+      {/* Feedback Form */}
+      {showFeedback && (
+        <FeedbackForm
+          restaurantId={restaurantId}
+          orderId={lastOrderId}
+          onClose={() => setShowFeedback(false)}
+          onSuccess={() => {
+            setShowFeedback(false);
+            alert('✅ Thank you for your feedback! We appreciate your input.');
+          }}
+        />
+      )}
     </div>
   );
 }

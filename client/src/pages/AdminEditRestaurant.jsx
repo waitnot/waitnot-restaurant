@@ -13,6 +13,7 @@ const AdminEditRestaurant = () => {
 
   // Feature definitions with descriptions
   const featureDefinitions = {
+    // Core Features
     menuManagement: {
       name: 'Menu Management',
       description: 'Add, edit, and delete menu items',
@@ -22,21 +23,6 @@ const AdminEditRestaurant = () => {
       name: 'Order Management',
       description: 'View and manage incoming orders',
       category: 'Core Features'
-    },
-    analytics: {
-      name: 'Analytics Dashboard',
-      description: 'View sales reports and analytics',
-      category: 'Analytics'
-    },
-    profileEdit: {
-      name: 'Profile Editing',
-      description: 'Edit restaurant profile and information',
-      category: 'Settings'
-    },
-    printerSettings: {
-      name: 'Printer Settings',
-      description: 'Configure kitchen printer settings',
-      category: 'Settings'
     },
     qrCodeGeneration: {
       name: 'QR Code Generation',
@@ -48,6 +34,37 @@ const AdminEditRestaurant = () => {
       description: 'Manage table numbers and settings',
       category: 'Core Features'
     },
+    
+    // Analytics
+    analytics: {
+      name: 'Analytics Dashboard',
+      description: 'View sales reports and analytics',
+      category: 'Analytics'
+    },
+    orderHistory: {
+      name: 'Order History',
+      description: 'View past orders and history',
+      category: 'Analytics'
+    },
+    salesReports: {
+      name: 'Sales Reports',
+      description: 'Generate detailed sales reports',
+      category: 'Analytics'
+    },
+    
+    // Settings
+    profileEdit: {
+      name: 'Profile Editing',
+      description: 'Edit restaurant profile and information',
+      category: 'Settings'
+    },
+    printerSettings: {
+      name: 'Printer Settings',
+      description: 'Configure kitchen printer settings',
+      category: 'Settings'
+    },
+    
+    // Operations
     deliveryToggle: {
       name: 'Delivery Toggle',
       description: 'Enable/disable delivery service',
@@ -58,46 +75,66 @@ const AdminEditRestaurant = () => {
       description: 'View and manage delivery orders',
       category: 'Operations'
     },
-    passwordChange: {
-      name: 'Password Change',
-      description: 'Allow password changes',
-      category: 'Security'
-    },
-    imageUpload: {
-      name: 'Image Upload',
-      description: 'Upload restaurant and menu images',
-      category: 'Media'
-    },
-    menuCategories: {
-      name: 'Menu Categories',
-      description: 'Organize menu items by categories',
-      category: 'Menu Features'
-    },
-    orderHistory: {
-      name: 'Order History',
-      description: 'View past orders and history',
-      category: 'Analytics'
-    },
     realTimeOrders: {
       name: 'Real-time Orders',
       description: 'Live order notifications',
       category: 'Operations'
     },
-    customerInfo: {
-      name: 'Customer Information',
-      description: 'View customer details in orders',
-      category: 'Customer Management'
+    notifications: {
+      name: 'Notifications',
+      description: 'Push notifications for orders',
+      category: 'Operations'
     },
-    salesReports: {
-      name: 'Sales Reports',
-      description: 'Generate detailed sales reports',
-      category: 'Analytics'
+    thirdPartyOrders: {
+      name: 'Third-Party Orders',
+      description: 'Manage orders from Swiggy, Zomato, Uber Eats, etc.',
+      category: 'Operations'
+    },
+    staffOrders: {
+      name: 'Staff Orders',
+      description: 'Allow staff to place orders for customers',
+      category: 'Operations'
+    },
+    
+    // Security
+    passwordChange: {
+      name: 'Password Change',
+      description: 'Allow password changes',
+      category: 'Security'
+    },
+    
+    // Media
+    imageUpload: {
+      name: 'Image Upload',
+      description: 'Upload restaurant and menu images',
+      category: 'Media'
+    },
+    
+    // Menu Features
+    menuCategories: {
+      name: 'Menu Categories',
+      description: 'Organize menu items by categories',
+      category: 'Menu Features'
     },
     menuItemToggle: {
       name: 'Menu Item Toggle',
       description: 'Enable/disable individual menu items',
       category: 'Menu Features'
     },
+    
+    // Customer Management
+    customerInfo: {
+      name: 'Customer Information',
+      description: 'View customer details in orders',
+      category: 'Customer Management'
+    },
+    customerFeedback: {
+      name: 'Customer Feedback',
+      description: 'Collect and manage customer feedback',
+      category: 'Customer Management'
+    },
+    
+    // Advanced
     bulkOperations: {
       name: 'Bulk Operations',
       description: 'Bulk edit menu items and orders',
@@ -107,11 +144,6 @@ const AdminEditRestaurant = () => {
       name: 'Data Export',
       description: 'Export orders and analytics data',
       category: 'Advanced'
-    },
-    notifications: {
-      name: 'Notifications',
-      description: 'Push notifications for orders',
-      category: 'Operations'
     },
     multiLanguage: {
       name: 'Multi-language Support',

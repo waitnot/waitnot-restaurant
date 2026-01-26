@@ -53,53 +53,93 @@ export const FeatureProvider = ({ children }) => {
       
       // Default features if no data available
       setFeatures({
+        // Core Features
         menuManagement: true,
         orderManagement: true,
-        analytics: true,
-        profileEdit: true,
-        printerSettings: true,
         qrCodeGeneration: true,
         tableManagement: true,
-        deliveryToggle: true,
-        deliveryOrders: true,
-        passwordChange: true,
-        imageUpload: true,
-        menuCategories: true,
+        
+        // Analytics
+        analytics: true,
         orderHistory: true,
-        realTimeOrders: true,
-        customerInfo: true,
         salesReports: true,
+        
+        // Settings
+        profileEdit: false, // Disabled by default
+        printerSettings: true,
+        
+        // Operations
+        deliveryToggle: false, // Disabled by default
+        deliveryOrders: true,
+        realTimeOrders: true,
+        notifications: true,
+        thirdPartyOrders: true,
+        staffOrders: true,
+        
+        // Security
+        passwordChange: false, // Disabled by default
+        
+        // Media
+        imageUpload: true,
+        
+        // Menu Features
+        menuCategories: true,
         menuItemToggle: true,
+        
+        // Customer Management
+        customerInfo: true,
+        customerFeedback: true,
+        
+        // Advanced
         bulkOperations: true,
         exportData: true,
-        notifications: true,
-        multiLanguage: true
+        multiLanguage: false // Disabled by default
       });
     } catch (error) {
       console.error('Error loading features:', error);
       // Set default features if loading fails
       setFeatures({
+        // Core Features
         menuManagement: true,
         orderManagement: true,
-        analytics: true,
-        profileEdit: true,
-        printerSettings: true,
         qrCodeGeneration: true,
         tableManagement: true,
-        deliveryToggle: true,
-        deliveryOrders: true,
-        passwordChange: true,
-        imageUpload: true,
-        menuCategories: true,
+        
+        // Analytics
+        analytics: true,
         orderHistory: true,
-        realTimeOrders: true,
-        customerInfo: true,
         salesReports: true,
+        
+        // Settings
+        profileEdit: false, // Disabled by default
+        printerSettings: true,
+        
+        // Operations
+        deliveryToggle: false, // Disabled by default
+        deliveryOrders: true,
+        realTimeOrders: true,
+        notifications: true,
+        thirdPartyOrders: true,
+        staffOrders: true,
+        
+        // Security
+        passwordChange: false, // Disabled by default
+        
+        // Media
+        imageUpload: true,
+        
+        // Menu Features
+        menuCategories: true,
         menuItemToggle: true,
+        
+        // Customer Management
+        customerInfo: true,
+        customerFeedback: true,
+        
+        // Advanced
         bulkOperations: true,
         exportData: true,
-        notifications: true,
-        multiLanguage: true
+        multiLanguage: false // Disabled by default
       });
     } finally {
       setLoading(false);

@@ -103,6 +103,25 @@ CREATE TABLE IF NOT EXISTS order_items (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Feedback table
+CREATE TABLE IF NOT EXISTS feedback (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    restaurant_id UUID REFERENCES restaurants(id) ON DELETE CASCADE,
+    order_id UUID REFERENCES orders(id) ON DELETE SET NULL, -- Optional: link to specific order
+    customer_name VARCHAR(255) NOT NULL,
+    customer_phone VARCHAR(20),
+    customer_email VARCHAR(255),
+    rating INTEGER CHECK (rating >= 1 AND rating <= 5), -- 1-5 star rating
+    feedback_text TEXT NOT NULL,
+    feedback_type VARCHAR(20) DEFAULT 'general', -- 'general', 'food', 'service', 'delivery'
+    is_anonymous BOOLEAN DEFAULT false,
+    status VARCHAR(20) DEFAULT 'active', -- 'active', 'archived', 'responded'
+    restaurant_response TEXT, -- Restaurant can respond to feedback
+    responded_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);
 CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);
@@ -113,6 +132,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_restaurant_id ON orders(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_restaurant_id ON feedback(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_rating ON feedback(rating);
+CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at);
 
 -- Update timestamp function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -134,6 +156,9 @@ CREATE TRIGGER update_menu_items_updated_at BEFORE UPDATE ON menu_items
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_feedback_updated_at BEFORE UPDATE ON feedback
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Sample data (optional - for testing)
