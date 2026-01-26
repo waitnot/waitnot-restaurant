@@ -8,7 +8,7 @@ import { useFeatures } from '../context/FeatureContext';
 import { trackRestaurantEvent } from '../utils/analytics';
 import notificationSound from '../utils/notificationSound';
 import { getWebSocketUrl, getEnvironmentInfo } from '../config/environment.js';
-import { printCustomBill, getPrinterSettings } from '../utils/customBillGenerator.js';
+import { printCustomBill, getPrinterSettings, loadPrinterSettingsFromAPI } from '../utils/customBillGenerator.js';
 import ThirdPartyOrderForm from '../components/ThirdPartyOrderForm';
 
 export default function RestaurantDashboard() {
@@ -100,6 +100,11 @@ export default function RestaurantDashboard() {
     fetchFeedback(restaurantId);
     fetchFeedbackStats(restaurantId);
     fetchThirdPartyOrders(restaurantId);
+    
+    // Sync printer settings from database
+    loadPrinterSettingsFromAPI().catch(error => {
+      console.log('Printer settings sync failed, using localStorage:', error.message);
+    });
 
     // Connect to appropriate server WebSocket based on environment
     const socketUrl = getWebSocketUrl();
@@ -579,6 +584,51 @@ export default function RestaurantDashboard() {
   };
 
   const printReceipt = (tableNumber, tableOrders, totalAmount) => {
+    const settings = getPrinterSettings();
+    
+    // Try to use custom bill first if enabled
+    if (settings.billCustomization.enableCustomBill) {
+      // Create a combined order object for custom bill printing
+      const combinedOrder = {
+        _id: `table-${tableNumber}-${Date.now()}`,
+        customerName: tableOrders[0]?.customerName || 'Table Customer',
+        customerPhone: tableOrders[0]?.customerPhone || '',
+        orderType: 'dine-in',
+        tableNumber: tableNumber,
+        totalAmount: totalAmount,
+        createdAt: new Date().toISOString(),
+        items: []
+      };
+      
+      // Combine all items from all orders
+      const allItems = {};
+      tableOrders.forEach(order => {
+        order.items.forEach(item => {
+          const key = item.name;
+          if (allItems[key]) {
+            allItems[key].quantity += item.quantity;
+            allItems[key].total += item.price * item.quantity;
+          } else {
+            allItems[key] = {
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              total: item.price * item.quantity
+            };
+          }
+        });
+      });
+      
+      // Convert to items array for custom bill
+      combinedOrder.items = Object.values(allItems);
+      
+      const customPrintSuccess = printCustomBill(combinedOrder, restaurant, settings.billCustomization);
+      if (customPrintSuccess) {
+        return; // Custom bill printed successfully
+      }
+    }
+    
+    // Fallback to default bill format
     // Create bill summary
     const allItems = {};
     tableOrders.forEach(order => {
@@ -2265,47 +2315,37 @@ export default function RestaurantDashboard() {
                       {isStaffOrder ? (
                         // Staff Order Print Buttons
                         <>
-                          <FeatureGuard feature="printerSettings">
-                            <button
-                              onClick={() => printStaffKOT(firstOrder)}
-                              className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                            >
-                              🍳 <span className="hidden sm:inline">Print KOT</span><span className="sm:hidden">KOT</span>
-                            </button>
-                          </FeatureGuard>
-                          <FeatureGuard feature="printerSettings">
-                            <button
-                              onClick={() => printStaffCustomerBill(firstOrder)}
-                              className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                            >
-                              🖨️ <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Bill</span>
-                            </button>
-                          </FeatureGuard>
+                          <button
+                            onClick={() => printStaffKOT(firstOrder)}
+                            className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                          >
+                            🍳 <span className="hidden sm:inline">Print KOT</span><span className="sm:hidden">KOT</span>
+                          </button>
+                          <button
+                            onClick={() => printStaffCustomerBill(firstOrder)}
+                            className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                          >
+                            🖨️ <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Bill</span>
+                          </button>
                         </>
                       ) : (
                         // Regular Table Order Print Buttons
                         <>
-                          {/* Kitchen Print Bill Button - Smart Visibility */}
-                          {hasUnprintedKitchenItems(tableOrders) && (
-                            <FeatureGuard feature="printerSettings">
-                              <button
-                                onClick={() => printKitchenOrder(tableNum, tableOrders)}
-                                className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                              >
-                                🍳 <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Kitchen</span>
-                              </button>
-                            </FeatureGuard>
-                          )}
+                          {/* Kitchen Print Button - Always visible */}
+                          <button
+                            onClick={() => printKitchenOrder(tableNum, tableOrders)}
+                            className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                          >
+                            🍳 <span className="hidden sm:inline">Print KOT</span><span className="sm:hidden">KOT</span>
+                          </button>
                           
                           {/* Print Receipt Button (Cash Counter) */}
-                          <FeatureGuard feature="printerSettings">
-                            <button
-                              onClick={() => printReceipt(tableNum, tableOrders, tableTotal)}
-                              className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                            >
-                              🖨️ <span className="hidden sm:inline">Print Receipt</span><span className="sm:hidden">Receipt</span>
-                            </button>
-                          </FeatureGuard>
+                          <button
+                            onClick={() => printReceipt(tableNum, tableOrders, tableTotal)}
+                            className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                          >
+                            🖨️ <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Bill</span>
+                          </button>
                           
                           {/* Clear Table Button */}
                           <button

@@ -291,10 +291,44 @@ export const getPrinterSettings = () => {
   };
   
   try {
+    // Try to load from localStorage first (for immediate access)
     const savedSettings = localStorage.getItem(`printer_settings_${restaurantId}`);
     return savedSettings ? { ...defaultSettings, ...JSON.parse(savedSettings) } : defaultSettings;
   } catch (error) {
     console.error('Error loading printer settings:', error);
     return defaultSettings;
   }
+};
+
+// Async function to load settings from API and update localStorage
+export const loadPrinterSettingsFromAPI = async () => {
+  try {
+    const token = localStorage.getItem('restaurantToken');
+    const restaurantId = localStorage.getItem('restaurantId');
+    
+    if (!token || !restaurantId) {
+      console.log('No token or restaurant ID available for API call');
+      return null;
+    }
+
+    const response = await fetch('/api/printer-settings', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.settings) {
+        // Update localStorage with latest settings from database
+        localStorage.setItem(`printer_settings_${restaurantId}`, JSON.stringify(data.settings));
+        console.log('✅ Printer settings synced from database to localStorage');
+        return data.settings;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading printer settings from API:', error);
+  }
+  
+  return null;
 };

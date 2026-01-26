@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Banknote, Smartphone } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import FeedbackForm from '../components/FeedbackForm';
 import axios from 'axios';
 
 export default function Checkout() {
@@ -17,8 +16,6 @@ export default function Checkout() {
   });
   const [showPayment, setShowPayment] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState('pending'); // pending, processing, success, failed
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [lastOrderId, setLastOrderId] = useState(null);
 
   // Get UPI settings
   const getUpiSettings = () => {
@@ -116,7 +113,6 @@ export default function Checkout() {
 
       const response = await axios.post('/api/orders', orderData);
       const createdOrder = response.data;
-      setLastOrderId(createdOrder._id);
       
       let successMessage = '';
       if (formData.paymentMethod === 'upi' && paymentStatus === 'success') {
@@ -127,38 +123,46 @@ export default function Checkout() {
         successMessage = 'Order placed successfully! Payment pending.';
       }
       
-      // Show success message with feedback option
-      const wantsFeedback = window.confirm(
-        `${successMessage}\n\nWould you like to share feedback about your experience?\n\nClick OK to leave feedback, Cancel to continue.`
-      );
-      
+      alert(successMessage);
       clearCart();
-      
-      if (wantsFeedback) {
-        setShowFeedback(true);
-      } else {
-        navigate('/');
-      }
+      navigate('/');
     } catch (error) {
       console.error('Error placing order:', error);
       alert('Failed to place order');
     }
   };
 
-  const handlePaymentClick = () => {
+  const handlePaymentClick = async () => {
     if (formData.paymentMethod === 'upi') {
       handleUpiPayment();
     } else {
       // Handle cash payment (pay on delivery/at table)
-      const wantsFeedback = window.confirm(
-        '✅ Order placed! Pay with cash on delivery or at the restaurant.\n\nWould you like to share feedback about your experience?\n\nClick OK to leave feedback, Cancel to continue.'
-      );
-      setPaymentStatus('success'); // Cash payment is always successful
-      
-      if (wantsFeedback) {
-        setShowFeedback(true);
-      } else {
-        confirmPayment();
+      try {
+        const finalAmount = total + (orderType === 'delivery' ? 40 : 0) + Math.round(total * 0.05);
+        
+        const orderData = {
+          restaurantId: restaurant._id,
+          items: cart.map(item => ({
+            menuItemId: item._id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity
+          })),
+          totalAmount: finalAmount,
+          orderType,
+          ...formData,
+          paymentStatus: 'pending', // Cash payment is pending until delivered
+          paymentMethod: 'cash'
+        };
+
+        await axios.post('/api/orders', orderData);
+        
+        alert('✅ Order placed successfully! Pay with cash on delivery or at the restaurant.');
+        clearCart();
+        navigate('/');
+      } catch (error) {
+        console.error('Error placing order:', error);
+        alert('Failed to place order. Please try again.');
       }
     }
   };
@@ -434,22 +438,6 @@ export default function Checkout() {
             )}
           </div>
         </div>
-      )}
-      
-      {/* Feedback Form */}
-      {showFeedback && (
-        <FeedbackForm
-          restaurantId={restaurant?._id}
-          orderId={lastOrderId}
-          onClose={() => {
-            setShowFeedback(false);
-            navigate('/');
-          }}
-          onSuccess={() => {
-            setShowFeedback(false);
-            navigate('/');
-          }}
-        />
       )}
     </div>
   );

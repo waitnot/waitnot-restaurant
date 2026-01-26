@@ -237,27 +237,83 @@ export default function PrinterSettings() {
 
   const loadSettings = async () => {
     try {
-      const restaurantId = localStorage.getItem('restaurantId');
-      const savedSettings = localStorage.getItem(`printer_settings_${restaurantId}`);
-      if (savedSettings) {
-        setSettings(JSON.parse(savedSettings));
+      const token = localStorage.getItem('restaurantToken');
+      if (!token) {
+        console.error('No authentication token found');
+        return;
+      }
+
+      const response = await axios.get('/api/printer-settings', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.data.settings) {
+        setSettings(response.data.settings);
+        console.log('✅ Settings loaded from database');
       }
     } catch (error) {
       console.error('Error loading printer settings:', error);
+      // Fallback to localStorage if API fails
+      try {
+        const restaurantId = localStorage.getItem('restaurantId');
+        const savedSettings = localStorage.getItem(`printer_settings_${restaurantId}`);
+        if (savedSettings) {
+          setSettings(JSON.parse(savedSettings));
+          console.log('⚠️ Loaded settings from localStorage fallback');
+        }
+      } catch (fallbackError) {
+        console.error('Error loading fallback settings:', fallbackError);
+      }
     }
   };
 
   const saveSettings = async () => {
     setLoading(true);
     try {
-      const restaurantId = localStorage.getItem('restaurantId');
-      localStorage.setItem(`printer_settings_${restaurantId}`, JSON.stringify(settings));
-      
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      const token = localStorage.getItem('restaurantToken');
+      if (!token) {
+        alert('Authentication required. Please login again.');
+        navigate('/restaurant-login');
+        return;
+      }
+
+      const response = await axios.post('/api/printer-settings', {
+        settings: settings
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.success) {
+        console.log('✅ Settings saved to database');
+        
+        // Also save to localStorage as backup
+        const restaurantId = localStorage.getItem('restaurantId');
+        localStorage.setItem(`printer_settings_${restaurantId}`, JSON.stringify(settings));
+        
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
     } catch (error) {
       console.error('Error saving printer settings:', error);
-      alert('Failed to save settings');
+      
+      // Fallback to localStorage if API fails
+      try {
+        const restaurantId = localStorage.getItem('restaurantId');
+        localStorage.setItem(`printer_settings_${restaurantId}`, JSON.stringify(settings));
+        console.log('⚠️ Settings saved to localStorage fallback');
+        
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        alert('Settings saved locally. Database sync will happen when connection is restored.');
+      } catch (fallbackError) {
+        console.error('Error saving fallback settings:', fallbackError);
+        alert('Failed to save settings');
+      }
     } finally {
       setLoading(false);
     }

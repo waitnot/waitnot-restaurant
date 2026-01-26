@@ -18,6 +18,7 @@ import analyticsRoutes from './routes/analytics.js';
 import adminRoutes from './routes/admin.js';
 import feedbackRoutes from './routes/feedback.js';
 import thirdPartyOrderRoutes from './routes/thirdPartyOrders.js';
+import printerSettingsRoutes from './routes/printerSettings.js';
 
 dotenv.config();
 
@@ -98,6 +99,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/third-party', thirdPartyOrderRoutes);
+app.use('/api/printer-settings', printerSettingsRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
