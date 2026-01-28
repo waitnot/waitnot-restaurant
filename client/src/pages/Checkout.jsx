@@ -106,7 +106,9 @@ export default function Checkout() {
         })),
         totalAmount: finalAmount,
         orderType,
-        ...formData,
+        customerName: formData.customerName || 'Guest Customer',
+        customerPhone: formData.customerPhone || '',
+        deliveryAddress: formData.deliveryAddress,
         paymentStatus: formData.paymentMethod === 'upi' && paymentStatus === 'success' ? 'paid' : 'pending',
         paymentMethod: formData.paymentMethod
       };
@@ -150,7 +152,9 @@ export default function Checkout() {
           })),
           totalAmount: finalAmount,
           orderType,
-          ...formData,
+          customerName: formData.customerName || 'Guest Customer',
+          customerPhone: formData.customerPhone || '',
+          deliveryAddress: formData.deliveryAddress,
           paymentStatus: 'pending', // Cash payment is pending until delivered
           paymentMethod: 'cash'
         };
@@ -258,24 +262,24 @@ export default function Checkout() {
               </div>
 
               <div>
-                <label className="block text-gray-700 mb-2">Name</label>
+                <label className="block text-gray-700 mb-2">Name (Optional)</label>
                 <input
                   type="text"
-                  required
                   value={formData.customerName}
                   onChange={(e) => setFormData({...formData, customerName: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Enter your name (optional)"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 mb-2">Phone</label>
+                <label className="block text-gray-700 mb-2">Phone (Optional)</label>
                 <input
                   type="tel"
-                  required
                   value={formData.customerPhone}
                   onChange={(e) => setFormData({...formData, customerPhone: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Enter your phone number (optional)"
                 />
               </div>
 

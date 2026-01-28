@@ -28,11 +28,30 @@ export default defineConfig(({ command, mode }) => {
             vendor: ['react', 'react-dom'],
             router: ['react-router-dom']
           }
+        },
+        // Handle extension-related module loading errors
+        onwarn(warning, warn) {
+          // Suppress warnings from Chrome extensions
+          if (warning.code === 'MODULE_LEVEL_DIRECTIVE' && 
+              warning.message.includes('chrome-extension://')) {
+            return;
+          }
+          warn(warning);
         }
       }
     },
     define: {
       global: 'globalThis'
+    },
+    // Additional configuration to handle extension conflicts
+    optimizeDeps: {
+      exclude: ['chrome-extension']
+    },
+    resolve: {
+      alias: {
+        // Prevent extension module conflicts
+        'chrome-extension': false
+      }
     }
   }
 })

@@ -406,6 +406,45 @@
   </head>
   <body>
     <div id="root"></div>
+    
+    <!-- Extension Error Handler - Prevents Chrome extension conflicts -->
+    <script>
+      // Global error handler for extension conflicts
+      window.addEventListener('error', function(event) {
+        // Check if error is from Chrome extension
+        if (event.filename && event.filename.includes('chrome-extension://')) {
+          console.warn('Chrome extension error detected and suppressed:', event.filename);
+          event.preventDefault();
+          return true;
+        }
+      });
+      
+      // Handle unhandled promise rejections from extensions
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason && event.reason.message && 
+            (event.reason.message.includes('chrome-extension://') || 
+             event.reason.message.includes('Failed to fetch dynamically imported module'))) {
+          console.warn('Extension promise rejection suppressed:', event.reason.message);
+          event.preventDefault();
+        }
+      });
+      
+      // Prevent extension script injection errors
+      const originalCreateElement = document.createElement;
+      document.createElement = function(tagName) {
+        const element = originalCreateElement.call(this, tagName);
+        if (tagName.toLowerCase() === 'script') {
+          element.addEventListener('error', function(e) {
+            if (this.src && this.src.includes('chrome-extension://')) {
+              console.warn('Extension script error suppressed:', this.src);
+              e.stopPropagation();
+            }
+          });
+        }
+        return element;
+      };
+    </script>
+    
     <script type="module" src="/src/main.jsx"></script>
     
     <!-- Google Analytics -->

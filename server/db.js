@@ -183,7 +183,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.display_order ASC, m.created_at ASC
+                 ) ORDER BY m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -229,7 +229,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.display_order ASC, m.created_at ASC
+                 ) ORDER BY m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -288,7 +288,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.display_order ASC, m.created_at ASC
+                 ) ORDER BY m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -434,7 +434,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.display_order ASC, m.created_at ASC
+                 ) ORDER BY m.created_at ASC
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu

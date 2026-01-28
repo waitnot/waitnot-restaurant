@@ -10,6 +10,7 @@ import notificationSound from '../utils/notificationSound';
 import { getWebSocketUrl, getEnvironmentInfo } from '../config/environment.js';
 import { printCustomBill, getPrinterSettings, loadPrinterSettingsFromAPI } from '../utils/customBillGenerator.js';
 import ThirdPartyOrderForm from '../components/ThirdPartyOrderForm';
+import DiscountManager from '../components/DiscountManager';
 
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function RestaurantDashboard() {
     if (isFeatureEnabled('qrCodeGeneration')) return 'qr';
     if (isFeatureEnabled('orderHistory')) return 'history';
     if (isFeatureEnabled('customerFeedback')) return 'feedback';
-    return 'dine-in'; // fallback to table orders
+    return 'Staff'; // fallback to staff orders
   });
 
   // Effect to handle tab switching when features change
@@ -84,6 +85,7 @@ export default function RestaurantDashboard() {
     specialInstructions: ''
   });
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
   
   // State to store the last created order for printing
   const [lastCreatedOrder, setLastCreatedOrder] = useState(null);
@@ -580,6 +582,52 @@ export default function RestaurantDashboard() {
     } catch (error) {
       console.error('❌ Error clearing table:', error);
       alert(`Failed to clear table: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  const clearIndividualOrder = async (order) => {
+    console.log('🧹 Clear Individual Order clicked:', { orderId: order._id, customer: order.customerName, total: order.totalAmount });
+    
+    const billSummary = order.items
+      .map(item => `${item.name} x ${item.quantity} = ₹${item.price * item.quantity}`)
+      .join('\n');
+
+    const orderTypeText = order.orderType === 'delivery' ? 'Delivery' : 
+                         order.orderType === 'takeaway' ? 'Takeaway' : 'Order';
+
+    const confirmMessage = `Clear ${orderTypeText} Order and Save to Order History?\n\n` +
+      `Customer: ${order.customerName}\n` +
+      `Phone: ${order.customerPhone}\n` +
+      `${order.deliveryAddress ? `Address: ${order.deliveryAddress}\n` : ''}` +
+      `\nItems:\n${billSummary}\n\n` +
+      `TOTAL: ₹${order.totalAmount}\n\n` +
+      `This will:\n` +
+      `✓ Save order to Order History\n` +
+      `✓ Remove from active orders\n` +
+      `✓ Mark as completed`;
+
+    if (!window.confirm(confirmMessage)) {
+      console.log('❌ Clear Order cancelled by user');
+      return;
+    }
+    
+    console.log('✅ Clearing individual order and saving to order history...');
+    
+    try {
+      // Mark order as completed (saves to order history)
+      if (order.status !== 'completed') {
+        await updateOrderStatus(order._id, 'completed');
+      }
+      
+      alert(`✅ Order Cleared Successfully!\n\n${orderTypeText} Order\nCustomer: ${order.customerName}\nTotal: ₹${order.totalAmount}\n\nOrder saved to Order History.`);
+      
+      // Refresh orders
+      const restaurantId = localStorage.getItem('restaurantId');
+      await fetchOrders(restaurantId);
+      console.log('✅ Individual order cleared and orders refreshed');
+    } catch (error) {
+      console.error('❌ Error clearing individual order:', error);
+      alert(`Failed to clear order: ${error.response?.data?.error || error.message}`);
     }
   };
 
@@ -1358,9 +1406,9 @@ export default function RestaurantDashboard() {
 
   // Print KOT without saving order
   const printStaffKOTOnly = () => {
-    // Validate required fields
-    if (!receptionistOrder.customerName || !receptionistOrder.customerPhone || receptionistOrder.items.length === 0) {
-      alert('Please fill in all required fields and select at least one item.');
+    // Validate required fields - only items are required now
+    if (receptionistOrder.items.length === 0) {
+      alert('Please select at least one item.');
       return;
     }
 
@@ -1380,8 +1428,8 @@ export default function RestaurantDashboard() {
     // Create temporary order object for printing
     const tempOrder = {
       _id: `TEMP-${Date.now()}`,
-      customerName: receptionistOrder.customerName,
-      customerPhone: receptionistOrder.customerPhone,
+      customerName: receptionistOrder.customerName || 'Guest Customer',
+      customerPhone: receptionistOrder.customerPhone || '',
       orderType: receptionistOrder.orderType,
       items: receptionistOrder.items,
       totalAmount,
@@ -1398,9 +1446,9 @@ export default function RestaurantDashboard() {
 
   // Print Customer Bill without saving order
   const printStaffBillOnly = () => {
-    // Validate required fields
-    if (!receptionistOrder.customerName || !receptionistOrder.customerPhone || receptionistOrder.items.length === 0) {
-      alert('Please fill in all required fields and select at least one item.');
+    // Validate required fields - only items are required now
+    if (receptionistOrder.items.length === 0) {
+      alert('Please select at least one item.');
       return;
     }
 
@@ -1420,8 +1468,8 @@ export default function RestaurantDashboard() {
     // Create temporary order object for printing
     const tempOrder = {
       _id: `TEMP-${Date.now()}`,
-      customerName: receptionistOrder.customerName,
-      customerPhone: receptionistOrder.customerPhone,
+      customerName: receptionistOrder.customerName || 'Guest Customer',
+      customerPhone: receptionistOrder.customerPhone || '',
       orderType: receptionistOrder.orderType,
       items: receptionistOrder.items,
       totalAmount,
@@ -1437,11 +1485,15 @@ export default function RestaurantDashboard() {
   };
 
   const clearReceptionistOrder = async () => {
-    // Check if there's an order to save
-    if (receptionistOrder.customerName && receptionistOrder.customerPhone && receptionistOrder.items.length > 0) {
+    // Check if there's an order to save - only check for items now
+    if (receptionistOrder.items.length > 0) {
+      const customerName = receptionistOrder.customerName || 'Guest Customer';
+      const customerPhone = receptionistOrder.customerPhone || 'No phone provided';
+      
       const confirmSave = window.confirm(
         `Save this order to order history?\n\n` +
-        `Customer: ${receptionistOrder.customerName}\n` +
+        `Customer: ${customerName}\n` +
+        `Phone: ${customerPhone}\n` +
         `Items: ${receptionistOrder.items.length}\n` +
         `Total: ₹${receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}\n\n` +
         `Click "OK" to save and clear\n` +
@@ -1470,8 +1522,8 @@ export default function RestaurantDashboard() {
           // Prepare order data
           const orderData = {
             restaurantId,
-            customerName: receptionistOrder.customerName,
-            customerPhone: receptionistOrder.customerPhone,
+            customerName: receptionistOrder.customerName || 'Guest Customer',
+            customerPhone: receptionistOrder.customerPhone || '',
             orderType: receptionistOrder.orderType,
             items: receptionistOrder.items,
             totalAmount,
@@ -1501,7 +1553,7 @@ export default function RestaurantDashboard() {
           alert(
             `✅ Order saved successfully!\n\n` +
             `Order ID: ${createdOrder._id}\n` +
-            `Customer: ${receptionistOrder.customerName}\n` +
+            `Customer: ${customerName}\n` +
             `Total: ₹${totalAmount}\n\n` +
             `Order has been added to order history.`
           );
@@ -1532,6 +1584,7 @@ export default function RestaurantDashboard() {
       specialInstructions: ''
     });
     setSelectedCategory('all');
+    setStaffSearchQuery(''); // Clear search query
   };
 
   // Print KOT (Kitchen Order Ticket) for Staff orders
@@ -2092,6 +2145,16 @@ export default function RestaurantDashboard() {
               )}
             </button>
           </FeatureGuard>
+          
+          <button
+            onClick={() => setActiveTab('discounts')}
+            className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              activeTab === 'discounts' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+            }`}
+          >
+            <span className="hidden sm:inline">🎉 Discounts</span>
+            <span className="sm:hidden">🎉</span>
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -2158,6 +2221,13 @@ export default function RestaurantDashboard() {
                           🖨️ Print Bill
                         </button>
                       </FeatureGuard>
+                      {/* Clear Order Button for Staff Orders */}
+                      <button
+                        onClick={() => clearIndividualOrder(order)}
+                        className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 font-semibold flex items-center justify-center gap-2"
+                      >
+                        🧹 Clear Order
+                      </button>
                     </>
                   ) : (
                     // Regular Order Print Buttons
@@ -2326,6 +2396,13 @@ export default function RestaurantDashboard() {
                             className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
                           >
                             🖨️ <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Bill</span>
+                          </button>
+                          {/* Clear Table Button for Staff Orders */}
+                          <button
+                            onClick={() => clearTableAndSaveToHistory(tableNum, tableOrders, tableTotal)}
+                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 sm:py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                          >
+                            🧹 <span className="hidden sm:inline">Clear Table</span><span className="sm:hidden">Clear</span>
                           </button>
                         </>
                       ) : (
@@ -3080,6 +3157,11 @@ export default function RestaurantDashboard() {
           </div>
         )}
 
+        {/* Discounts Tab */}
+        {activeTab === 'discounts' && (
+          <DiscountManager restaurant={restaurant} />
+        )}
+
         {/* Third-Party Orders Tab */}
         {activeTab === 'third-party' && isFeatureEnabled('thirdPartyOrders') && (
           <div className="space-y-3 sm:space-y-4">
@@ -3321,7 +3403,6 @@ export default function RestaurantDashboard() {
           <div className="space-y-3 sm:space-y-4">
             <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
               <h2 className="text-lg sm:text-xl font-bold text-gray-800">👥 Staff Order</h2>
-              <p className="text-gray-600 text-xs sm:text-sm">Place orders for customers via phone, walk-in, or parcel requests</p>
             </div>
 
             {/* Order Form */}
@@ -3331,25 +3412,23 @@ export default function RestaurantDashboard() {
               {/* Customer Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
                   <input
                     type="text"
                     value={receptionistOrder.customerName}
                     onChange={(e) => setReceptionistOrder({...receptionistOrder, customerName: e.target.value})}
-                    placeholder="Enter customer name"
+                    placeholder="Enter customer name (optional)"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number (Optional)</label>
                   <input
                     type="tel"
                     value={receptionistOrder.customerPhone}
                     onChange={(e) => setReceptionistOrder({...receptionistOrder, customerPhone: e.target.value})}
-                    placeholder="Enter phone number"
+                    placeholder="Enter phone number (optional)"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
                   />
                 </div>
               </div>
@@ -3431,6 +3510,34 @@ export default function RestaurantDashboard() {
               <div className="mb-6">
                 <h4 className="text-md font-semibold text-gray-800 mb-3">Select Menu Items</h4>
                 
+                {/* Search Bar */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search menu items..."
+                      value={staffSearchQuery}
+                      onChange={(e) => setStaffSearchQuery(e.target.value)}
+                      className="w-full px-3 py-2 pl-9 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    {staffSearchQuery && (
+                      <button
+                        onClick={() => setStaffSearchQuery('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
                 {/* Category Filter */}
                 <div className="mb-4">
                   <div className="flex flex-wrap gap-2">
@@ -3460,10 +3567,37 @@ export default function RestaurantDashboard() {
                   </div>
                 </div>
 
+                {/* Search Results Info */}
+                {staffSearchQuery && (
+                  <div className="mb-3 text-sm text-gray-600">
+                    {(() => {
+                      const searchResults = restaurant?.menu
+                        ?.filter(item => item.available && (selectedCategory === 'all' || item.category === selectedCategory))
+                        ?.filter(item =>
+                          item.name.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                          item.description?.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                          item.category.toLowerCase().includes(staffSearchQuery.toLowerCase())
+                        ) || [];
+                      
+                      return searchResults.length > 0 ? (
+                        <p>Found {searchResults.length} item{searchResults.length !== 1 ? 's' : ''} for "{staffSearchQuery}"</p>
+                      ) : (
+                        <p>No items found for "{staffSearchQuery}". Try a different search term.</p>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Menu Items Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
                   {restaurant?.menu
                     ?.filter(item => item.available && (selectedCategory === 'all' || item.category === selectedCategory))
+                    ?.filter(item => {
+                      if (!staffSearchQuery.trim()) return true;
+                      return item.name.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                             item.description?.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                             item.category.toLowerCase().includes(staffSearchQuery.toLowerCase());
+                    })
                     ?.map((item) => (
                     <div key={item._id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-2">
@@ -3540,14 +3674,14 @@ export default function RestaurantDashboard() {
               <div className="flex gap-3">
                 <button
                   onClick={printStaffKOTOnly}
-                  disabled={!receptionistOrder.customerName || !receptionistOrder.customerPhone || receptionistOrder.items.length === 0}
+                  disabled={receptionistOrder.items.length === 0}
                   className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   🍳 Print KOT
                 </button>
                 <button
                   onClick={printStaffBillOnly}
-                  disabled={!receptionistOrder.customerName || !receptionistOrder.customerPhone || receptionistOrder.items.length === 0}
+                  disabled={receptionistOrder.items.length === 0}
                   className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 px-6 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   🖨️ Print Bill
