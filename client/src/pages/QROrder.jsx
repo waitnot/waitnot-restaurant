@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Plus, Minus, Banknote, Smartphone, CheckCircle, Leaf, AlertTriangle, Phone, Mail, Calendar, Tag, Search, ShoppingCart, Star, Clock, MapPin, Sparkles } from 'lucide-react';
+import { Plus, Minus, Banknote, Smartphone, CheckCircle, Leaf, AlertTriangle, Phone, Mail, Calendar, Tag, Search, ShoppingCart, Star, Clock, MapPin, Sparkles, MessageCircle } from 'lucide-react';
 import axios from 'axios';
 import { trackQROrderEvent, trackMenuEvent, trackOrderEvent } from '../utils/analytics';
-import MenuItemImage from '../components/MenuItemImage';
-import { useMenuImages } from '../hooks/useMenuImages';
+import FeedbackForm from '../components/FeedbackForm';
 
 
 export default function QROrder() {
@@ -22,6 +21,8 @@ export default function QROrder() {
   const [selectedDiscount, setSelectedDiscount] = useState(null);
   const [discountApplied, setDiscountApplied] = useState(null);
   const [bannerDiscounts, setBannerDiscounts] = useState([]);
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [completedOrderId, setCompletedOrderId] = useState(null);
 
   // Get UPI settings
   const getUpiSettings = () => {
@@ -404,6 +405,9 @@ export default function QROrder() {
       const response = await axios.post('/api/orders', orderData);
       const createdOrder = response.data;
       
+      // Store order ID for feedback
+      setCompletedOrderId(createdOrder._id);
+      
       // Track successful order
       trackOrderEvent('order_success', orderId, total, cart.length);
       
@@ -617,6 +621,18 @@ export default function QROrder() {
             <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 mt-6">
               <Clock size={16} />
               <span>Estimated delivery: 15-20 minutes</span>
+            </div>
+            
+            {/* Feedback Button */}
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setShowFeedbackForm(true)}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2 mx-auto"
+              >
+                <MessageCircle size={20} />
+                Share Your Feedback
+              </button>
+              <p className="text-xs text-gray-500 mt-2">Help us improve your experience</p>
             </div>
           </div>
         </div>
@@ -895,6 +911,20 @@ export default function QROrder() {
                 </div>
               </div>
             )}
+            
+            {/* Floating Feedback Button */}
+            {cart.length === 0 && (
+              <div className="fixed bottom-6 right-6 z-20">
+                <button
+                  onClick={() => setShowFeedbackForm(true)}
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center gap-2"
+                  title="Share Your Feedback"
+                >
+                  <MessageCircle size={24} />
+                  <span className="hidden sm:inline ml-2 font-semibold">Feedback</span>
+                </button>
+              </div>
+            )}
           </>
         ) : (
           /* Enhanced Checkout */
@@ -1157,6 +1187,19 @@ export default function QROrder() {
           </div>
         )}
       </div>
+      
+      {/* Feedback Form Modal */}
+      {showFeedbackForm && (
+        <FeedbackForm
+          restaurantId={restaurantId}
+          orderId={completedOrderId}
+          onClose={() => setShowFeedbackForm(false)}
+          onSuccess={() => {
+            setShowFeedbackForm(false);
+            alert('🙏 Thank you for your valuable feedback! We truly appreciate it.');
+          }}
+        />
+      )}
     </div>
   );
 }
