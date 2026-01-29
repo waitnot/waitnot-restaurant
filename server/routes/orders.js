@@ -124,4 +124,73 @@ router.patch('/:id/items', async (req, res) => {
   }
 });
 
+// Update complete order (for staff order editing)
+router.put('/:id', async (req, res) => {
+  try {
+    console.log('🔄 Updating complete order:', req.params.id);
+    console.log('Update data:', req.body);
+    
+    const {
+      customerName,
+      customerPhone,
+      orderType,
+      deliveryAddress,
+      tableNumber,
+      items,
+      totalAmount,
+      specialInstructions
+    } = req.body;
+    
+    // Validate required fields
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: 'Order must have at least one item' });
+    }
+    
+    if (!customerName || customerName.trim() === '') {
+      return res.status(400).json({ error: 'Customer name is required' });
+    }
+    
+    // Prepare update data
+    const updateData = {
+      customerName: customerName.trim(),
+      customerPhone: customerPhone || '',
+      orderType,
+      items,
+      totalAmount,
+      specialInstructions: specialInstructions || ''
+    };
+    
+    // Add conditional fields based on order type
+    if (orderType === 'delivery') {
+      updateData.deliveryAddress = deliveryAddress || '';
+    }
+    
+    if (orderType === 'dine-in') {
+      updateData.tableNumber = parseInt(tableNumber) || null;
+    }
+    
+    console.log('Final update data:', updateData);
+    
+    const order = await orderDB.update(req.params.id, updateData);
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    console.log('✅ Order updated successfully:', order._id);
+    
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
+      console.log('📡 Real-time update sent to restaurant');
+    }
+    
+    res.json(order);
+  } catch (error) {
+    console.error('❌ Error updating complete order:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

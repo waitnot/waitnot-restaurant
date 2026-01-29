@@ -76,6 +76,9 @@ const Analytics = () => {
     let startDate;
 
     switch (dateRange) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
       case 'week':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
@@ -84,6 +87,9 @@ const Analytics = () => {
         break;
       case 'year':
         startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case 'all':
+        startDate = new Date(0);
         break;
       default:
         startDate = new Date(0);
@@ -252,6 +258,9 @@ const Analytics = () => {
     let startDate, endDate = now;
 
     switch (type) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
       case 'weekly':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
@@ -339,6 +348,7 @@ const Analytics = () => {
                 onChange={(e) => setDateRange(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               >
+                <option value="today">Today</option>
                 <option value="week">Last 7 Days</option>
                 <option value="month">This Month</option>
                 <option value="year">This Year</option>
@@ -346,6 +356,12 @@ const Analytics = () => {
               </select>
               
               <div className="flex gap-2">
+                <button
+                  onClick={() => downloadReport('today')}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"
+                >
+                  📋 Today Report
+                </button>
                 <button
                   onClick={() => downloadReport('weekly')}
                   className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"

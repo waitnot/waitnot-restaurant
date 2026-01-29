@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Banknote, Smartphone } from 'lucide-react';
+import { Trash2, Banknote, Smartphone, Plus, ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import axios from 'axios';
 
 export default function Checkout() {
-  const { cart, restaurant, updateQuantity, removeFromCart, clearCart, total } = useCart();
+  const { cart, restaurant, updateQuantity, removeFromCart, clearCart, total, addToCart } = useCart();
   const navigate = useNavigate();
   const [orderType, setOrderType] = useState('delivery');
   const [formData, setFormData] = useState({
@@ -16,6 +16,42 @@ export default function Checkout() {
   });
   const [showPayment, setShowPayment] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState('pending'); // pending, processing, success, failed
+  
+  // Menu state for adding items
+  const [menuItems, setMenuItems] = useState([]);
+  const [showMenu, setShowMenu] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch menu items when component mounts
+  useEffect(() => {
+    if (restaurant?._id) {
+      fetchMenuItems();
+    }
+  }, [restaurant]);
+
+  const fetchMenuItems = async () => {
+    try {
+      const response = await axios.get(`/api/restaurants/${restaurant._id}`);
+      setMenuItems(response.data.menu || []);
+    } catch (error) {
+      console.error('Error fetching menu items:', error);
+    }
+  };
+
+  // Filter menu items
+  const filteredMenuItems = menuItems.filter(item => {
+    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch && item.available;
+  });
+
+  // Get unique categories
+  const categories = ['all', ...new Set(menuItems.map(item => item.category).filter(Boolean))];
+
+  const handleAddToCart = (item) => {
+    addToCart(item, restaurant);
+  };
 
   // Get UPI settings
   const getUpiSettings = () => {
@@ -207,14 +243,14 @@ export default function Checkout() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => updateQuantity(item._id, item.quantity - 1)}
-                    className="w-8 h-8 bg-gray-200 rounded hover:bg-gray-300"
+                    className="w-8 h-8 bg-gray-200 rounded hover:bg-gray-300 flex items-center justify-center"
                   >
                     -
                   </button>
-                  <span className="font-semibold">{item.quantity}</span>
+                  <span className="font-semibold min-w-[20px] text-center">{item.quantity}</span>
                   <button
                     onClick={() => updateQuantity(item._id, item.quantity + 1)}
-                    className="w-8 h-8 bg-gray-200 rounded hover:bg-gray-300"
+                    className="w-8 h-8 bg-gray-200 rounded hover:bg-gray-300 flex items-center justify-center"
                   >
                     +
                   </button>
@@ -222,13 +258,122 @@ export default function Checkout() {
                 
                 <button
                   onClick={() => removeFromCart(item._id)}
-                  className="text-red-500 hover:text-red-700"
+                  className="text-red-500 hover:text-red-700 p-1"
+                  title="Remove item"
                 >
                   <Trash2 size={20} />
                 </button>
               </div>
             ))}
+            
+            {/* Add More Items Button */}
+            <div className="pt-4">
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="w-full bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 font-semibold flex items-center justify-center gap-2"
+              >
+                <Plus size={20} />
+                {showMenu ? 'Hide Menu' : 'Add More Items'}
+              </button>
+            </div>
           </div>
+
+          {/* Add Items from Menu */}
+          {showMenu && (
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Add Items from Menu</h2>
+              
+              {/* Search and Filter */}
+              <div className="mb-4 space-y-3">
+                <input
+                  type="text"
+                  placeholder="Search menu items..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                
+                <div className="flex gap-2 flex-wrap">
+                  {categories.map(category => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        selectedCategory === category
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {category === 'all' ? 'All' : category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Menu Items Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                {filteredMenuItems.length > 0 ? (
+                  filteredMenuItems.map((item) => {
+                    const cartItem = cart.find(cartItem => cartItem._id === item._id);
+                    const inCart = !!cartItem;
+                    
+                    return (
+                      <div key={item._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-semibold text-gray-800 text-sm">{item.name}</h3>
+                          <span className={`text-xs px-2 py-1 rounded ${item.isVeg ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                            {item.isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
+                          </span>
+                        </div>
+                        
+                        {item.description && (
+                          <p className="text-gray-600 text-xs mb-2 overflow-hidden" style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>{item.description}</p>
+                        )}
+                        
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-primary">₹{item.price}</span>
+                          
+                          {inCart ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => updateQuantity(item._id, cartItem.quantity - 1)}
+                                className="w-7 h-7 bg-red-500 text-white rounded hover:bg-red-600 flex items-center justify-center text-sm"
+                              >
+                                -
+                              </button>
+                              <span className="font-semibold min-w-[20px] text-center text-sm">{cartItem.quantity}</span>
+                              <button
+                                onClick={() => updateQuantity(item._id, cartItem.quantity + 1)}
+                                className="w-7 h-7 bg-green-500 text-white rounded hover:bg-green-600 flex items-center justify-center text-sm"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleAddToCart(item)}
+                              className="bg-primary text-white px-3 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-sm"
+                            >
+                              <Plus size={14} />
+                              Add
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full text-center py-8 text-gray-500">
+                    {searchQuery ? 'No items found matching your search.' : 'No menu items available.'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Order Details Form */}
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
@@ -309,7 +454,25 @@ export default function Checkout() {
         {/* Order Summary */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 lg:sticky lg:top-24">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4">Order Summary</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center gap-2">
+              <ShoppingCart size={20} />
+              Order Summary
+            </h2>
+            
+            {/* Cart Items Summary */}
+            <div className="mb-4 pb-4 border-b">
+              <div className="text-sm text-gray-600 mb-2">
+                {cart.length} item{cart.length !== 1 ? 's' : ''} • {cart.reduce((sum, item) => sum + item.quantity, 0)} total quantity
+              </div>
+              <div className="space-y-1">
+                {cart.map((item) => (
+                  <div key={item._id} className="flex justify-between text-sm">
+                    <span className="text-gray-600">{item.name} × {item.quantity}</span>
+                    <span className="font-medium">₹{item.price * item.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
             
             <div className="space-y-2 mb-4">
               <div className="flex justify-between">

@@ -229,6 +229,18 @@ export default function QROrder() {
     }
   };
 
+  const removeFromCart = (itemId) => {
+    const item = cart.find(i => i._id === itemId);
+    if (item) {
+      trackMenuEvent('remove_from_cart', item.name, item.category, item.price);
+      trackQROrderEvent('remove_from_cart', restaurantId, tableNumber, {
+        item_name: item.name,
+        quantity_removed: item.quantity
+      });
+    }
+    setCart(cart.filter(i => i._id !== itemId));
+  };
+
   // Calculate discount for individual items
   const getItemDiscount = (item) => {
     if (!availableDiscounts.length) return null;
@@ -954,10 +966,37 @@ export default function QROrder() {
                       </div>
                       <div>
                         <span className="font-semibold text-gray-800">{item.name}</span>
-                        <div className="text-sm text-gray-600">Qty: {item.quantity}</div>
+                        <div className="text-sm text-gray-600">₹{item.price} each</div>
                       </div>
                     </div>
-                    <span className="font-bold text-gray-800">₹{item.price * item.quantity}</span>
+                    
+                    {/* Quantity Controls */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1">
+                        <button
+                          onClick={() => updateQuantity(item._id, item.quantity - 1)}
+                          className="w-8 h-8 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center justify-center transition-colors"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="font-bold text-gray-800 min-w-[24px] text-center">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item._id, item.quantity + 1)}
+                          className="w-8 h-8 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center transition-colors"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-gray-800">₹{item.price * item.quantity}</div>
+                        <button
+                          onClick={() => removeFromCart(item._id)}
+                          className="text-red-500 hover:text-red-700 text-xs font-medium hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

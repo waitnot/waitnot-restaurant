@@ -89,6 +89,10 @@ export default function RestaurantDashboard() {
   
   // State to store the last created order for printing
   const [lastCreatedOrder, setLastCreatedOrder] = useState(null);
+  
+  // Edit Order State (for completed staff orders only)
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [showEditOrderModal, setShowEditOrderModal] = useState(false);
 
   useEffect(() => {
     const restaurantId = localStorage.getItem('restaurantId');
@@ -1907,6 +1911,112 @@ export default function RestaurantDashboard() {
     }
   };
 
+  // Edit Order Functions (for completed staff orders only)
+  const openEditOrderModal = (order) => {
+    setEditingOrder({
+      ...order,
+      items: [...order.items] // Create a copy of items array
+    });
+    setShowEditOrderModal(true);
+  };
+
+  const closeEditOrderModal = () => {
+    setEditingOrder(null);
+    setShowEditOrderModal(false);
+  };
+
+  const updateEditOrderItem = (itemIndex, field, value) => {
+    setEditingOrder(prev => ({
+      ...prev,
+      items: prev.items.map((item, index) => 
+        index === itemIndex ? { ...item, [field]: value } : item
+      )
+    }));
+  };
+
+  const removeEditOrderItem = (itemIndex) => {
+    setEditingOrder(prev => ({
+      ...prev,
+      items: prev.items.filter((_, index) => index !== itemIndex)
+    }));
+  };
+
+  const addItemToEditOrder = (menuItem) => {
+    setEditingOrder(prev => {
+      const existingItemIndex = prev.items.findIndex(item => item.menuItemId === menuItem._id);
+      
+      if (existingItemIndex >= 0) {
+        // Item exists, increase quantity
+        return {
+          ...prev,
+          items: prev.items.map((item, index) => 
+            index === existingItemIndex 
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          )
+        };
+      } else {
+        // New item, add to order
+        return {
+          ...prev,
+          items: [...prev.items, {
+            menuItemId: menuItem._id,
+            name: menuItem.name,
+            price: menuItem.price,
+            quantity: 1
+          }]
+        };
+      }
+    });
+  };
+
+  const saveEditedOrder = async () => {
+    try {
+      if (!editingOrder.items.length) {
+        alert('❌ Order must have at least one item');
+        return;
+      }
+
+      const totalAmount = editingOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      const updatedOrderData = {
+        customerName: editingOrder.customerName,
+        customerPhone: editingOrder.customerPhone,
+        orderType: editingOrder.orderType,
+        deliveryAddress: editingOrder.deliveryAddress,
+        tableNumber: editingOrder.tableNumber,
+        items: editingOrder.items,
+        totalAmount,
+        specialInstructions: editingOrder.specialInstructions
+      };
+
+      console.log('🔄 Updating order...', { orderId: editingOrder._id, updatedOrderData });
+
+      const response = await axios.put(`/api/orders/${editingOrder._id}`, updatedOrderData);
+      
+      console.log('✅ Order updated successfully:', response.data);
+      
+      // Refresh orders
+      const restaurantId = localStorage.getItem('restaurantId');
+      await fetchOrders(restaurantId);
+      
+      // Track analytics
+      trackRestaurantEvent('order_edited', {
+        orderId: editingOrder._id,
+        itemCount: editingOrder.items.length,
+        totalAmount,
+        orderSource: editingOrder.source || 'qr'
+      });
+      
+      alert('✅ Order updated successfully!');
+      closeEditOrderModal();
+      
+    } catch (error) {
+      console.error('❌ Error updating order:', error);
+      alert(`❌ Failed to update order: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('restaurantToken');
     localStorage.removeItem('restaurantId');
@@ -2228,6 +2338,16 @@ export default function RestaurantDashboard() {
                       >
                         🧹 Clear Order
                       </button>
+                      {/* Edit Order Button for Completed Staff Orders */}
+                      {(order.status === 'completed' || order.status === 'pending') && (
+                        <button
+                          onClick={() => openEditOrderModal(order)}
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 font-semibold flex items-center justify-center gap-2"
+                        >
+                          <Edit size={16} />
+                          Edit Order
+                        </button>
+                      )}
                     </>
                   ) : (
                     // Regular Order Print Buttons
@@ -2253,6 +2373,17 @@ export default function RestaurantDashboard() {
                           🖨️ Print Receipt
                         </button>
                       </FeatureGuard>
+                      
+                      {/* Edit Order Button for QR Orders */}
+                      {(order.status === 'completed' || order.status === 'pending') && (
+                        <button
+                          onClick={() => openEditOrderModal(order)}
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 font-semibold flex items-center justify-center gap-2"
+                        >
+                          <Edit size={16} />
+                          Edit Order
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -2404,6 +2535,16 @@ export default function RestaurantDashboard() {
                           >
                             🧹 <span className="hidden sm:inline">Clear Table</span><span className="sm:hidden">Clear</span>
                           </button>
+                          {/* Edit Order Button for Completed Staff Orders */}
+                          {(firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
+                            <button
+                              onClick={() => openEditOrderModal(firstOrder)}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 sm:py-3 rounded-lg hover:from-green-600 hover:to-emerald-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                            >
+                              <Edit size={16} />
+                              <span className="hidden sm:inline">Edit Order</span><span className="sm:hidden">Edit</span>
+                            </button>
+                          )}
                         </>
                       ) : (
                         // Regular Table Order Print Buttons
@@ -2431,6 +2572,17 @@ export default function RestaurantDashboard() {
                           >
                             🧹 <span className="hidden sm:inline">Clear Table</span><span className="sm:hidden">Clear</span>
                           </button>
+                          
+                          {/* Edit Order Button for QR Orders */}
+                          {(firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
+                            <button
+                              onClick={() => openEditOrderModal(firstOrder)}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 sm:py-3 rounded-lg hover:from-green-600 hover:to-emerald-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
+                            >
+                              <Edit size={16} />
+                              <span className="hidden sm:inline">Edit Order</span><span className="sm:hidden">Edit</span>
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
@@ -3823,6 +3975,193 @@ export default function RestaurantDashboard() {
             fetchThirdPartyOrders(restaurantId);
           }}
         />
+      )}
+      
+      {/* Edit Order Modal (for completed staff orders) */}
+      {showEditOrderModal && editingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <Edit size={24} />
+                  Edit Order
+                </h2>
+                <button
+                  onClick={closeEditOrderModal}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Order Details */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Order Details</h3>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                    <input
+                      type="text"
+                      value={editingOrder.customerName}
+                      onChange={(e) => setEditingOrder(prev => ({ ...prev, customerName: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Customer Phone</label>
+                    <input
+                      type="tel"
+                      value={editingOrder.customerPhone}
+                      onChange={(e) => setEditingOrder(prev => ({ ...prev, customerPhone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Order Type</label>
+                    <select
+                      value={editingOrder.orderType}
+                      onChange={(e) => setEditingOrder(prev => ({ ...prev, orderType: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                      <option value="takeaway">Takeaway</option>
+                      <option value="delivery">Delivery</option>
+                      <option value="dine-in">Dine-in</option>
+                    </select>
+                  </div>
+
+                  {editingOrder.orderType === 'dine-in' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Table Number</label>
+                      <input
+                        type="number"
+                        value={editingOrder.tableNumber}
+                        onChange={(e) => setEditingOrder(prev => ({ ...prev, tableNumber: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      />
+                    </div>
+                  )}
+
+                  {editingOrder.orderType === 'delivery' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
+                      <textarea
+                        value={editingOrder.deliveryAddress}
+                        onChange={(e) => setEditingOrder(prev => ({ ...prev, deliveryAddress: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                        rows="3"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Special Instructions</label>
+                    <textarea
+                      value={editingOrder.specialInstructions}
+                      onChange={(e) => setEditingOrder(prev => ({ ...prev, specialInstructions: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      rows="3"
+                    />
+                  </div>
+                </div>
+
+                {/* Order Items */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Order Items</h3>
+                  
+                  {editingOrder.items.length > 0 ? (
+                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {editingOrder.items.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-800">{item.name}</div>
+                            <div className="text-sm text-gray-600">₹{item.price} each</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateEditOrderItem(index, 'quantity', Math.max(1, item.quantity - 1))}
+                              className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                            >
+                              -
+                            </button>
+                            <span className="w-8 text-center font-medium">{item.quantity}</span>
+                            <button
+                              onClick={() => updateEditOrderItem(index, 'quantity', item.quantity + 1)}
+                              className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center hover:bg-green-600"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() => removeEditOrderItem(index)}
+                              className="ml-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                          <div className="ml-4 font-medium text-gray-800">
+                            ₹{item.price * item.quantity}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      No items in order. Add items from the menu below.
+                    </div>
+                  )}
+
+                  {/* Add Items from Menu */}
+                  <div className="border-t pt-4">
+                    <h4 className="font-medium text-gray-800 mb-3">Add Items from Menu</h4>
+                    <div className="max-h-40 overflow-y-auto space-y-2">
+                      {restaurant.menu.map((menuItem) => (
+                        <div key={menuItem._id} className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{menuItem.name}</div>
+                            <div className="text-xs text-gray-600">₹{menuItem.price}</div>
+                          </div>
+                          <button
+                            onClick={() => addItemToEditOrder(menuItem)}
+                            className="bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600 text-sm"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Order Total */}
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center text-lg font-bold">
+                      <span>Total:</span>
+                      <span>₹{editingOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-4 mt-6 pt-6 border-t">
+                <button
+                  onClick={closeEditOrderModal}
+                  className="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEditedOrder}
+                  className="flex-1 bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 font-semibold"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
