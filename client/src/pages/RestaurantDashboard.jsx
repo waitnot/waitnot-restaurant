@@ -3823,14 +3823,56 @@ export default function RestaurantDashboard() {
               {receptionistOrder.items.length > 0 && (
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <h4 className="text-md font-semibold text-gray-800 mb-3">Order Summary</h4>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {receptionistOrder.items.map((item, index) => (
-                      <div key={index} className="flex justify-between text-sm">
-                        <span>{item.name} x {item.quantity}</span>
-                        <span className="font-semibold">₹{item.price * item.quantity}</span>
+                      <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm">
+                        <div className="flex-1">
+                          <span className="font-medium text-gray-800">{item.name}</span>
+                          <div className="text-sm text-gray-600">₹{item.price} each</div>
+                        </div>
+                        
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateReceptionistOrderItem(item, -1)}
+                              className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center justify-center text-sm font-bold transition-colors"
+                            >
+                              -
+                            </button>
+                            <span className="w-8 text-center font-semibold text-gray-800">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => updateReceptionistOrderItem(item, 1)}
+                              className="w-7 h-7 rounded-full bg-primary text-white hover:bg-red-600 flex items-center justify-center text-sm font-bold transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                          
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => {
+                              setReceptionistOrder(prevOrder => ({
+                                ...prevOrder,
+                                items: prevOrder.items.filter((_, i) => i !== index)
+                              }));
+                            }}
+                            className="w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-sm font-bold transition-colors"
+                            title="Remove item"
+                          >
+                            ×
+                          </button>
+                          
+                          {/* Item Total */}
+                          <div className="min-w-[60px] text-right">
+                            <span className="font-semibold text-gray-800">₹{item.price * item.quantity}</span>
+                          </div>
+                        </div>
                       </div>
                     ))}
-                    <div className="border-t pt-2 flex justify-between font-bold text-lg">
+                    <div className="border-t pt-3 flex justify-between font-bold text-lg bg-white p-3 rounded-lg">
                       <span>Total</span>
                       <span className="text-primary">₹{receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
                     </div>
