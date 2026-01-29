@@ -45,33 +45,36 @@ export const generateCustomBill = (order, restaurant, customization) => {
       width: ${receiptWidth};
       max-width: ${maxWidth};
       margin: 0 auto;
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-      line-height: 1.4;
+      font-family: 'Courier New', 'Lucida Console', monospace;
+      font-size: 14px;
+      font-weight: bold;
+      line-height: 1.3;
       color: #000;
       background: white;
-      padding: 10px;
+      padding: 8px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     ">
       <!-- Custom Header -->
-      <div style="text-align: center; margin-bottom: 15px; border-bottom: 1px dashed #000; padding-bottom: 10px;">
+      <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
         ${customization.logoDataUrl ? `
-          <div style="margin-bottom: 10px;">
+          <div style="margin-bottom: 8px;">
             <img src="${customization.logoDataUrl}" alt="Logo" style="height: ${logoSize}; max-width: 100%; object-fit: contain;">
           </div>
         ` : ''}
         
-        <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">
+        <div style="font-size: 18px; font-weight: 900; margin-bottom: 4px; letter-spacing: 1px;">
           ${restaurant?.name?.toUpperCase() || 'RESTAURANT'}
         </div>
         
         ${customization.headerText ? `
-          <div style="font-size: 11px; line-height: 1.3; white-space: pre-line; margin-bottom: 8px;">
+          <div style="font-size: 12px; line-height: 1.3; white-space: pre-line; margin-bottom: 6px; font-weight: bold;">
             ${customization.headerText}
           </div>
         ` : ''}
         
         <!-- Contact Information -->
-        <div style="font-size: 10px; line-height: 1.2;">
+        <div style="font-size: 11px; line-height: 1.2; font-weight: bold;">
           ${customization.showAddress && customization.address ? `
             <div style="margin: 2px 0;">📍 ${customization.address.replace(/\n/g, '<br>')}</div>
           ` : ''}
@@ -91,52 +94,52 @@ export const generateCustomBill = (order, restaurant, customization) => {
       </div>
 
       <!-- Order Information -->
-      <div style="margin-bottom: 15px; font-size: 11px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>Order ID:</span>
+      <div style="margin-bottom: 12px; font-size: 12px; font-weight: bold;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>ORDER ID:</span>
           <span>${orderId}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>Date:</span>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>DATE:</span>
           <span>${dateStr} ${timeStr}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>Customer:</span>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>CUSTOMER:</span>
           <span>${order.customerName}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>Phone:</span>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>PHONE:</span>
           <span>${order.customerPhone}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>Type:</span>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>TYPE:</span>
           <span>${order.orderType?.toUpperCase()}</span>
         </div>
         ${order.tableNumber ? `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>Table:</span>
-          <span><strong>TABLE ${order.tableNumber}</strong></span>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>TABLE:</span>
+          <span style="font-weight: 900;">TABLE ${order.tableNumber}</span>
         </div>
         ` : ''}
         ${order.deliveryAddress ? `
-        <div style="margin-bottom: 2px;">
-          <span>Address:</span>
-          <div style="margin-left: 10px; word-wrap: break-word; font-size: 10px;">${order.deliveryAddress}</div>
+        <div style="margin-bottom: 3px;">
+          <span>ADDRESS:</span>
+          <div style="margin-left: 8px; word-wrap: break-word; font-size: 11px; margin-top: 2px;">${order.deliveryAddress}</div>
         </div>
         ` : ''}
       </div>
 
       <!-- Items -->
-      <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 8px; font-size: 11px;">
-          <span style="width: 50%;">ITEM</span>
+      <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 8px 0; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; font-weight: 900; margin-bottom: 6px; font-size: 12px;">
+          <span style="width: 45%;">ITEM</span>
           <span style="width: 15%; text-align: center;">QTY</span>
           <span style="width: 20%; text-align: right;">RATE</span>
           <span style="width: 25%; text-align: right;">AMOUNT</span>
         </div>
         ${order.items?.map(item => `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px;">
-            <span style="width: 50%; word-wrap: break-word;">${item.name}</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; font-weight: bold;">
+            <span style="width: 45%; word-wrap: break-word;">${item.name}</span>
             <span style="width: 15%; text-align: center;">${item.quantity}</span>
             <span style="width: 20%; text-align: right;">₹${item.price}</span>
             <span style="width: 25%; text-align: right;">₹${item.price * item.quantity}</span>
@@ -145,8 +148,8 @@ export const generateCustomBill = (order, restaurant, customization) => {
       </div>
 
       <!-- Total -->
-      <div style="margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; padding: 5px 0; border-top: 1px solid #000;">
+      <div style="margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; padding: 6px 4px; border-top: 2px solid #000; background: #f0f0f0;">
           <span>TOTAL AMOUNT:</span>
           <span>₹${order.totalAmount}</span>
         </div>
@@ -154,39 +157,39 @@ export const generateCustomBill = (order, restaurant, customization) => {
 
       ${order.specialInstructions ? `
       <!-- Special Instructions -->
-      <div style="margin-bottom: 15px; font-size: 10px;">
-        <div style="font-weight: bold; margin-bottom: 3px;">Special Instructions:</div>
-        <div style="font-style: italic;">${order.specialInstructions}</div>
+      <div style="margin-bottom: 12px; font-size: 11px; font-weight: bold;">
+        <div style="font-weight: 900; margin-bottom: 3px;">SPECIAL INSTRUCTIONS:</div>
+        <div style="font-style: italic; font-weight: normal;">${order.specialInstructions}</div>
       </div>
       ` : ''}
 
       <!-- Custom Footer -->
-      <div style="text-align: center; margin-top: 20px; font-size: 10px; border-top: 1px dashed #000; padding-top: 10px;">
+      <div style="text-align: center; margin-top: 15px; font-size: 11px; border-top: 2px solid #000; padding-top: 8px; font-weight: bold;">
         ${customization.footerText ? `
-          <div style="margin-bottom: 15px; line-height: 1.3; white-space: pre-line;">
+          <div style="margin-bottom: 12px; line-height: 1.3; white-space: pre-line;">
             ${customization.footerText}
           </div>
         ` : ''}
         
         ${customization.showQRCode ? `
-          <div style="margin: 15px 0;">
+          <div style="margin: 12px 0;">
             ${paymentQrUrl ? `
               <!-- UPI Payment QR Code -->
-              <img src="${paymentQrUrl}" alt="Payment QR Code" style="width: 120px; height: 120px; border: 1px solid #ddd; object-fit: contain;">
-              <div style="font-size: 11px; margin-top: 8px; font-weight: bold; color: #000;">
-                💳 Scan & Pay ₹${order.totalAmount}
+              <img src="${paymentQrUrl}" alt="Payment QR Code" style="width: 120px; height: 120px; border: 2px solid #000; object-fit: contain;">
+              <div style="font-size: 12px; margin-top: 6px; font-weight: 900; color: #000;">
+                💳 SCAN & PAY ₹${order.totalAmount}
               </div>
-              <div style="font-size: 9px; margin-top: 2px; color: #666;">
+              <div style="font-size: 10px; margin-top: 2px; color: #333; font-weight: normal;">
                 ${printerSettings.upiBaseUrl ? printerSettings.upiBaseUrl.match(/pa=([^&]+)/)?.[1] || 'UPI Payment' : 'UPI Payment'}
               </div>
             ` : customization.qrCodeDataUrl ? `
               <!-- Custom QR Code -->
-              <img src="${customization.qrCodeDataUrl}" alt="QR Code" style="width: 120px; height: 120px; border: 1px solid #ddd; object-fit: contain;">
+              <img src="${customization.qrCodeDataUrl}" alt="QR Code" style="width: 120px; height: 120px; border: 2px solid #000; object-fit: contain;">
             ` : ''}
           </div>
         ` : ''}
         
-        <div style="font-size: 9px; color: #666; margin-top: 10px;">
+        <div style="font-size: 9px; color: #333; margin-top: 8px; font-weight: normal;">
           Printed: ${dateStr} ${timeStr}
         </div>
       </div>
@@ -218,12 +221,26 @@ export const printCustomBill = (order, restaurant, customization) => {
             body {
               margin: 0;
               padding: 0;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            * {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+              font-weight: bold !important;
             }
           }
           body {
             margin: 0;
             padding: 0;
             background: white;
+            font-family: 'Courier New', 'Lucida Console', monospace;
+            font-weight: bold;
+          }
+          @font-face {
+            font-family: 'ThermalPrint';
+            src: local('Courier New'), local('Lucida Console'), local('monospace');
+            font-weight: bold;
           }
         </style>
       </head>

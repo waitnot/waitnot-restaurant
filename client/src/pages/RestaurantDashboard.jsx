@@ -680,7 +680,7 @@ export default function RestaurantDashboard() {
       }
     }
     
-    // Fallback to default bill format
+    // Enhanced thermal printer optimized bill format
     // Create bill summary
     const allItems = {};
     tableOrders.forEach(order => {
@@ -709,72 +709,75 @@ export default function RestaurantDashboard() {
       minute: '2-digit' 
     });
 
-    // Create receipt HTML with thermal printer styling
+    // Create receipt HTML with enhanced thermal printer styling
     const receiptHTML = `
       <div id="receipt-content" style="
         width: 80mm;
         max-width: 302px;
-        font-family: 'Courier New', monospace;
-        font-size: 12px;
-        line-height: 1.2;
-        color: black;
+        font-family: 'Courier New', 'Lucida Console', monospace;
+        font-size: 14px;
+        font-weight: bold;
+        line-height: 1.3;
+        color: #000;
         background: white;
-        padding: 10px;
+        padding: 8px;
         margin: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       ">
         <!-- Restaurant Header -->
-        <div style="text-align: center; margin-bottom: 15px; border-bottom: 1px dashed #000; padding-bottom: 10px;">
-          <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">
+        <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
+          <div style="font-size: 18px; font-weight: 900; margin-bottom: 4px; letter-spacing: 1px;">
             ${restaurant.name.toUpperCase()}
           </div>
-          <div style="font-size: 10px;">
-            Restaurant Receipt
+          <div style="font-size: 12px; font-weight: bold;">
+            RESTAURANT RECEIPT
           </div>
         </div>
 
         <!-- Order Info -->
-        <div style="margin-bottom: 15px; font-size: 11px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Table:</span>
-            <span><strong>${tableNumber}</strong></span>
+        <div style="margin-bottom: 12px; font-size: 12px; font-weight: bold;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>TABLE:</span>
+            <span style="font-weight: 900; font-size: 14px;">${tableNumber}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Order ID:</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>ORDER ID:</span>
             <span>${orderId}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Date:</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>DATE:</span>
             <span>${dateStr}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Time:</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>TIME:</span>
             <span>${timeStr}</span>
           </div>
           <div style="display: flex; justify-content: space-between;">
-            <span>Customer:</span>
+            <span>CUSTOMER:</span>
             <span>${firstOrder.customerName}</span>
           </div>
         </div>
 
         <!-- Items Header -->
-        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; margin-bottom: 10px;">
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px;">
-            <span style="width: 60%;">ITEM</span>
+        <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 12px;">
+            <span style="width: 55%;">ITEM</span>
             <span style="width: 15%; text-align: center;">QTY</span>
-            <span style="width: 25%; text-align: right;">AMOUNT</span>
+            <span style="width: 30%; text-align: right;">AMOUNT</span>
           </div>
         </div>
 
         <!-- Items List -->
-        <div style="margin-bottom: 15px;">
+        <div style="margin-bottom: 12px;">
           ${Object.values(allItems).map(item => `
-            <div style="margin-bottom: 8px; font-size: 11px;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="width: 60%; word-wrap: break-word;">${item.name}</span>
+            <div style="margin-bottom: 6px; font-size: 12px; font-weight: bold;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                <span style="width: 55%; word-wrap: break-word;">${item.name}</span>
                 <span style="width: 15%; text-align: center;">${item.quantity}</span>
-                <span style="width: 25%; text-align: right;">₹${item.total}</span>
+                <span style="width: 30%; text-align: right;">₹${item.total}</span>
               </div>
-              <div style="font-size: 10px; color: #666; margin-left: 0;">
+              <div style="font-size: 10px; color: #333; margin-left: 0; font-weight: normal;">
                 @ ₹${item.price} each
               </div>
             </div>
@@ -782,30 +785,30 @@ export default function RestaurantDashboard() {
         </div>
 
         <!-- Total Section -->
-        <div style="border-top: 1px dashed #000; padding-top: 10px; margin-bottom: 15px;">
-          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
-            <span>Subtotal:</span>
+        <div style="border-top: 2px solid #000; padding-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 4px;">
+            <span>SUBTOTAL:</span>
             <span>₹${totalAmount}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">
+          <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; border-top: 2px solid #000; padding-top: 6px; background: #f0f0f0; padding: 6px 4px;">
             <span>TOTAL:</span>
             <span>₹${totalAmount}</span>
           </div>
         </div>
 
         <!-- Footer -->
-        <div style="text-align: center; font-size: 10px; border-top: 1px dashed #000; padding-top: 10px;">
-          <div style="margin-bottom: 5px;">Thank you for dining with us!</div>
-          <div style="margin-bottom: 5px;">Please visit again</div>
-          <div style="margin-bottom: 10px;">★★★★★</div>
-          <div style="font-size: 9px; color: #666;">
+        <div style="text-align: center; font-size: 11px; border-top: 2px solid #000; padding-top: 8px; font-weight: bold;">
+          <div style="margin-bottom: 4px;">THANK YOU FOR DINING WITH US!</div>
+          <div style="margin-bottom: 4px;">PLEASE VISIT AGAIN</div>
+          <div style="margin-bottom: 8px; font-size: 14px;">★★★★★</div>
+          <div style="font-size: 9px; color: #333; font-weight: normal;">
             Printed: ${dateStr} ${timeStr}
           </div>
         </div>
       </div>
     `;
 
-    // Create a new window for printing
+    // Create a new window for printing with enhanced print styles
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     
     if (printWindow) {
@@ -823,12 +826,26 @@ export default function RestaurantDashboard() {
               body {
                 margin: 0;
                 padding: 0;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                font-weight: bold !important;
               }
             }
             body {
               margin: 0;
               padding: 0;
               background: white;
+              font-family: 'Courier New', 'Lucida Console', monospace;
+              font-weight: bold;
+            }
+            @font-face {
+              font-family: 'ThermalPrint';
+              src: local('Courier New'), local('Lucida Console'), local('monospace');
+              font-weight: bold;
             }
           </style>
         </head>
@@ -844,8 +861,10 @@ export default function RestaurantDashboard() {
       printWindow.onload = () => {
         setTimeout(() => {
           printWindow.print();
-          printWindow.close();
-        }, 250);
+          setTimeout(() => {
+            printWindow.close();
+          }, 250);
+        }, 500);
       };
     } else {
       alert('Please allow popups to print receipts');
@@ -863,7 +882,7 @@ export default function RestaurantDashboard() {
       }
     }
     
-    // Fallback to default bill format
+    // Enhanced thermal printer optimized bill format
     const orderId = `ORD-${order._id.slice(-6).toUpperCase()}`;
     const currentDate = new Date(order.createdAt);
     const dateStr = currentDate.toLocaleDateString('en-IN');
@@ -872,84 +891,87 @@ export default function RestaurantDashboard() {
       minute: '2-digit' 
     });
 
-    // Create receipt HTML with thermal printer styling
+    // Create receipt HTML with enhanced thermal printer styling
     const receiptHTML = `
       <div id="receipt-content" style="
         width: 80mm;
         max-width: 302px;
-        font-family: 'Courier New', monospace;
-        font-size: 12px;
-        line-height: 1.2;
-        color: black;
+        font-family: 'Courier New', 'Lucida Console', monospace;
+        font-size: 14px;
+        font-weight: bold;
+        line-height: 1.3;
+        color: #000;
         background: white;
-        padding: 10px;
+        padding: 8px;
         margin: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       ">
         <!-- Restaurant Header -->
-        <div style="text-align: center; margin-bottom: 15px; border-bottom: 1px dashed #000; padding-bottom: 10px;">
-          <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">
+        <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
+          <div style="font-size: 18px; font-weight: 900; margin-bottom: 4px; letter-spacing: 1px;">
             ${restaurant.name.toUpperCase()}
           </div>
-          <div style="font-size: 10px;">
-            ${order.orderType === 'delivery' ? 'Delivery Receipt' : 'Dine-In Receipt'}
+          <div style="font-size: 12px; font-weight: bold;">
+            ${order.orderType === 'delivery' ? 'DELIVERY RECEIPT' : 'DINE-IN RECEIPT'}
           </div>
         </div>
 
         <!-- Order Info -->
-        <div style="margin-bottom: 15px; font-size: 11px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Order ID:</span>
+        <div style="margin-bottom: 12px; font-size: 12px; font-weight: bold;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>ORDER ID:</span>
             <span>${orderId}</span>
           </div>
           ${order.orderType === 'dine-in' ? `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Table:</span>
-            <span><strong>${order.tableNumber}</strong></span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>TABLE:</span>
+            <span style="font-weight: 900;">${order.tableNumber}</span>
           </div>
           ` : ''}
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Date:</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>DATE:</span>
             <span>${dateStr}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Time:</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>TIME:</span>
             <span>${timeStr}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Customer:</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>CUSTOMER:</span>
             <span>${order.customerName}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>Phone:</span>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>PHONE:</span>
             <span>${order.customerPhone}</span>
           </div>
           ${order.deliveryAddress ? `
-          <div style="margin-top: 5px; font-size: 10px;">
-            <div><strong>Delivery Address:</strong></div>
-            <div style="margin-left: 10px; word-wrap: break-word;">${order.deliveryAddress}</div>
+          <div style="margin-top: 6px; font-size: 11px; font-weight: bold;">
+            <div>DELIVERY ADDRESS:</div>
+            <div style="margin-left: 8px; word-wrap: break-word; margin-top: 2px;">${order.deliveryAddress}</div>
           </div>
           ` : ''}
         </div>
 
         <!-- Items Header -->
-        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; margin-bottom: 10px;">
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px;">
-            <span style="width: 60%;">ITEM</span>
+        <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 12px;">
+            <span style="width: 55%;">ITEM</span>
             <span style="width: 15%; text-align: center;">QTY</span>
-            <span style="width: 25%; text-align: right;">AMOUNT</span>
+            <span style="width: 30%; text-align: right;">AMOUNT</span>
           </div>
         </div>
 
         <!-- Items List -->
-        <div style="margin-bottom: 15px;">
+        <div style="margin-bottom: 12px;">
           ${order.items.map(item => `
-            <div style="margin-bottom: 8px; font-size: 11px;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="width: 60%; word-wrap: break-word;">${item.name}</span>
+            <div style="margin-bottom: 6px; font-size: 12px; font-weight: bold;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                <span style="width: 55%; word-wrap: break-word;">${item.name}</span>
                 <span style="width: 15%; text-align: center;">${item.quantity}</span>
-                <span style="width: 25%; text-align: right;">₹${item.price * item.quantity}</span>
+                <span style="width: 30%; text-align: right;">₹${item.price * item.quantity}</span>
               </div>
-              <div style="font-size: 10px; color: #666; margin-left: 0;">
+              <div style="font-size: 10px; color: #333; margin-left: 0; font-weight: normal;">
                 @ ₹${item.price} each
               </div>
             </div>
@@ -957,37 +979,37 @@ export default function RestaurantDashboard() {
         </div>
 
         <!-- Total Section -->
-        <div style="border-top: 1px dashed #000; padding-top: 10px; margin-bottom: 15px;">
-          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
-            <span>Subtotal:</span>
+        <div style="border-top: 2px solid #000; padding-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 4px;">
+            <span>SUBTOTAL:</span>
             <span>₹${order.totalAmount}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">
+          <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; border-top: 2px solid #000; padding-top: 6px; background: #f0f0f0; padding: 6px 4px;">
             <span>TOTAL:</span>
             <span>₹${order.totalAmount}</span>
           </div>
         </div>
 
         <!-- Status -->
-        <div style="text-align: center; margin-bottom: 15px; font-size: 11px;">
-          <div style="background: #f0f0f0; padding: 5px; border-radius: 3px;">
-            <strong>Status: ${order.status.toUpperCase()}</strong>
+        <div style="text-align: center; margin-bottom: 12px; font-size: 12px;">
+          <div style="background: #000; color: white; padding: 6px; font-weight: bold;">
+            STATUS: ${order.status.toUpperCase()}
           </div>
         </div>
 
         <!-- Footer -->
-        <div style="text-align: center; font-size: 10px; border-top: 1px dashed #000; padding-top: 10px;">
-          <div style="margin-bottom: 5px;">Thank you for ${order.orderType === 'delivery' ? 'ordering' : 'dining'} with us!</div>
-          <div style="margin-bottom: 5px;">Please visit again</div>
-          <div style="margin-bottom: 10px;">★★★★★</div>
-          <div style="font-size: 9px; color: #666;">
+        <div style="text-align: center; font-size: 11px; border-top: 2px solid #000; padding-top: 8px; font-weight: bold;">
+          <div style="margin-bottom: 4px;">THANK YOU FOR ${order.orderType === 'delivery' ? 'ORDERING' : 'DINING'} WITH US!</div>
+          <div style="margin-bottom: 4px;">PLEASE VISIT AGAIN</div>
+          <div style="margin-bottom: 8px; font-size: 14px;">★★★★★</div>
+          <div style="font-size: 9px; color: #333; font-weight: normal;">
             Printed: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
       </div>
     `;
 
-    // Create a new window for printing
+    // Create a new window for printing with enhanced print styles
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     
     if (printWindow) {
@@ -1005,12 +1027,26 @@ export default function RestaurantDashboard() {
               body {
                 margin: 0;
                 padding: 0;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                font-weight: bold !important;
               }
             }
             body {
               margin: 0;
               padding: 0;
               background: white;
+              font-family: 'Courier New', 'Lucida Console', monospace;
+              font-weight: bold;
+            }
+            @font-face {
+              font-family: 'ThermalPrint';
+              src: local('Courier New'), local('Lucida Console'), local('monospace');
+              font-weight: bold;
             }
           </style>
         </head>
@@ -1026,8 +1062,10 @@ export default function RestaurantDashboard() {
       printWindow.onload = () => {
         setTimeout(() => {
           printWindow.print();
-          printWindow.close();
-        }, 250);
+          setTimeout(() => {
+            printWindow.close();
+          }, 250);
+        }, 500);
       };
     } else {
       alert('Please allow popups to print receipts');
@@ -2315,22 +2353,18 @@ export default function RestaurantDashboard() {
                   {order.source === 'staff' ? (
                     // Staff Order Print Buttons
                     <>
-                      <FeatureGuard feature="printerSettings">
-                        <button
-                          onClick={() => printStaffKOT(order)}
-                          className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
-                        >
-                          🍳 Print KOT
-                        </button>
-                      </FeatureGuard>
-                      <FeatureGuard feature="printerSettings">
-                        <button
-                          onClick={() => printStaffCustomerBill(order)}
-                          className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
-                        >
-                          🖨️ Print Bill
-                        </button>
-                      </FeatureGuard>
+                      <button
+                        onClick={() => printStaffKOT(order)}
+                        className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
+                      >
+                        🍳 Print KOT
+                      </button>
+                      <button
+                        onClick={() => printStaffCustomerBill(order)}
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
+                      >
+                        🖨️ Print Bill
+                      </button>
                       {/* Clear Order Button for Staff Orders */}
                       <button
                         onClick={() => clearIndividualOrder(order)}
@@ -2354,25 +2388,21 @@ export default function RestaurantDashboard() {
                     <>
                       {/* Kitchen Print Button - Smart Visibility */}
                       {order.items.some(item => !item.printed_to_kitchen) && (
-                        <FeatureGuard feature="printerSettings">
-                          <button
-                            onClick={() => printKitchenOrderIndividual(order)}
-                            className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
-                          >
-                            🍳 Print Bill (Kitchen)
-                          </button>
-                        </FeatureGuard>
+                        <button
+                          onClick={() => printKitchenOrderIndividual(order)}
+                          className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
+                        >
+                          🍳 Print Bill (Kitchen)
+                        </button>
                       )}
                       
                       {/* Cash Counter Print Receipt Button */}
-                      <FeatureGuard feature="printerSettings">
-                        <button
-                          onClick={() => printIndividualReceipt(order)}
-                          className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
-                        >
-                          🖨️ Print Receipt
-                        </button>
-                      </FeatureGuard>
+                      <button
+                        onClick={() => printIndividualReceipt(order)}
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
+                      >
+                        🖨️ Print Receipt
+                      </button>
                       
                       {/* Edit Order Button for QR Orders */}
                       {(order.status === 'completed' || order.status === 'pending') && (
@@ -3109,26 +3139,24 @@ export default function RestaurantDashboard() {
 
                     {/* Print Receipt Button for History */}
                     <div className="mt-3">
-                      <FeatureGuard feature="printerSettings">
-                        <button
-                          onClick={() => {
-                            if (orderGroup.length === 1) {
-                              // Single order - print individual receipt
-                              printIndividualReceipt(orderGroup[0]);
-                            } else {
-                              // Multiple orders - print combined receipt like table bill
-                              printReceipt(
-                                isDineIn ? firstOrder.tableNumber : 'Delivery', 
-                                orderGroup, 
-                                totalAmount
-                              );
-                            }
-                          }}
-                          className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
-                        >
-                          🖨️ Print Receipt
-                        </button>
-                      </FeatureGuard>
+                      <button
+                        onClick={() => {
+                          if (orderGroup.length === 1) {
+                            // Single order - print individual receipt
+                            printIndividualReceipt(orderGroup[0]);
+                          } else {
+                            // Multiple orders - print combined receipt like table bill
+                            printReceipt(
+                              isDineIn ? firstOrder.tableNumber : 'Delivery', 
+                              orderGroup, 
+                              totalAmount
+                            );
+                          }
+                        }}
+                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
+                      >
+                        🖨️ Print Receipt
+                      </button>
                     </div>
                   </div>
                 );

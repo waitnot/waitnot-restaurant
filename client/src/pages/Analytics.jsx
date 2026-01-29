@@ -221,9 +221,19 @@ const Analytics = () => {
     try {
       const restaurantId = localStorage.getItem('restaurantId');
       
+      // Ask user if they want to clear order history after report generation
+      const clearHistory = window.confirm(
+        `Generate ${type} report and clear order history?\n\n` +
+        `This will:\n` +
+        `✓ Download the ${type} report\n` +
+        `✓ Clear all completed orders from history\n` +
+        `⚠️ This action cannot be undone!\n\n` +
+        `Click OK to proceed with clearing history, or Cancel to just download the report.`
+      );
+      
       // Try API first
       try {
-        const response = await axios.get(`/api/analytics/restaurant/${restaurantId}/report?type=${type}&format=csv`, {
+        const response = await axios.get(`/api/analytics/restaurant/${restaurantId}/report?type=${type}&format=csv&clearHistory=${clearHistory}`, {
           responseType: 'blob'
         });
         
@@ -234,6 +244,16 @@ const Analytics = () => {
         a.download = `${restaurant?.name || 'Restaurant'}_${type}_Report_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
+        
+        // Show success message
+        if (clearHistory) {
+          alert(`✅ Report downloaded successfully!\n\nOrder history has been cleared. The system is now ready for fresh data collection.`);
+          
+          // Refresh the analytics data to reflect the cleared history
+          await fetchData();
+        } else {
+          alert('✅ Report downloaded successfully!');
+        }
       } catch (apiError) {
         console.log('API not available, generating report locally');
         // Fallback to local generation
@@ -246,6 +266,22 @@ const Analytics = () => {
         a.download = `${restaurant?.name || 'Restaurant'}_${type}_Report_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
+        
+        // Clear history locally if requested
+        if (clearHistory) {
+          try {
+            await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`);
+            alert(`✅ Report downloaded successfully!\n\nOrder history has been cleared. The system is now ready for fresh data collection.`);
+            
+            // Refresh the analytics data to reflect the cleared history
+            await fetchData();
+          } catch (clearError) {
+            console.error('Failed to clear history:', clearError);
+            alert('✅ Report downloaded successfully!\n\n⚠️ However, failed to clear order history. Please try clearing manually from the dashboard.');
+          }
+        } else {
+          alert('✅ Report downloaded successfully!');
+        }
       }
     } catch (error) {
       console.error('Error downloading report:', error);
@@ -292,6 +328,36 @@ const Analytics = () => {
       'Total Amount': order.totalAmount || order.total || 0,
       'Delivery Address': order.deliveryAddress || 'N/A'
     }));
+  };
+
+  const clearOrderHistory = async () => {
+    try {
+      const restaurantId = localStorage.getItem('restaurantId');
+      
+      const confirmClear = window.confirm(
+        `⚠️ Clear Order History?\n\n` +
+        `This will permanently delete all completed orders from the system.\n\n` +
+        `Current completed orders: ${orders.filter(o => o.status === 'completed').length}\n\n` +
+        `⚠️ This action cannot be undone!\n\n` +
+        `Are you sure you want to proceed?`
+      );
+      
+      if (!confirmClear) return;
+      
+      const response = await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`);
+      
+      if (response.data.success) {
+        alert(`✅ Order History Cleared!\n\nSuccessfully cleared ${response.data.clearedCount} completed orders.\n\nThe system is now ready for fresh data collection.`);
+        
+        // Refresh the analytics data to reflect the cleared history
+        await fetchData();
+      } else {
+        alert('❌ Failed to clear order history. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error clearing order history:', error);
+      alert('❌ Failed to clear order history. Please try again.');
+    }
   };
 
   const convertToCSV = (data) => {
@@ -379,6 +445,12 @@ const Analytics = () => {
                   className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 flex items-center gap-2"
                 >
                   📈 Yearly Report
+                </button>
+                <button
+                  onClick={clearOrderHistory}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+                >
+                  🗑️ Clear History
                 </button>
               </div>
             </div>

@@ -924,6 +924,60 @@ export const orderDB = {
     }
     
     return await this.findById(id);
+  },
+
+  async delete(id) {
+    try {
+      console.log('🗑️ Deleting order:', id);
+      
+      return await withTransaction(async (client) => {
+        // Delete order items first
+        await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+        
+        // Delete the order
+        const result = await client.query('DELETE FROM orders WHERE id = $1 RETURNING *', [id]);
+        
+        if (result.rows.length === 0) {
+          console.log('❌ Order not found for deletion');
+          return null;
+        }
+        
+        console.log('✅ Order deleted successfully');
+        return result.rows[0];
+      });
+    } catch (error) {
+      console.error('❌ Order deletion failed:', error);
+      throw error;
+    }
+  },
+
+  async deleteMultiple(orderIds) {
+    try {
+      console.log('🗑️ Deleting multiple orders:', orderIds.length);
+      
+      if (!orderIds || orderIds.length === 0) {
+        return { deletedCount: 0 };
+      }
+      
+      return await withTransaction(async (client) => {
+        // Create placeholders for the IN clause
+        const placeholders = orderIds.map((_, index) => `$${index + 1}`).join(',');
+        
+        // Delete order items first
+        await client.query(`DELETE FROM order_items WHERE order_id IN (${placeholders})`, orderIds);
+        
+        // Delete the orders
+        const result = await client.query(`DELETE FROM orders WHERE id IN (${placeholders}) RETURNING id`, orderIds);
+        
+        const deletedCount = result.rows.length;
+        console.log(`✅ Successfully deleted ${deletedCount} orders`);
+        
+        return { deletedCount };
+      });
+    } catch (error) {
+      console.error('❌ Multiple order deletion failed:', error);
+      throw error;
+    }
   }
 };
 

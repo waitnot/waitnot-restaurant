@@ -200,7 +200,7 @@ router.get('/restaurant/:restaurantId', async (req, res) => {
 router.get('/restaurant/:restaurantId/report', async (req, res) => {
   try {
     const { restaurantId } = req.params;
-    const { type = 'weekly', format = 'json' } = req.query;
+    const { type = 'weekly', format = 'json', clearHistory = 'false' } = req.query;
     
     const orders = await orderDB.findByRestaurant(restaurantId);
     
@@ -209,6 +209,9 @@ router.get('/restaurant/:restaurantId/report', async (req, res) => {
     let startDate, endDate = now;
     
     switch (type) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
       case 'weekly':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
@@ -243,6 +246,21 @@ router.get('/restaurant/:restaurantId/report', async (req, res) => {
       deliveryAddress: order.deliveryAddress || 'N/A'
     }));
     
+    // Clear order history if requested
+    if (clearHistory === 'true') {
+      console.log(`Clearing order history for restaurant ${restaurantId} after ${type} report generation`);
+      
+      // Delete completed orders that are included in the report
+      const completedOrderIds = filteredOrders
+        .filter(order => order.status === 'completed')
+        .map(order => order._id);
+      
+      if (completedOrderIds.length > 0) {
+        await orderDB.deleteMultiple(completedOrderIds);
+        console.log(`Cleared ${completedOrderIds.length} completed orders from history`);
+      }
+    }
+    
     if (format === 'csv') {
       // Convert to CSV
       const headers = Object.keys(reportData[0] || {});
@@ -267,12 +285,61 @@ router.get('/restaurant/:restaurantId/report', async (req, res) => {
           end: endDate.toISOString()
         },
         totalRecords: reportData.length,
+        clearedHistory: clearHistory === 'true',
+        clearedOrders: clearHistory === 'true' ? filteredOrders.filter(o => o.status === 'completed').length : 0,
         data: reportData
       });
     }
     
   } catch (error) {
     console.error('Report generation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Clear order history endpoint
+router.delete('/restaurant/:restaurantId/history', async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const { type = 'completed' } = req.query; // 'completed', 'all', or specific status
+    
+    console.log(`Clearing order history for restaurant ${restaurantId}, type: ${type}`);
+    
+    const orders = await orderDB.findByRestaurant(restaurantId);
+    
+    let ordersToDelete = [];
+    
+    if (type === 'all') {
+      ordersToDelete = orders;
+    } else if (type === 'completed') {
+      ordersToDelete = orders.filter(order => order.status === 'completed');
+    } else {
+      ordersToDelete = orders.filter(order => order.status === type);
+    }
+    
+    const orderIds = ordersToDelete.map(order => order._id);
+    
+    if (orderIds.length > 0) {
+      await orderDB.deleteMultiple(orderIds);
+      console.log(`Successfully cleared ${orderIds.length} orders from history`);
+      
+      res.json({
+        success: true,
+        message: `Successfully cleared ${orderIds.length} orders from history`,
+        clearedCount: orderIds.length,
+        type: type
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'No orders found to clear',
+        clearedCount: 0,
+        type: type
+      });
+    }
+    
+  } catch (error) {
+    console.error('Clear history error:', error);
     res.status(500).json({ error: error.message });
   }
 });
