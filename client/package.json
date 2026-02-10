@@ -31,5 +31,8 @@
     "tailwindcss": "^3.3.6",
     "vite": "^5.0.8",
     "whatwg-fetch": "^3.6.20"
+  },
+  "devDependencies": {
+    "terser": "^5.46.0"
   }
 }

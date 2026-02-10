@@ -1610,7 +1610,6 @@ export default function RestaurantDashboard() {
           return; // Don't clear the form if save failed
         }
       }
-    }
 
     // Clear the form
     console.log('🧹 Clearing Staff order form');
