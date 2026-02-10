@@ -16,14 +16,22 @@ console.log('🔧 Axios Configuration:', {
   baseURL
 });
 
-// Set default base URL
-axios.defaults.baseURL = baseURL;
+// Create axios instance with optimized defaults
+const axiosInstance = axios.create({
+  baseURL,
+  timeout: 10000, // 10 second timeout
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 // Add request interceptor to include auth token
-axios.interceptors.request.use(
+axiosInstance.interceptors.request.use(
   (config) => {
-    // Log all API requests for debugging
-    console.log('📤 API Request:', config.method?.toUpperCase(), config.url, 'Base:', config.baseURL);
+    // Log all API requests for debugging (only in development)
+    if (isDevelopment) {
+      console.log('📤 API Request:', config.method?.toUpperCase(), config.url, 'Base:', config.baseURL);
+    }
     
     // Add auth token if available
     const token = localStorage.getItem('restaurantToken') || localStorage.getItem('adminToken');
@@ -33,19 +41,25 @@ axios.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('❌ Request Error:', error);
+    if (isDevelopment) {
+      console.error('❌ Request Error:', error);
+    }
     return Promise.reject(error);
   }
 );
 
 // Add response interceptor for error handling
-axios.interceptors.response.use(
+axiosInstance.interceptors.response.use(
   (response) => {
-    console.log('📥 API Response:', response.status, response.config.url);
+    if (isDevelopment) {
+      console.log('📥 API Response:', response.status, response.config.url);
+    }
     return response;
   },
   (error) => {
-    console.error('❌ Response Error:', error.response?.status, error.config?.url, error.message);
+    if (isDevelopment) {
+      console.error('❌ Response Error:', error.response?.status, error.config?.url, error.message);
+    }
     
     // Handle 401 errors (unauthorized)
     if (error.response?.status === 401) {
@@ -64,4 +78,8 @@ axios.interceptors.response.use(
   }
 );
 
-export default axios;
+// Set as default axios instance
+axios.defaults.baseURL = baseURL;
+axios.defaults.timeout = 10000;
+
+export default axiosInstance;

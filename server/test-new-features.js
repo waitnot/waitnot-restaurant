@@ -23,7 +23,6 @@ async function testNewFeatures() {
     const features = restaurant.features || {};
     
     console.log('\n🔍 Feature Status:');
-    console.log(`   📱 Third-Party Orders: ${features.thirdPartyOrders ? '✅ Enabled' : '❌ Disabled'}`);
     console.log(`   👥 Staff Orders: ${features.staffOrders ? '✅ Enabled' : '❌ Disabled'}`);
     console.log(`   💬 Customer Feedback: ${features.customerFeedback ? '✅ Enabled' : '❌ Disabled'}`);
     
@@ -32,19 +31,19 @@ async function testNewFeatures() {
     await restaurantDB.update(restaurant._id, {
       features: {
         ...features,
-        thirdPartyOrders: false
+        staffOrders: false
       }
     });
     
     // Verify the change
     const updatedRestaurant = await restaurantDB.findById(restaurant._id);
-    console.log(`📱 Third-Party Orders after toggle: ${updatedRestaurant.features.thirdPartyOrders ? '✅ Enabled' : '❌ Disabled'}`);
+    console.log(`👥 Staff Orders after toggle: ${updatedRestaurant.features.staffOrders ? '✅ Enabled' : '❌ Disabled'}`);
     
     // Re-enable it
     await restaurantDB.update(restaurant._id, {
       features: {
         ...updatedRestaurant.features,
-        thirdPartyOrders: true
+        staffOrders: true
       }
     });
     

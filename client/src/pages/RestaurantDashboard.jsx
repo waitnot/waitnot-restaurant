@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User } from 'lucide-react';
+import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Search } from 'lucide-react';
 import axios from 'axios';
 import io from 'socket.io-client';
 import FeatureGuard from '../components/FeatureGuard';
 import { useFeatures } from '../context/FeatureContext';
 import { trackRestaurantEvent } from '../utils/analytics';
 import notificationSound from '../utils/notificationSound';
-import { getWebSocketUrl, getEnvironmentInfo } from '../config/environment.js';
+import { getWebSocketUrl, getEnvironmentInfo, getFrontendUrl } from '../config/environment.js';
 import { printCustomBill, getPrinterSettings, loadPrinterSettingsFromAPI } from '../utils/customBillGenerator.js';
-import ThirdPartyOrderForm from '../components/ThirdPartyOrderForm';
 import DiscountManager from '../components/DiscountManager';
+import StaffManagement from '../components/StaffManagement';
 
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
@@ -19,13 +19,9 @@ export default function RestaurantDashboard() {
   const [orders, setOrders] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [feedbackStats, setFeedbackStats] = useState(null);
-  const [thirdPartyOrders, setThirdPartyOrders] = useState([]);
-  const [thirdPartyStats, setThirdPartyStats] = useState(null);
-  const [showThirdPartyForm, setShowThirdPartyForm] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     // Set default tab based on available features - Staff Order comes first
     if (isFeatureEnabled('staffOrders')) return 'Staff';
-    if (isFeatureEnabled('thirdPartyOrders')) return 'third-party';
     if (isFeatureEnabled('deliveryOrders')) return 'delivery';
     if (isFeatureEnabled('orderManagement')) return 'dine-in';
     if (isFeatureEnabled('menuManagement')) return 'menu';
@@ -39,9 +35,7 @@ export default function RestaurantDashboard() {
   useEffect(() => {
     // If current tab is disabled, switch to the first available tab
     if (activeTab === 'Staff' && !isFeatureEnabled('staffOrders')) {
-      if (isFeatureEnabled('thirdPartyOrders')) {
-        setActiveTab('third-party');
-      } else if (isFeatureEnabled('deliveryOrders')) {
+      if (isFeatureEnabled('deliveryOrders')) {
         setActiveTab('delivery');
       } else if (isFeatureEnabled('orderManagement')) {
         setActiveTab('dine-in');
@@ -56,9 +50,6 @@ export default function RestaurantDashboard() {
       }
     }
     // Handle other disabled tabs
-    if (activeTab === 'third-party' && !isFeatureEnabled('thirdPartyOrders')) {
-      setActiveTab('Staff');
-    }
     if (activeTab === 'delivery' && !isFeatureEnabled('deliveryOrders')) {
       setActiveTab('Staff');
     }
@@ -82,10 +73,17 @@ export default function RestaurantDashboard() {
     deliveryAddress: '',
     tableNumber: '',
     items: [],
-    specialInstructions: ''
+    specialInstructions: '',
+    waiterId: '',
+    waiterNumber: ''
   });
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [editOrderSearchQuery, setEditOrderSearchQuery] = useState('');
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const menuSearchInputRef = useRef(null);
+  const [availableWaiters, setAvailableWaiters] = useState([]);
+  const [successMessage, setSuccessMessage] = useState('');
   
   // State to store the last created order for printing
   const [lastCreatedOrder, setLastCreatedOrder] = useState(null);
@@ -105,7 +103,7 @@ export default function RestaurantDashboard() {
     fetchOrders(restaurantId);
     fetchFeedback(restaurantId);
     fetchFeedbackStats(restaurantId);
-    fetchThirdPartyOrders(restaurantId);
+    fetchWaiters(restaurantId);
     
     // Sync printer settings from database
     loadPrinterSettingsFromAPI().catch(error => {
@@ -164,6 +162,20 @@ export default function RestaurantDashboard() {
     return () => socket.disconnect();
   }, []);
 
+  // Keyboard shortcuts for menu search
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Focus search when pressing "/" and we're on the menu tab
+      if (e.key === '/' && activeTab === 'menu' && menuSearchInputRef.current) {
+        e.preventDefault();
+        menuSearchInputRef.current.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab]);
+
   const fetchRestaurant = async (id) => {
     try {
       const { data } = await axios.get(`/api/restaurants/${id}`);
@@ -200,13 +212,13 @@ export default function RestaurantDashboard() {
     }
   };
 
-  const fetchThirdPartyOrders = async (id) => {
+  const fetchWaiters = async (id) => {
     try {
-      const { data } = await axios.get(`/api/third-party/restaurant/${id}`);
-      setThirdPartyOrders(data.orders);
-      setThirdPartyStats(data.analytics);
+      const { data } = await axios.get(`/api/staff/restaurant/${id}`);
+      const waiters = data.filter(staff => staff.role === 'waiter' && staff.is_active);
+      setAvailableWaiters(waiters);
     } catch (error) {
-      console.error('Error fetching third-party orders:', error);
+      console.error('Error fetching waiters:', error);
     }
   };
 
@@ -1529,86 +1541,72 @@ export default function RestaurantDashboard() {
   const clearReceptionistOrder = async () => {
     // Check if there's an order to save - only check for items now
     if (receptionistOrder.items.length > 0) {
-      const customerName = receptionistOrder.customerName || 'Guest Customer';
-      const customerPhone = receptionistOrder.customerPhone || 'No phone provided';
-      
-      const confirmSave = window.confirm(
-        `Save this order to order history?\n\n` +
-        `Customer: ${customerName}\n` +
-        `Phone: ${customerPhone}\n` +
-        `Items: ${receptionistOrder.items.length}\n` +
-        `Total: ₹${receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}\n\n` +
-        `Click "OK" to save and clear\n` +
-        `Click "Cancel" to just clear without saving`
-      );
+      try {
+        const restaurantId = localStorage.getItem('restaurantId');
+        console.log('🔄 Saving Staff order...', { restaurantId, receptionistOrder });
+        
+        // Validate required fields before saving
+        if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
+          setSuccessMessage('⚠️ Please enter delivery address before saving delivery orders.');
+          setTimeout(() => setSuccessMessage(''), 3000);
+          return;
+        }
 
-      if (confirmSave) {
-        try {
-          const restaurantId = localStorage.getItem('restaurantId');
-          console.log('🔄 Saving Staff order...', { restaurantId, receptionistOrder });
-          
-          // Validate required fields before saving
-          if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
-            alert('Please enter delivery address before saving delivery orders.');
-            return;
-          }
+        if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
+          setSuccessMessage('⚠️ Please select a table number before saving dine-in orders.');
+          setTimeout(() => setSuccessMessage(''), 3000);
+          return;
+        }
 
-          if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
-            alert('Please select a table number before saving dine-in orders.');
-            return;
-          }
+        // Calculate total amount
+        const totalAmount = receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-          // Calculate total amount
-          const totalAmount = receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        // Prepare order data
+        const orderData = {
+          restaurantId,
+          customerName: receptionistOrder.customerName || 'Guest Customer',
+          customerPhone: receptionistOrder.customerPhone || '',
+          orderType: receptionistOrder.orderType,
+          items: receptionistOrder.items,
+          totalAmount,
+          specialInstructions: receptionistOrder.specialInstructions,
+          source: 'staff', // Mark as Staff order
+          status: 'pending', // Set as pending so it appears in Table Orders until final bill
+          waiterId: receptionistOrder.waiterId || null,
+          waiterNumber: receptionistOrder.waiterNumber || null,
+          ...(receptionistOrder.orderType === 'delivery' && { deliveryAddress: receptionistOrder.deliveryAddress }),
+          ...(receptionistOrder.orderType === 'dine-in' && { tableNumber: parseInt(receptionistOrder.tableNumber) })
+        };
 
-          // Prepare order data
-          const orderData = {
-            restaurantId,
-            customerName: receptionistOrder.customerName || 'Guest Customer',
-            customerPhone: receptionistOrder.customerPhone || '',
-            orderType: receptionistOrder.orderType,
-            items: receptionistOrder.items,
-            totalAmount,
-            specialInstructions: receptionistOrder.specialInstructions,
-            source: 'staff', // Mark as Staff order
-            status: 'pending', // Set as pending so it appears in Table Orders until final bill
-            ...(receptionistOrder.orderType === 'delivery' && { deliveryAddress: receptionistOrder.deliveryAddress }),
-            ...(receptionistOrder.orderType === 'dine-in' && { tableNumber: parseInt(receptionistOrder.tableNumber) })
-          };
+        console.log('📤 Sending order data:', orderData);
 
-          console.log('📤 Sending order data:', orderData);
+        // Submit order
+        const response = await axios.post('/api/orders', orderData);
+        const createdOrder = response.data;
 
-          // Submit order
-          const response = await axios.post('/api/orders', orderData);
-          const createdOrder = response.data;
+        console.log('✅ Order saved successfully:', createdOrder);
 
-          console.log('✅ Order saved successfully:', createdOrder);
+        // Track analytics
+        trackRestaurantEvent('staff_order_saved', {
+          orderType: receptionistOrder.orderType,
+          itemCount: receptionistOrder.items.length,
+          totalAmount
+        });
 
-          // Track analytics
-          trackRestaurantEvent('staff_order_saved', {
-            orderType: receptionistOrder.orderType,
-            itemCount: receptionistOrder.items.length,
-            totalAmount
-          });
-
-          // Show success message
-          alert(
-            `✅ Order saved successfully!\n\n` +
-            `Order ID: ${createdOrder._id}\n` +
-            `Customer: ${customerName}\n` +
-            `Total: ₹${totalAmount}\n\n` +
-            `Order has been added to order history.`
-          );
-          
-          // Refresh orders to show in delivery/dine-in tabs and history
-          console.log('🔄 Refreshing orders...');
-          await fetchOrders(restaurantId);
-          console.log('✅ Orders refreshed');
+        // Show success message at the top
+        setSuccessMessage(`✅ Order saved successfully! Order ID: ${createdOrder._id?.slice(-6).toUpperCase()} • Total: ₹${totalAmount}`);
+        setTimeout(() => setSuccessMessage(''), 5000);
+        
+        // Refresh orders to show in delivery/dine-in tabs and history
+        console.log('🔄 Refreshing orders...');
+        await fetchOrders(restaurantId);
+        console.log('✅ Orders refreshed');
 
         } catch (error) {
           console.error('❌ Error saving Staff order:', error);
           console.error('Error details:', error.response?.data);
-          alert(`❌ Failed to save order: ${error.response?.data?.error || error.message}`);
+          setSuccessMessage(`❌ Failed to save order: ${error.response?.data?.error || error.message}`);
+          setTimeout(() => setSuccessMessage(''), 5000);
           return; // Don't clear the form if save failed
         }
       }
@@ -1623,7 +1621,9 @@ export default function RestaurantDashboard() {
       deliveryAddress: '',
       tableNumber: '',
       items: [],
-      specialInstructions: ''
+      specialInstructions: '',
+      waiterId: '',
+      waiterNumber: ''
     });
     setSelectedCategory('all');
     setStaffSearchQuery(''); // Clear search query
@@ -1961,6 +1961,7 @@ export default function RestaurantDashboard() {
   const closeEditOrderModal = () => {
     setEditingOrder(null);
     setShowEditOrderModal(false);
+    setEditOrderSearchQuery(''); // Reset search query when closing modal
   };
 
   const updateEditOrderItem = (itemIndex, field, value) => {
@@ -2090,6 +2091,25 @@ export default function RestaurantDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Success Message Banner */}
+      {successMessage && (
+        <div className={`fixed top-0 left-0 right-0 z-50 ${
+          successMessage.startsWith('✅') ? 'bg-green-500' : 
+          successMessage.startsWith('⚠️') ? 'bg-yellow-500' : 
+          'bg-red-500'
+        } text-white px-4 py-3 shadow-lg`}>
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span className="font-medium">{successMessage}</span>
+            <button 
+              onClick={() => setSuccessMessage('')}
+              className="text-white hover:text-gray-200 font-bold text-xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      
       <nav className="bg-white shadow-md p-3 sm:p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-primary truncate">{restaurant.name}</h1>
@@ -2149,28 +2169,6 @@ export default function RestaurantDashboard() {
             >
               <span className="hidden sm:inline">👥 Staff Order</span>
               <span className="sm:hidden">👥 Staff</span>
-            </button>
-          </FeatureGuard>
-
-          {/* Third-Party Orders Tab */}
-          <FeatureGuard feature="thirdPartyOrders">
-            <button
-              onClick={() => setActiveTab('third-party')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'third-party' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-              }`}
-            >
-              <span className="hidden sm:inline">📱 Third-Party</span>
-              <span className="sm:hidden">📱</span>
-              {thirdPartyOrders.length > 0 && (
-                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                  activeTab === 'third-party' 
-                    ? 'bg-white text-primary' 
-                    : 'bg-primary text-white'
-                }`}>
-                  {thirdPartyOrders.length}
-                </span>
-              )}
             </button>
           </FeatureGuard>
 
@@ -2294,6 +2292,18 @@ export default function RestaurantDashboard() {
             </button>
           </FeatureGuard>
           
+          <FeatureGuard feature="staffManagement">
+            <button
+              onClick={() => setActiveTab('staff-management')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'staff-management' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">👥 Staff</span>
+              <span className="sm:hidden">👥</span>
+            </button>
+          </FeatureGuard>
+          
           <button
             onClick={() => setActiveTab('discounts')}
             className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
@@ -2326,6 +2336,9 @@ export default function RestaurantDashboard() {
                       )}
                     </h3>
                     <p className="text-sm text-gray-600">{order.customerName} • {order.customerPhone}</p>
+                    {order.waiterNumber && (
+                      <p className="text-sm font-semibold text-blue-600 mt-1">👤 Waiter: {order.waiterNumber}</p>
+                    )}
                     {order.deliveryAddress && (
                       <p className="text-sm text-gray-600 mt-1">📍 {order.deliveryAddress}</p>
                     )}
@@ -2629,18 +2642,71 @@ export default function RestaurantDashboard() {
 
         {activeTab === 'menu' && (
           <div>
-            <FeatureGuard feature="menuManagement">
-              <button
-                onClick={() => setShowMenuForm(true)}
-                className="mb-4 sm:mb-6 bg-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm sm:text-base"
-              >
-                <Plus size={18} className="sm:w-5 sm:h-5" />
-                Add Menu Item
-              </button>
-            </FeatureGuard>
+            {/* Header with Add Button and Search */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4 sm:mb-6">
+              <FeatureGuard feature="menuManagement">
+                <button
+                  onClick={() => setShowMenuForm(true)}
+                  className="bg-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm sm:text-base"
+                >
+                  <Plus size={18} className="sm:w-5 sm:h-5" />
+                  Add Menu Item
+                </button>
+              </FeatureGuard>
+
+              {/* Search Input */}
+              <div className="w-full sm:w-auto sm:max-w-md flex-1 sm:flex-initial">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    ref={menuSearchInputRef}
+                    type="text"
+                    placeholder="Search menu items... (Press / to focus)"
+                    value={menuSearchQuery}
+                    onChange={(e) => setMenuSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setMenuSearchQuery('');
+                      }
+                    }}
+                  />
+                  {menuSearchQuery && (
+                    <button
+                      onClick={() => setMenuSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                      <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Search Results Count */}
+            {menuSearchQuery && (
+              <div className="mb-4 text-sm text-gray-600">
+                {restaurant.menu
+                  .filter(item => 
+                    item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                    item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                    item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
+                  ).length} items found for "{menuSearchQuery}"
+                <span className="ml-2 text-gray-400">• Press Escape to clear</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {restaurant.menu.map((item) => (
+              {restaurant.menu
+                .filter(item => 
+                  !menuSearchQuery || 
+                  item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                  item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                  item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
+                )
+                .map((item) => (
                 <div key={item._id} className={`bg-white rounded-lg shadow-md overflow-hidden ${
                   !item.available ? 'opacity-60 border-2 border-red-200' : ''
                 }`}>
@@ -2668,7 +2734,16 @@ export default function RestaurantDashboard() {
                   <div className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className={`font-bold ${!item.available ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
-                        {item.name}
+                        {menuSearchQuery ? (
+                          <span dangerouslySetInnerHTML={{
+                            __html: item.name.replace(
+                              new RegExp(`(${menuSearchQuery})`, 'gi'),
+                              '<mark class="bg-yellow-200 px-1 rounded">$1</mark>'
+                            )
+                          }} />
+                        ) : (
+                          item.name
+                        )}
                       </h3>
                       <div className="flex gap-2">
                         <FeatureGuard feature="menuManagement">
@@ -2696,14 +2771,32 @@ export default function RestaurantDashboard() {
                       </div>
                     </div>
                     <p className={`text-sm mb-2 ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {item.description}
+                      {menuSearchQuery && item.description ? (
+                        <span dangerouslySetInnerHTML={{
+                          __html: item.description.replace(
+                            new RegExp(`(${menuSearchQuery})`, 'gi'),
+                            '<mark class="bg-yellow-200 px-1 rounded">$1</mark>'
+                          )
+                        }} />
+                      ) : (
+                        item.description
+                      )}
                     </p>
                     <div className="flex justify-between items-center">
                       <span className={`text-lg font-bold ${!item.available ? 'text-gray-400 line-through' : 'text-primary'}`}>
                         ₹{item.price}
                       </span>
                       <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {item.category}
+                        {menuSearchQuery ? (
+                          <span dangerouslySetInnerHTML={{
+                            __html: item.category.replace(
+                              new RegExp(`(${menuSearchQuery})`, 'gi'),
+                              '<mark class="bg-yellow-200 px-1 rounded">$1</mark>'
+                            )
+                          }} />
+                        ) : (
+                          item.category
+                        )}
                       </span>
                     </div>
                     <div className="mt-2 flex justify-between items-center">
@@ -2728,6 +2821,26 @@ export default function RestaurantDashboard() {
                 </div>
               ))}
             </div>
+
+            {/* No results message */}
+            {menuSearchQuery && restaurant.menu
+              .filter(item => 
+                item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
+              ).length === 0 && (
+              <div className="text-center py-12 text-gray-500">
+                <div className="text-4xl mb-4">🔍</div>
+                <div className="text-lg font-medium">No menu items found</div>
+                <div className="text-sm mt-2">Try searching with different keywords or check your spelling</div>
+                <button
+                  onClick={() => setMenuSearchQuery('')}
+                  className="mt-4 text-primary hover:text-red-600 font-medium"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
 
             {showMenuForm && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -2980,7 +3093,8 @@ export default function RestaurantDashboard() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                 {Array.from({ length: restaurant.tables || 0 }, (_, i) => i + 1).map((tableNum) => {
-                  const qrUrl = `${window.location.origin}/qr/${restaurant._id}/${tableNum}`;
+                  // Force production domain for QR codes
+                  const qrUrl = `https://waitnot-restaurant.onrender.com/qr/${restaurant._id}/${tableNum}`;
                   return (
                     <div key={tableNum} className="bg-white rounded-lg shadow-md p-4 text-center relative">
                       {/* Delete Button */}
@@ -3337,245 +3451,14 @@ export default function RestaurantDashboard() {
           </div>
         )}
 
+        {/* Staff Management Tab */}
+        {activeTab === 'staff-management' && isFeatureEnabled('staffManagement') && (
+          <StaffManagement restaurantId={restaurant?._id} />
+        )}
+
         {/* Discounts Tab */}
         {activeTab === 'discounts' && (
           <DiscountManager restaurant={restaurant} />
-        )}
-
-        {/* Third-Party Orders Tab */}
-        {activeTab === 'third-party' && isFeatureEnabled('thirdPartyOrders') && (
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-gray-800">📱 Third-Party Orders</h2>
-                  <p className="text-gray-600 text-xs sm:text-sm">
-                    Manage orders from Swiggy, Zomato, Uber Eats, and other platforms
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowThirdPartyForm(true)}
-                  className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-red-600 font-semibold flex items-center gap-2"
-                >
-                  <Plus size={18} />
-                  Add Order
-                </button>
-              </div>
-              
-              {/* Third-Party Stats */}
-              {thirdPartyStats && (
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-blue-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-blue-600">{thirdPartyStats.totalOrders}</div>
-                    <div className="text-xs text-blue-600">Total Orders</div>
-                  </div>
-                  <div className="bg-green-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-green-600">₹{thirdPartyStats.totalRevenue}</div>
-                    <div className="text-xs text-green-600">Total Revenue</div>
-                  </div>
-                  <div className="bg-red-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-red-600">₹{thirdPartyStats.totalCommission}</div>
-                    <div className="text-xs text-red-600">Commission Paid</div>
-                  </div>
-                  <div className="bg-yellow-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-yellow-600">₹{thirdPartyStats.netRevenue}</div>
-                    <div className="text-xs text-yellow-600">Net Revenue</div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Platform Breakdown */}
-            {thirdPartyStats && Object.keys(thirdPartyStats.platformBreakdown).some(platform => thirdPartyStats.platformBreakdown[platform].orders > 0) && (
-              <div className="bg-white rounded-lg shadow-md p-4">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">📊 Platform Breakdown</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {Object.entries(thirdPartyStats.platformBreakdown).map(([platform, stats]) => {
-                    if (stats.orders === 0) return null;
-                    
-                    const platformConfig = {
-                      swiggy: { name: '🍊 Swiggy', color: 'bg-orange-500' },
-                      zomato: { name: '🍅 Zomato', color: 'bg-red-500' },
-                      'uber-eats': { name: '🚗 Uber Eats', color: 'bg-black' },
-                      foodpanda: { name: '🐼 Foodpanda', color: 'bg-pink-500' }
-                    };
-                    
-                    const config = platformConfig[platform] || { name: platform, color: 'bg-gray-500' };
-                    
-                    return (
-                      <div key={platform} className="border rounded-lg p-3">
-                        <div className={`${config.color} text-white text-center py-2 rounded-lg mb-2 font-semibold`}>
-                          {config.name}
-                        </div>
-                        <div className="space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span>Orders:</span>
-                            <span className="font-semibold">{stats.orders}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Revenue:</span>
-                            <span className="font-semibold">₹{stats.revenue}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Commission:</span>
-                            <span className="font-semibold text-red-600">-₹{stats.commission}</span>
-                          </div>
-                          <div className="flex justify-between border-t pt-1">
-                            <span>Net:</span>
-                            <span className="font-bold text-green-600">₹{stats.netRevenue}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Third-Party Orders List */}
-            {thirdPartyOrders.map((order) => {
-              const platformConfig = {
-                swiggy: { name: '🍊 Swiggy', color: 'bg-orange-500' },
-                zomato: { name: '🍅 Zomato', color: 'bg-red-500' },
-                'uber-eats': { name: '🚗 Uber Eats', color: 'bg-black' },
-                foodpanda: { name: '🐼 Foodpanda', color: 'bg-pink-500' }
-              };
-              
-              const config = platformConfig[order.source] || { name: order.source, color: 'bg-gray-500' };
-              
-              return (
-                <div key={order._id} className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className={`${config.color} text-white px-3 py-1 rounded-full text-sm font-semibold`}>
-                          {config.name}
-                        </div>
-                        <span className="text-sm text-gray-600">#{order.platformOrderId}</span>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'preparing' ? 'bg-orange-100 text-orange-800' :
-                          order.status === 'ready' ? 'bg-purple-100 text-purple-800' :
-                          order.status === 'picked-up' ? 'bg-indigo-100 text-indigo-800' :
-                          order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {order.status}
-                        </span>
-                      </div>
-                      
-                      <h3 className="text-lg font-bold text-gray-800">{order.customerName}</h3>
-                      <p className="text-sm text-gray-600">{order.customerPhone}</p>
-                      {order.deliveryAddress && (
-                        <p className="text-sm text-gray-600 mt-1">📍 {order.deliveryAddress}</p>
-                      )}
-                      {order.estimatedDeliveryTime && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          ⏰ Est. Delivery: {new Date(order.estimatedDeliveryTime).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-primary">₹{order.totalAmount}</div>
-                      {order.commission > 0 && (
-                        <div className="text-sm text-red-600">-₹{order.commission} commission</div>
-                      )}
-                      {order.platformFee > 0 && (
-                        <div className="text-sm text-red-600">-₹{order.platformFee} platform fee</div>
-                      )}
-                      <div className="text-sm font-semibold text-green-600">
-                        Net: ₹{order.netAmount}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Order Items */}
-                  <div className="mb-4">
-                    <h4 className="font-semibold text-gray-800 mb-2">Order Items:</h4>
-                    <div className="space-y-1">
-                      {order.items.map((item, index) => (
-                        <div key={index} className="flex justify-between text-sm">
-                          <span>{item.name} x {item.quantity}</span>
-                          <span>₹{item.price * item.quantity}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {order.specialInstructions && (
-                    <div className="mb-4 p-3 bg-yellow-50 rounded-lg">
-                      <h4 className="font-semibold text-yellow-800 mb-1">Special Instructions:</h4>
-                      <p className="text-sm text-yellow-700">{order.specialInstructions}</p>
-                    </div>
-                  )}
-
-                  {/* Status Update Buttons */}
-                  <div className="flex gap-2 flex-wrap">
-                    {order.status === 'pending' && (
-                      <button
-                        onClick={() => updateOrderStatus(order._id, 'confirmed')}
-                        className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
-                      >
-                        Confirm
-                      </button>
-                    )}
-                    {order.status === 'confirmed' && (
-                      <button
-                        onClick={() => updateOrderStatus(order._id, 'preparing')}
-                        className="px-3 py-1 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
-                      >
-                        Start Preparing
-                      </button>
-                    )}
-                    {order.status === 'preparing' && (
-                      <button
-                        onClick={() => updateOrderStatus(order._id, 'ready')}
-                        className="px-3 py-1 bg-purple-500 text-white text-sm rounded hover:bg-purple-600"
-                      >
-                        Ready for Pickup
-                      </button>
-                    )}
-                    {order.status === 'ready' && (
-                      <button
-                        onClick={() => updateOrderStatus(order._id, 'picked-up')}
-                        className="px-3 py-1 bg-indigo-500 text-white text-sm rounded hover:bg-indigo-600"
-                      >
-                        Picked Up
-                      </button>
-                    )}
-                    {order.status === 'picked-up' && (
-                      <button
-                        onClick={() => updateOrderStatus(order._id, 'delivered')}
-                        className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
-                      >
-                        Delivered
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="text-xs text-gray-500 mt-3">
-                    Order placed: {new Date(order.createdAt).toLocaleString()}
-                  </div>
-                </div>
-              );
-            })}
-            
-            {thirdPartyOrders.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-4xl mb-4">📱</div>
-                <div>No third-party orders yet</div>
-                <div className="text-sm mt-2">Add orders from Swiggy, Zomato, and other platforms</div>
-                <button
-                  onClick={() => setShowThirdPartyForm(true)}
-                  className="mt-4 bg-primary text-white px-6 py-2 rounded-lg hover:bg-red-600 font-semibold"
-                >
-                  Add First Order
-                </button>
-              </div>
-            )}
-          </div>
         )}
 
         {/* Staff Order Tab */}
@@ -3590,7 +3473,7 @@ export default function RestaurantDashboard() {
               <h3 className="text-lg font-bold text-gray-800 mb-4">📝 New Order</h3>
               
               {/* Customer Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
                   <input
@@ -3610,6 +3493,28 @@ export default function RestaurantDashboard() {
                     placeholder="Enter phone number (optional)"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assign Waiter (Optional)</label>
+                  <select
+                    value={receptionistOrder.waiterId}
+                    onChange={(e) => {
+                      const selectedWaiter = availableWaiters.find(w => w.id === parseInt(e.target.value));
+                      setReceptionistOrder({
+                        ...receptionistOrder, 
+                        waiterId: e.target.value,
+                        waiterNumber: selectedWaiter?.waiter_number || ''
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">Select Waiter</option>
+                    {availableWaiters.map(waiter => (
+                      <option key={waiter.id} value={waiter.id}>
+                        {waiter.waiter_number} - {waiter.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -4032,20 +3937,6 @@ export default function RestaurantDashboard() {
           </div>
         </div>
       )}
-
-      {/* Third-Party Order Form */}
-      {showThirdPartyForm && (
-        <ThirdPartyOrderForm
-          restaurant={restaurant}
-          onClose={() => setShowThirdPartyForm(false)}
-          onSuccess={() => {
-            setShowThirdPartyForm(false);
-            const restaurantId = localStorage.getItem('restaurantId');
-            fetchOrders(restaurantId);
-            fetchThirdPartyOrders(restaurantId);
-          }}
-        />
-      )}
       
       {/* Edit Order Modal (for completed staff orders) */}
       {showEditOrderModal && editingOrder && (
@@ -4185,12 +4076,57 @@ export default function RestaurantDashboard() {
 
                   {/* Add Items from Menu */}
                   <div className="border-t pt-4">
-                    <h4 className="font-medium text-gray-800 mb-3">Add Items from Menu</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-gray-800">Add Items from Menu</h4>
+                      {editOrderSearchQuery && (
+                        <span className="text-xs text-gray-500">
+                          {restaurant.menu
+                            .filter(menuItem => 
+                              menuItem.available && 
+                              (menuItem.name.toLowerCase().includes(editOrderSearchQuery.toLowerCase()) ||
+                               menuItem.category?.toLowerCase().includes(editOrderSearchQuery.toLowerCase()) ||
+                               menuItem.description?.toLowerCase().includes(editOrderSearchQuery.toLowerCase()))
+                            ).length} items found
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Search Input */}
+                    <div className="mb-3 relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search by name, category, or description..."
+                        value={editOrderSearchQuery}
+                        onChange={(e) => setEditOrderSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        autoFocus
+                      />
+                      {editOrderSearchQuery && (
+                        <button
+                          onClick={() => setEditOrderSearchQuery('')}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        >
+                          <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                        </button>
+                      )}
+                    </div>
+                    
                     <div className="max-h-40 overflow-y-auto space-y-2">
-                      {restaurant.menu.map((menuItem) => (
+                      {restaurant.menu
+                        .filter(menuItem => 
+                          menuItem.available && 
+                          (menuItem.name.toLowerCase().includes(editOrderSearchQuery.toLowerCase()) ||
+                           menuItem.category?.toLowerCase().includes(editOrderSearchQuery.toLowerCase()) ||
+                           menuItem.description?.toLowerCase().includes(editOrderSearchQuery.toLowerCase()))
+                        )
+                        .map((menuItem) => (
                         <div key={menuItem._id} className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg">
                           <div className="flex-1">
                             <div className="font-medium text-sm">{menuItem.name}</div>
+                            <div className="text-xs text-gray-500">{menuItem.category}</div>
                             <div className="text-xs text-gray-600">₹{menuItem.price}</div>
                           </div>
                           <button
@@ -4201,6 +4137,19 @@ export default function RestaurantDashboard() {
                           </button>
                         </div>
                       ))}
+                      
+                      {/* No results message */}
+                      {restaurant.menu
+                        .filter(menuItem => 
+                          menuItem.available && 
+                          (menuItem.name.toLowerCase().includes(editOrderSearchQuery.toLowerCase()) ||
+                           menuItem.category?.toLowerCase().includes(editOrderSearchQuery.toLowerCase()) ||
+                           menuItem.description?.toLowerCase().includes(editOrderSearchQuery.toLowerCase()))
+                        ).length === 0 && editOrderSearchQuery && (
+                        <div className="text-center py-4 text-gray-500 text-sm">
+                          No menu items found for "{editOrderSearchQuery}"
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -73,7 +73,6 @@ export const FeatureProvider = ({ children }) => {
         deliveryOrders: true,
         realTimeOrders: true,
         notifications: true,
-        thirdPartyOrders: true,
         staffOrders: true,
         
         // Security
@@ -119,7 +118,6 @@ export const FeatureProvider = ({ children }) => {
         deliveryOrders: true,
         realTimeOrders: true,
         notifications: true,
-        thirdPartyOrders: true,
         staffOrders: true,
         
         // Security

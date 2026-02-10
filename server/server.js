@@ -17,9 +17,10 @@ import authRoutes from './routes/auth.js';
 import analyticsRoutes from './routes/analytics.js';
 import adminRoutes from './routes/admin.js';
 import feedbackRoutes from './routes/feedback.js';
-import thirdPartyOrderRoutes from './routes/thirdPartyOrders.js';
+
 import printerSettingsRoutes from './routes/printerSettings.js';
 import discountRoutes from './routes/discounts.js';
+import staffRoutes from './routes/staff.js';
 
 dotenv.config();
 
@@ -99,9 +100,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
-app.use('/api/third-party', thirdPartyOrderRoutes);
 app.use('/api/printer-settings', printerSettingsRoutes);
 app.use('/api/discounts', discountRoutes);
+app.use('/api/staff', staffRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
@@ -120,6 +121,17 @@ io.on('connection', (socket) => {
   
   socket.on('join-restaurant', (restaurantId) => {
     socket.join(`restaurant-${restaurantId}`);
+    console.log(`Client ${socket.id} joined restaurant room: restaurant-${restaurantId}`);
+  });
+  
+  socket.on('leave-restaurant', (restaurantId) => {
+    socket.leave(`restaurant-${restaurantId}`);
+    console.log(`Client ${socket.id} left restaurant room: restaurant-${restaurantId}`);
+  });
+
+  socket.on('join-admin', () => {
+    socket.join('admin-room');
+    console.log('Admin joined admin room:', socket.id);
   });
 
   socket.on('disconnect', () => {

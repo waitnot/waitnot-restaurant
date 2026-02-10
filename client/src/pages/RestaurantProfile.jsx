@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Save, User, MapPin, Phone, Mail, Clock, Star, Utensils, Lock, Eye, EyeOff } from 'lucide-react';
-import { compressImage, validateImageFile } from '../utils/imageUtils';
+import { compressImage, validateImageFile } from '../utils/imageUtils.jsx';
 import FeatureGuard from '../components/FeatureGuard';
 
 const RestaurantProfile = () => {

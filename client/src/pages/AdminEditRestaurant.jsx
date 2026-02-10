@@ -85,11 +85,6 @@ const AdminEditRestaurant = () => {
       description: 'Push notifications for orders',
       category: 'Operations'
     },
-    thirdPartyOrders: {
-      name: 'Third-Party Orders',
-      description: 'Manage orders from Swiggy, Zomato, Uber Eats, etc.',
-      category: 'Operations'
-    },
     staffOrders: {
       name: 'Staff Orders',
       description: 'Allow staff to place orders for customers',

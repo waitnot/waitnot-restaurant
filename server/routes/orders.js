@@ -37,8 +37,11 @@ router.post('/', async (req, res) => {
     try {
       const io = req.app.get('io');
       if (io) {
+        // Notify the specific restaurant
         io.to(`restaurant-${order.restaurantId}`).emit('new-order', order);
-        console.log('📡 Real-time notification sent to restaurant');
+        // Notify all admins
+        io.to('admin-room').emit('new-order', order);
+        console.log('📡 Real-time notification sent to restaurant and admin');
       }
     } catch (socketError) {
       console.log('⚠️ Socket notification failed:', socketError.message);
@@ -85,7 +88,10 @@ router.patch('/:id/status', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
     
     const io = req.app.get('io');
+    // Notify the specific restaurant
     io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
+    // Notify all admins
+    io.to('admin-room').emit('order-updated', order);
     
     res.json(order);
   } catch (error) {
@@ -116,7 +122,10 @@ router.patch('/:id/items', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
     
     const io = req.app.get('io');
+    // Notify the specific restaurant
     io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
+    // Notify all admins
+    io.to('admin-room').emit('order-updated', order);
     
     res.json(order);
   } catch (error) {
@@ -182,8 +191,11 @@ router.put('/:id', async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
+      // Notify the specific restaurant
       io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
-      console.log('📡 Real-time update sent to restaurant');
+      // Notify all admins
+      io.to('admin-room').emit('order-updated', order);
+      console.log('📡 Real-time update sent to restaurant and admin');
     }
     
     res.json(order);

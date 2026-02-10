@@ -43,7 +43,6 @@ async function testCompleteFeatures() {
     console.log(`   📦 Delivery Orders: ${features.deliveryOrders ? '✅ Enabled' : '❌ Disabled'}`);
     console.log(`   ⚡ Real-time Orders: ${features.realTimeOrders ? '✅ Enabled' : '❌ Disabled'}`);
     console.log(`   🔔 Notifications: ${features.notifications ? '✅ Enabled' : '❌ Disabled'}`);
-    console.log(`   📱 Third-Party Orders: ${features.thirdPartyOrders ? '✅ Enabled' : '❌ Disabled'}`);
     console.log(`   👥 Staff Orders: ${features.staffOrders ? '✅ Enabled' : '❌ Disabled'}`);
     
     console.log('\n🔐 Security:');

@@ -121,6 +121,12 @@ export const generateCustomBill = (order, restaurant, customization) => {
           <span style="font-weight: 900;">TABLE ${order.tableNumber}</span>
         </div>
         ` : ''}
+        ${order.waiterNumber ? `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>WAITER:</span>
+          <span style="font-weight: 900;">${order.waiterNumber}</span>
+        </div>
+        ` : ''}
         ${order.deliveryAddress ? `
         <div style="margin-bottom: 3px;">
           <span>ADDRESS:</span>

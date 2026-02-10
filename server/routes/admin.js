@@ -332,4 +332,52 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// Get recent orders from all restaurants (admin only)
+router.get('/recent-orders', async (req, res) => {
+  try {
+    // Verify admin token
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    try {
+      jwt.verify(token, process.env.JWT_SECRET || 'admin_secret');
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Get recent orders from all restaurants (last 50 orders)
+    const result = await query(`
+      SELECT o.*, r.name as restaurant_name
+      FROM orders o
+      LEFT JOIN restaurants r ON o.restaurant_id = r.id
+      ORDER BY o.created_at DESC
+      LIMIT 50
+    `);
+
+    const orders = result.rows.map(row => ({
+      _id: row.id,
+      restaurantId: row.restaurant_id,
+      restaurantName: row.restaurant_name,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      tableNumber: row.table_number,
+      items: row.items,
+      totalAmount: row.total_amount,
+      status: row.status,
+      orderType: row.order_type,
+      paymentMethod: row.payment_method,
+      paymentStatus: row.payment_status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+
+    res.json(orders);
+  } catch (error) {
+    console.error('Error fetching recent orders:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

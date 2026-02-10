@@ -33,7 +33,6 @@ async function addNewFeatures() {
       deliveryOrders: true,
       realTimeOrders: true,
       notifications: true,
-      thirdPartyOrders: true,
       staffOrders: true,
       
       // Security - Disabled by default
