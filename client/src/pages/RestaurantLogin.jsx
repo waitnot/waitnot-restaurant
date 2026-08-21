@@ -5,22 +5,24 @@ import axios from 'axios';
 
 export default function RestaurantLogin() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
       const { data } = await axios.post('/api/auth/login', formData);
-      
       localStorage.setItem('restaurantToken', data.token);
       localStorage.setItem('restaurantId', data.restaurant._id);
       localStorage.setItem('restaurantData', JSON.stringify(data.restaurant));
       navigate('/restaurant-dashboard');
     } catch (error) {
-      alert(error.response?.data?.error || 'Authentication failed');
+      setError(error.response?.data?.error || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -30,10 +32,14 @@ export default function RestaurantLogin() {
         <div className="text-center mb-8">
           <ChefHat size={48} className="text-primary mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-800">Restaurant Portal</h1>
-          <p className="text-gray-600 mt-2">
-            Login to manage your restaurant
-          </p>
+          <p className="text-gray-600 mt-2">Login to manage your restaurant</p>
         </div>
+
+        {error && (
+          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -60,16 +66,15 @@ export default function RestaurantLogin() {
 
           <button
             type="submit"
-            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-red-600 font-semibold"
+            disabled={loading}
+            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-red-600 font-semibold disabled:opacity-60"
           >
-            Login
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-gray-600 text-sm">
-            Need an account? Contact your administrator
-          </p>
+          <p className="text-gray-600 text-sm">Need an account? Contact your administrator</p>
         </div>
       </div>
     </div>
