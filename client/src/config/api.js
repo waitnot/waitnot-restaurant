@@ -5,7 +5,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const API_BASE_URL = isDesktopApp 
   ? 'https://waitnot-restaurant.onrender.com'  // Desktop app always uses production
   : isDevelopment 
-    ? 'http://localhost:5000'  // Development uses local server
+    ? 'http://localhost:5001'  // Development uses local server
     : 'https://waitnot-restaurant.onrender.com';  // Production uses production server
 
 console.log('🔧 API Configuration:', {

@@ -32,12 +32,9 @@ export const generateCustomBill = (order, restaurant, customization) => {
   
   // Generate payment QR code if UPI is enabled and configured
   let paymentQrUrl = null;
-  if (customization.enableUpiPayment && printerSettings.upiBaseUrl && order.totalAmount) {
-    paymentQrUrl = generateUpiQrCode(
-      printerSettings.upiBaseUrl,
-      order.totalAmount,
-      orderId
-    );
+  if (customization.enableUpiPayment && customization.upiId && order.totalAmount) {
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(customization.upiId)}&pn=${encodeURIComponent(customization.upiMerchantName || restaurant?.name || '')}&am=${order.totalAmount}&cu=INR&tn=${encodeURIComponent(`Bill Payment - ${orderId}`)}`;
+    paymentQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUrl)}&margin=10`;
   }
 
   return `
@@ -186,7 +183,7 @@ export const generateCustomBill = (order, restaurant, customization) => {
                 💳 SCAN & PAY ₹${order.totalAmount}
               </div>
               <div style="font-size: 10px; margin-top: 2px; color: #333; font-weight: normal;">
-                ${printerSettings.upiBaseUrl ? printerSettings.upiBaseUrl.match(/pa=([^&]+)/)?.[1] || 'UPI Payment' : 'UPI Payment'}
+                ${customization.upiId || 'UPI Payment'}
               </div>
             ` : customization.qrCodeDataUrl ? `
               <!-- Custom QR Code -->
@@ -309,6 +306,8 @@ export const getPrinterSettings = () => {
       email: '',
       showGST: false,
       gstNumber: '',
+      gstCharge: 0,
+      serviceCharge: 0,
       billTemplate: 'modern'
     }
   };

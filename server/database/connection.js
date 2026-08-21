@@ -8,7 +8,7 @@ const { Pool } = pg;
 // Database configuration
 const dbConfig = {
   connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_0HWkqo9CysVg@ep-billowing-base-a4e5hyfo-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
-  ssl: {
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : {
     rejectUnauthorized: false
   },
   max: 20, // Maximum number of clients in the pool

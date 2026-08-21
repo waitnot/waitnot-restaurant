@@ -11,7 +11,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const PRODUCTION_SERVER = 'https://waitnot-restaurant.onrender.com';
 
 // Development server URL  
-const DEVELOPMENT_SERVER = 'http://localhost:5000';
+const DEVELOPMENT_SERVER = 'http://localhost:5001';
 
 // Production frontend URL (for QR codes) - Always use this for QR codes so customers can access them
 const PRODUCTION_FRONTEND = 'https://waitnot-restaurant.onrender.com';

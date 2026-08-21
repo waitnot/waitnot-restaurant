@@ -157,12 +157,12 @@ const generateCustomBillPreview = (customization) => {
           ${customization.showQRCode ? `
             <div class="bill-qr">
               ${customization.enableUpiPayment ? `
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('upi://pay?pa=Q582735754@ybl&pn=PhonePeMerchant&mc=0000&mode=02&purpose=00&am=350&cu=INR&tn=Bill%20Payment%20-%20ORD-12345')}&margin=10" alt="Payment QR Code" style="width: 100px; height: 100px;">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=${customization.upiId || 'yourupi@upi'}&pn=${encodeURIComponent(customization.upiMerchantName || 'Merchant')}&am=350&cu=INR&tn=Bill Payment`)}&margin=10" alt="Payment QR Code" style="width: 100px; height: 100px;">
                 <div style="font-size: 11px; margin-top: 8px; font-weight: bold; color: #000;">
-                  💳 Scan & Pay ₹350
+                  Scan & Pay ₹350
                 </div>
                 <div style="font-size: 9px; margin-top: 2px; color: #666;">
-                  Q582735754@ybl
+                  ${customization.upiId || 'yourupi@upi'}
                 </div>
               ` : customization.qrCodeDataUrl ? `
                 <img src="${customization.qrCodeDataUrl}" alt="QR Code" style="width: 100px; height: 100px;">
@@ -205,9 +205,11 @@ export default function PrinterSettings() {
       headerText: '',
       footerText: 'Thank you for dining with us!',
       showQRCode: true,
-      enableUpiPayment: true, // Enable UPI payment QR codes by default
+      enableUpiPayment: true,
       qrCodeFile: null,
       qrCodeDataUrl: '',
+      upiId: '',
+      upiMerchantName: '',
       showAddress: true,
       address: '',
       showPhone: true,
@@ -216,6 +218,10 @@ export default function PrinterSettings() {
       email: '',
       showGST: false,
       gstNumber: '',
+      gstCharge: 0,
+      gstInclusive: true,
+      serviceCharge: 0,
+      serviceChargeInclusive: true,
       billTemplate: 'modern' // classic, modern, minimal
     }
   });
@@ -399,7 +405,7 @@ export default function PrinterSettings() {
             </button>
             <div className="flex items-center gap-2">
               <Settings size={24} className="text-primary" />
-              <h1 className="text-xl font-bold text-gray-800">Printer Settings</h1>
+              <h1 className="text-xl font-bold text-gray-800">Settings</h1>
             </div>
           </div>
           
@@ -984,30 +990,43 @@ export default function PrinterSettings() {
                     </div>
 
                     {settings.billCustomization.enableUpiPayment ? (
-                      /* UPI Payment QR Code */
+                      /* UPI Payment QR Code — ask for UPI ID */
                       <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <h4 className="font-semibold text-green-800 mb-3">💳 UPI Payment QR Code</h4>
-                        <div className="space-y-3 text-sm text-green-700">
-                          <div className="flex items-start gap-2">
-                            <span className="text-green-600">✓</span>
-                            <span>Automatically generates payment QR code with exact bill amount</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <span className="text-green-600">✓</span>
-                            <span>Uses UPI Base URL from UPI Payment Settings below</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <span className="text-green-600">✓</span>
-                            <span>Customers can scan and pay directly from any UPI app</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <span className="text-green-600">✓</span>
-                            <span>Shows "Scan & Pay ₹Amount" instead of generic text</span>
-                          </div>
+                        <h4 className="font-semibold text-green-800 mb-3">UPI Payment QR Code</h4>
+                        <div className="mb-4">
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">
+                            UPI ID / VPA <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={settings.billCustomization.upiId || ''}
+                            onChange={(e) => handleSettingChange('billCustomization', {
+                              ...settings.billCustomization,
+                              upiId: e.target.value
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                            placeholder="e.g. yourname@upi or 9876543210@paytm"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Enter your UPI ID. The QR code on bills will point to this ID with the exact bill amount.</p>
                         </div>
-                        <div className="mt-3 p-2 bg-green-100 rounded text-xs text-green-800">
-                          <strong>Note:</strong> Make sure to configure your UPI Base URL in the UPI Payment Settings section below for this to work.
+                        <div className="mb-3">
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Merchant / Display Name</label>
+                          <input
+                            type="text"
+                            value={settings.billCustomization.upiMerchantName || settings.merchantName || ''}
+                            onChange={(e) => handleSettingChange('billCustomization', {
+                              ...settings.billCustomization,
+                              upiMerchantName: e.target.value
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                            placeholder="e.g. Spice Garden Restaurant"
+                          />
                         </div>
+                        {settings.billCustomization.upiId && (
+                          <div className="mt-3 p-3 bg-white border border-green-200 rounded-lg text-xs text-green-800">
+                            QR will generate: <code className="bg-green-100 px-1 rounded">upi://pay?pa={settings.billCustomization.upiId}&pn=...&am=[amount]</code>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       /* Custom QR Code Upload */
@@ -1095,6 +1114,111 @@ export default function PrinterSettings() {
                 </button>
               </div>
             </>
+          )}
+        </div>
+
+        {/* Charges Settings */}
+        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-yellow-100 p-2 rounded-lg">
+              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">GST & Service Charges</h2>
+              <p className="text-gray-600 text-sm">Applied to all orders and shown on the bill</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* GST */}
+            <div className="border border-gray-200 rounded-xl p-4">
+              <label className="block text-gray-700 font-semibold mb-3">GST Charge</label>
+              <div className="flex gap-2 mb-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number" min="0" max="100" step="0.01"
+                    value={settings.gstCharge ?? 0}
+                    onChange={(e) => handleSettingChange('gstCharge', parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary pr-8"
+                    placeholder="e.g. 5"
+                  />
+                  <span className="absolute right-3 top-2.5 text-gray-500 text-sm">%</span>
+                </div>
+                <div className="flex rounded-lg overflow-hidden border border-gray-300 text-sm font-medium shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleSettingChange('gstInclusive', true)}
+                    className={`px-3 py-2 transition-colors ${settings.gstInclusive !== false ? 'bg-green-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >Incl.</button>
+                  <button
+                    type="button"
+                    onClick={() => handleSettingChange('gstInclusive', false)}
+                    className={`px-3 py-2 transition-colors border-l ${settings.gstInclusive === false ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >Excl.</button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                {settings.gstInclusive !== false
+                  ? 'Prices already include GST — "incl. GST" shown on bill'
+                  : 'GST added on top of item prices at checkout'}
+              </p>
+            </div>
+
+            {/* Service Charge */}
+            <div className="border border-gray-200 rounded-xl p-4">
+              <label className="block text-gray-700 font-semibold mb-3">Service Charge</label>
+              <div className="flex gap-2 mb-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number" min="0" max="100" step="0.01"
+                    value={settings.serviceCharge ?? 0}
+                    onChange={(e) => handleSettingChange('serviceCharge', parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary pr-8"
+                    placeholder="e.g. 10"
+                  />
+                  <span className="absolute right-3 top-2.5 text-gray-500 text-sm">%</span>
+                </div>
+                <div className="flex rounded-lg overflow-hidden border border-gray-300 text-sm font-medium shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleSettingChange('serviceChargeInclusive', true)}
+                    className={`px-3 py-2 transition-colors ${settings.serviceChargeInclusive !== false ? 'bg-green-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >Incl.</button>
+                  <button
+                    type="button"
+                    onClick={() => handleSettingChange('serviceChargeInclusive', false)}
+                    className={`px-3 py-2 transition-colors border-l ${settings.serviceChargeInclusive === false ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >Excl.</button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                {settings.serviceChargeInclusive !== false
+                  ? 'Prices already include service charge — "incl. SC" shown on bill'
+                  : 'Service charge added on top of item prices at checkout'}
+              </p>
+            </div>
+          </div>
+
+          {(settings.gstCharge > 0 || settings.serviceCharge > 0) && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+              <strong>Preview on a ₹1000 order:</strong>
+              <div className="mt-2 space-y-1">
+                <div className="flex justify-between"><span>Subtotal</span><span>₹1000</span></div>
+                {settings.gstCharge > 0 && settings.gstInclusive === false && <div className="flex justify-between"><span>GST ({settings.gstCharge}%)</span><span>+₹{(1000 * settings.gstCharge / 100).toFixed(2)}</span></div>}
+                {settings.gstCharge > 0 && settings.gstInclusive !== false && <div className="flex justify-between text-green-700"><span>GST ({settings.gstCharge}%)</span><span>incl.</span></div>}
+                {settings.serviceCharge > 0 && settings.serviceChargeInclusive === false && <div className="flex justify-between"><span>Service Charge ({settings.serviceCharge}%)</span><span>+₹{(1000 * settings.serviceCharge / 100).toFixed(2)}</span></div>}
+                {settings.serviceCharge > 0 && settings.serviceChargeInclusive !== false && <div className="flex justify-between text-green-700"><span>Service Charge ({settings.serviceCharge}%)</span><span>incl.</span></div>}
+                <div className="flex justify-between font-bold border-t border-yellow-300 pt-1">
+                  <span>Total</span>
+                  <span>₹{(1000
+                    + (settings.gstCharge > 0 && settings.gstInclusive === false ? 1000 * settings.gstCharge / 100 : 0)
+                    + (settings.serviceCharge > 0 && settings.serviceChargeInclusive === false ? 1000 * settings.serviceCharge / 100 : 0)
+                  ).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 

@@ -11,9 +11,11 @@ export default function QROrder() {
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showNonVeg, setShowNonVeg] = useState(null); // null=all, false=veg, true=nonveg
   const [searchQuery, setSearchQuery] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [orderCooldown, setOrderCooldown] = useState(0); // seconds remaining
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [paymentStatus, setPaymentStatus] = useState('pending'); // pending, processing, success, failed
@@ -51,6 +53,29 @@ export default function QROrder() {
   // Calculate totals
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const finalTotal = discountApplied ? discountApplied.finalAmount : total;
+
+  // Load charge settings
+  const getChargeSettings = () => {
+    try {
+      const saved = localStorage.getItem(`printer_settings_${restaurantId}`);
+      const s = saved ? JSON.parse(saved) : {};
+      return {
+        gstCharge: s.gstCharge || 0,
+        gstInclusive: s.gstInclusive !== false,
+        serviceCharge: s.serviceCharge || 0,
+        serviceChargeInclusive: s.serviceChargeInclusive !== false,
+      };
+    } catch { return { gstCharge: 0, gstInclusive: true, serviceCharge: 0, serviceChargeInclusive: true }; }
+  };
+  const charges = getChargeSettings();
+  const subtotal = finalTotal;
+  const gstAmount = charges.gstCharge > 0 && !charges.gstInclusive ? Math.round(subtotal * charges.gstCharge / 100) : 0;
+  const scAmount = charges.serviceCharge > 0 && !charges.serviceChargeInclusive ? Math.round(subtotal * charges.serviceCharge / 100) : 0;
+  const grandTotal = subtotal + gstAmount + scAmount;
+  const inclusiveNote = [
+    charges.gstCharge > 0 && charges.gstInclusive ? `${charges.gstCharge}% GST` : '',
+    charges.serviceCharge > 0 && charges.serviceChargeInclusive ? `${charges.serviceCharge}% SC` : '',
+  ].filter(Boolean).join(' & ');
 
   const handleUpiPayment = () => {
     const upiSettings = getUpiSettings();
@@ -402,7 +427,7 @@ export default function QROrder() {
           price: item.price,
           quantity: item.quantity
         })),
-        totalAmount: total,
+        totalAmount: grandTotal,
         originalAmount: total,
         discountId: null,
         discountAmount: 0,
@@ -410,8 +435,8 @@ export default function QROrder() {
         orderType: 'dine-in',
         customerName: customerInfo.name || 'Guest Customer',
         customerPhone: customerInfo.phone || '',
-        paymentStatus: paymentMethod === 'upi' && paymentStatus === 'success' ? 'paid' : 'pending',
-        paymentMethod
+        paymentStatus: 'pending',
+        paymentMethod: 'cash'
       };
 
       const response = await axios.post('/api/orders', orderData);
@@ -424,9 +449,15 @@ export default function QROrder() {
       trackOrderEvent('order_success', orderId, total, cart.length);
       
       setOrderPlaced(true);
+      // Start 60s cooldown
+      let secs = 60;
+      setOrderCooldown(secs);
+      const timer = setInterval(() => {
+        secs--;
+        setOrderCooldown(secs);
+        if (secs <= 0) clearInterval(timer);
+      }, 1000);
       setTimeout(() => {
-        alert('🎉 Order placed successfully! Your food will be served shortly.');
-        
         setOrderPlaced(false);
         setCart([]);
         setShowCheckout(false);
@@ -437,30 +468,21 @@ export default function QROrder() {
       
       // Track order failure
       trackOrderEvent('order_failed', `${restaurantId}_${tableNumber}_${Date.now()}`, total, cart.length);
-      
-      alert('Failed to place order');
+
+      if (error.response?.status === 429) {
+        const wait = error.response.data?.retryAfter || 60;
+        setOrderCooldown(wait);
+        const timer = setInterval(() => {
+          setOrderCooldown(prev => { if (prev <= 1) { clearInterval(timer); return 0; } return prev - 1; });
+        }, 1000);
+      } else {
+        alert('Failed to place order');
+      }
     }
   };
 
   const handlePaymentClick = () => {
-    // Debug logging
-    console.log('Payment click - Customer Info:', customerInfo);
-    console.log('Restaurant ID:', restaurant?._id);
-    
-    // Name and phone are now optional - no validation required
-    
-    // Debug UPI settings
-    const upiSettings = getUpiSettings();
-    console.log('UPI Settings:', upiSettings);
-
-    if (paymentMethod === 'upi') {
-      handleUpiPayment();
-    } else {
-      // Handle cash payment
-      alert('✅ Order placed! Pay with cash at the table when food is served.');
-      setPaymentStatus('success'); // Cash payment is always successful (pay at table)
-      placeOrder();
-    }
+    placeOrder();
   };
 
   if (!restaurant) return <div className="text-center py-12">Loading...</div>;
@@ -571,6 +593,13 @@ export default function QROrder() {
     );
   }
 
+  // Apply veg/non-veg filter
+  if (showNonVeg === false) {
+    filteredMenu = filteredMenu.filter(item => item.isVeg);
+  } else if (showNonVeg === true) {
+    filteredMenu = filteredMenu.filter(item => !item.isVeg);
+  }
+
   if (orderPlaced) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50 to-green-100">
@@ -626,7 +655,7 @@ export default function QROrder() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Total Amount</span>
-                <span className="font-bold text-xl text-green-600">₹{finalTotal}</span>
+                <span className="font-bold text-xl text-green-600">₹{grandTotal}</span>
               </div>
             </div>
             
@@ -703,37 +732,84 @@ export default function QROrder() {
         {/* Menu */}
         {!showCheckout ? (
           <>
-            {/* Enhanced Search Bar */}
-            <div className="mb-6">
-              <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-                  <div className="flex items-center px-4 py-3">
-                    <Search className="w-5 h-5 text-gray-400 mr-3" />
-                    <input
-                      type="text"
-                      placeholder="Search delicious food..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="flex-1 outline-none text-gray-700 placeholder-gray-400"
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="ml-2 p-1 hover:bg-gray-100 rounded-full transition-colors"
-                      >
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
+            {/* Search Bar + Veg Toggle */}
+            <div className="mb-4">
+              <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="flex items-center px-4 py-3 gap-3">
+                  <Search className="w-5 h-5 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search delicious food..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 outline-none text-gray-700 placeholder-gray-400 min-w-0"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="p-1 hover:bg-gray-100 rounded-full transition-colors shrink-0"
+                    >
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                  {/* Veg / Non-Veg Toggle inline */}
+                  {(() => {
+                    let dragStartX = null;
+                    const trackWidth = 44; // w-11 = 44px
+
+                    const handlePointerDown = (e) => {
+                      dragStartX = e.clientX;
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                    };
+
+                    const handlePointerUp = (e) => {
+                      if (dragStartX === null) return;
+                      const diff = e.clientX - dragStartX;
+                      if (Math.abs(diff) < 6) {
+                        // tap — reset to all
+                        setShowNonVeg(null);
+                      } else if (diff > 0) {
+                        // slid right → non-veg
+                        setShowNonVeg(true);
+                      } else {
+                        // slid left → veg
+                        setShowNonVeg(false);
+                      }
+                      dragStartX = null;
+                    };
+
+                    return (
+                      <div className="flex items-center gap-2 shrink-0 border-l pl-3 border-gray-200">
+                        <button
+                          onClick={() => setShowNonVeg(showNonVeg === false ? null : false)}
+                          className={`text-xs font-semibold transition-colors ${showNonVeg === false ? 'text-green-600' : 'text-gray-400 hover:text-green-500'}`}
+                        >Veg</button>
+                        <div
+                          className={`relative w-11 h-6 rounded-full transition-colors duration-300 cursor-grab active:cursor-grabbing shrink-0 select-none touch-none ${
+                            showNonVeg === true ? 'bg-red-500' : showNonVeg === false ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                          onPointerDown={handlePointerDown}
+                          onPointerUp={handlePointerUp}
+                        >
+                          <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 pointer-events-none ${
+                            showNonVeg === true ? 'translate-x-5' : showNonVeg === false ? 'translate-x-0' : 'translate-x-2'
+                          }`} />
+                        </div>
+                        <button
+                          onClick={() => setShowNonVeg(showNonVeg === true ? null : true)}
+                          className={`text-xs font-semibold transition-colors ${showNonVeg === true ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`}
+                        >Non-Veg</button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
 
             {/* Enhanced Category Filter */}
-            <div className="mb-6">
+            <div className="mb-4">
               <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
                 {categories.map((category, index) => (
                   <button
@@ -787,7 +863,7 @@ export default function QROrder() {
                   >
                     <div className="flex items-stretch">
                       {/* Enhanced Item Image */}
-                      <div className="item-image w-28 h-28 sm:w-36 sm:h-36 bg-gradient-to-br from-red-400 via-red-500 to-red-600 flex items-center justify-center flex-shrink-0 relative overflow-hidden rounded-l-2xl">
+                      <div className="item-image w-24 h-24 sm:w-36 sm:h-36 bg-gradient-to-br from-red-400 via-red-500 to-red-600 flex items-center justify-center flex-shrink-0 relative overflow-hidden rounded-l-2xl">
                         {item.image ? (
                           <img 
                             src={item.image} 
@@ -817,7 +893,7 @@ export default function QROrder() {
                       {/* Enhanced Item Details */}
                       <div className="item-details flex-1 p-3 sm:p-5 flex flex-col justify-between min-w-0">
                         <div className="flex-1">
-                          <h3 className="text-base sm:text-xl font-bold text-gray-800 mb-1 sm:mb-2 group-hover:text-red-600 transition-colors leading-tight text-wrap">
+                          <h3 className="text-base sm:text-xl font-bold text-gray-800 mb-1 sm:mb-2 group-hover:text-red-600 transition-colors leading-tight break-words hyphens-auto">
                             {item.name}
                           </h3>
                           <p className="text-gray-600 text-xs sm:text-sm mb-2 sm:mb-4 line-clamp-2 leading-relaxed">
@@ -899,7 +975,7 @@ export default function QROrder() {
                         {discountApplied ? (
                           <div className="flex items-center space-x-2 flex-wrap">
                             <p className="text-sm sm:text-lg text-gray-500 line-through">₹{total}</p>
-                            <p className="text-lg sm:text-xl font-bold text-red-600">₹{finalTotal}</p>
+                            <p className="text-lg sm:text-xl font-bold text-red-600">₹{grandTotal}</p>
                             <div className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                               <Sparkles size={10} />
                               <span className="hidden sm:inline">Saved </span>₹{discountApplied.savings}!
@@ -1087,10 +1163,25 @@ export default function QROrder() {
               )}
               
               <div className="border-t border-gray-200 pt-4 mt-4">
-                <div className="flex justify-between py-3 text-xl font-bold text-red-600 bg-red-50 rounded-xl px-4">
+                {gstAmount > 0 && (
+                  <div className="flex justify-between py-1 text-sm text-gray-600 px-4">
+                    <span>GST ({charges.gstCharge}%)</span>
+                    <span>₹{gstAmount}</span>
+                  </div>
+                )}
+                {scAmount > 0 && (
+                  <div className="flex justify-between py-1 text-sm text-gray-600 px-4">
+                    <span>Service Charge ({charges.serviceCharge}%)</span>
+                    <span>₹{scAmount}</span>
+                  </div>
+                )}
+                <div className="flex justify-between py-3 text-xl font-bold text-red-600 bg-red-50 rounded-xl px-4 mt-1">
                   <span>Total</span>
-                  <span>₹{finalTotal}</span>
+                  <span>₹{grandTotal}</span>
                 </div>
+                {inclusiveNote && (
+                  <p className="text-xs text-gray-400 text-center mt-1">incl. {inclusiveNote}</p>
+                )}
               </div>
             </div>
 
@@ -1124,105 +1215,29 @@ export default function QROrder() {
               </div>
             </div>
 
-            {/* Enhanced Payment Method */}
-            <div className="mb-6">
-              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span>Payment Method</span>
-              </h3>
-              
-              {paymentStatus === 'processing' && (
-                <div className="text-center py-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl">
-                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
-                  <p className="text-gray-700 font-semibold text-lg">Processing payment...</p>
-                  {paymentMethod === 'upi' && (
-                    <p className="text-sm text-gray-600 mt-2">Please complete payment in your UPI app</p>
-                  )}
-                </div>
-              )}
-              
-              {paymentStatus === 'pending' && (
-                <div className="space-y-4">
-                  <label className={`flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer hover:border-red-300 transition-all transform hover:scale-[1.02] ${
-                    paymentMethod === 'upi' ? 'border-red-500 bg-red-50 shadow-lg' : 'border-gray-200 bg-white'
-                  }`}>
-                    <input
-                      type="radio"
-                      value="upi"
-                      checked={paymentMethod === 'upi'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-5 h-5 text-red-600"
-                    />
-                    <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-3 rounded-full">
-                      <Smartphone size={24} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <span className="font-bold text-gray-800">UPI Payment</span>
-                      <p className="text-sm text-gray-600">Pay using PhonePe, Paytm, GPay, etc.</p>
-                    </div>
-                    {paymentMethod === 'upi' && (
-                      <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                        Selected
-                      </div>
-                    )}
-                  </label>
-                  
-                  <label className={`flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer hover:border-red-300 transition-all transform hover:scale-[1.02] ${
-                    paymentMethod === 'cash' ? 'border-red-500 bg-red-50 shadow-lg' : 'border-gray-200 bg-white'
-                  }`}>
-                    <input
-                      type="radio"
-                      value="cash"
-                      checked={paymentMethod === 'cash'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-5 h-5 text-red-600"
-                    />
-                    <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-3 rounded-full">
-                      <Banknote size={24} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <span className="font-bold text-gray-800">Cash Payment</span>
-                      <p className="text-sm text-gray-600">Pay with cash at the table</p>
-                    </div>
-                    {paymentMethod === 'cash' && (
-                      <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                        Selected
-                      </div>
-                    )}
-                  </label>
-                </div>
-              )}
-            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowCheckout(false)}
+                className="flex-1 bg-gray-100 text-gray-700 py-4 rounded-xl hover:bg-gray-200 font-semibold transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to Menu
+              </button>
 
-            {paymentStatus === 'pending' && (
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setShowCheckout(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-4 rounded-xl hover:bg-gray-200 font-semibold transition-all transform hover:scale-105 flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Back to Menu
-                </button>
-                
-                <button
-                  onClick={handlePaymentClick}
-                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-xl hover:from-red-600 hover:to-red-700 flex items-center justify-center gap-3 font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
-                >
-                  {paymentMethod === 'upi' ? (
-                    <>
-                      <Smartphone size={20} />
-                      Pay ₹{finalTotal} with UPI
-                    </>
-                  ) : (
-                    <>
-                      <Banknote size={20} />
-                      Pay ₹{finalTotal} with Cash
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
+              <button
+                onClick={handlePaymentClick}
+                disabled={orderCooldown > 0}
+                className={`flex-1 py-4 rounded-xl flex items-center justify-center gap-3 font-bold shadow-lg transition-all duration-300 ${
+                  orderCooldown > 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transform hover:scale-105 hover:shadow-xl'
+                }`}
+              >
+                {orderCooldown > 0 ? `Please wait ${orderCooldown}s` : 'Confirm Order'}
+              </button>
+            </div>
           </div>
         )}
       </div>

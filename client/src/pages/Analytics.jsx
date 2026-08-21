@@ -119,7 +119,9 @@ const Analytics = () => {
     // Payment method breakdown
     const paymentBreakdown = filteredOrders.reduce((acc, order) => {
       const method = order.paymentMethod || 'cash';
-      acc[method] = (acc[method] || 0) + 1;
+      if (!acc[method]) acc[method] = { count: 0, revenue: 0 };
+      acc[method].count += 1;
+      acc[method].revenue += parseFloat(order.totalAmount || order.total || 0);
       return acc;
     }, {});
 
@@ -206,7 +208,7 @@ const Analytics = () => {
       completionRate,
       revenueGrowth: 0, // Can't calculate without previous period data
       statusBreakdown: Object.entries(statusBreakdown).map(([status, count]) => ({ status, count })),
-      paymentBreakdown: Object.entries(paymentBreakdown).map(([method, count]) => ({ method, count })),
+      paymentBreakdown: Object.entries(paymentBreakdown).map(([method, data]) => ({ method, count: data.count, revenue: Math.round(data.revenue) })),
       typeBreakdown: Object.entries(typeBreakdown).map(([type, count]) => ({ type, count })),
       dailyRevenue,
       popularItems,
@@ -403,7 +405,7 @@ const Analytics = () => {
                 <span>Back to Dashboard</span>
               </button>
               <div className="border-l border-gray-300 pl-4">
-                <h1 className="text-3xl font-bold text-gray-800">📊 Analytics Dashboard</h1>
+                <h1 className="text-3xl font-bold text-gray-800">Analytics Dashboard</h1>
                 <p className="text-gray-600 mt-1">{restaurant?.name} - Business Intelligence</p>
               </div>
             </div>
@@ -426,31 +428,31 @@ const Analytics = () => {
                   onClick={() => downloadReport('today')}
                   className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"
                 >
-                  📋 Today Report
+                  Today Report
                 </button>
                 <button
                   onClick={() => downloadReport('weekly')}
                   className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
                 >
-                  📄 Weekly Report
+                  Weekly Report
                 </button>
                 <button
                   onClick={() => downloadReport('monthly')}
                   className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
                 >
-                  📊 Monthly Report
+                  Monthly Report
                 </button>
                 <button
                   onClick={() => downloadReport('yearly')}
                   className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 flex items-center gap-2"
                 >
-                  📈 Yearly Report
+                  Yearly Report
                 </button>
                 <button
                   onClick={clearOrderHistory}
                   className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
                 >
-                  🗑️ Clear History
+                  Clear History
                 </button>
               </div>
             </div>
@@ -460,61 +462,46 @@ const Analytics = () => {
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
           <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100">Total Orders</p>
-                <p className="text-3xl font-bold">{analytics.totalOrders || 0}</p>
-              </div>
-              <div className="text-4xl opacity-80">🛒</div>
-            </div>
+            <p className="text-blue-100">Total Orders</p>
+            <p className="text-3xl font-bold">{analytics.totalOrders || 0}</p>
           </div>
 
           <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100">Total Revenue</p>
-                <p className="text-3xl font-bold">₹{analytics.totalRevenue?.toLocaleString() || 0}</p>
-              </div>
-              <div className="text-4xl opacity-80">💰</div>
-            </div>
+            <p className="text-green-100">Total Revenue</p>
+            <p className="text-3xl font-bold">₹{analytics.totalRevenue?.toLocaleString() || 0}</p>
           </div>
 
           <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100">Avg Order Value</p>
-                <p className="text-3xl font-bold">₹{Math.round(analytics.avgOrderValue || 0)}</p>
-              </div>
-              <div className="text-4xl opacity-80">📊</div>
-            </div>
+            <p className="text-purple-100">Avg Order Value</p>
+            <p className="text-3xl font-bold">₹{Math.round(analytics.avgOrderValue || 0)}</p>
           </div>
 
-          <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-100">Completion Rate</p>
-                <p className="text-3xl font-bold">{Math.round(analytics.completionRate || 0)}%</p>
-              </div>
-              <div className="text-4xl opacity-80">✅</div>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-pink-500 to-pink-600 text-white p-6 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-pink-100">Repeat Customers</p>
-                <p className="text-3xl font-bold">{Math.round(analytics.repeatCustomerRate || 0)}%</p>
-              </div>
-              <div className="text-4xl opacity-80">👥</div>
-            </div>
-          </div>
+          {(() => {
+            const breakdown = analytics.paymentBreakdown || [];
+            const cash = breakdown.find(b => b.method === 'cash') || { count: 0, revenue: 0 };
+            const online = breakdown.find(b => b.method === 'online') || { count: 0, revenue: 0 };
+            return (
+              <>
+                <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+                  <p className="text-green-100">Cash Payment</p>
+                  <p className="text-3xl font-bold">₹{(cash.revenue || 0).toLocaleString()}</p>
+                  <p className="text-green-200 text-xs mt-1">{cash.count} order{cash.count !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+                  <p className="text-blue-100">Online Payment</p>
+                  <p className="text-3xl font-bold">₹{(online.revenue || 0).toLocaleString()}</p>
+                  <p className="text-blue-200 text-xs mt-1">{online.count} order{online.count !== 1 ? 's' : ''}</p>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Daily Revenue Chart */}
           <div className="bg-white p-6 rounded-xl shadow-lg">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">📈 Daily Revenue Trend</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Daily Revenue Trend</h3>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={analytics.dailyRevenue || []}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -528,7 +515,7 @@ const Analytics = () => {
 
           {/* Order Status Breakdown */}
           <div className="bg-white p-6 rounded-xl shadow-lg">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">📋 Order Status Distribution</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Order Status Distribution</h3>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -556,7 +543,7 @@ const Analytics = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Popular Items */}
           <div className="bg-white p-6 rounded-xl shadow-lg">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">🍽️ Top Selling Items</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Top Selling Items</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={analytics.popularItems || []}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -570,7 +557,7 @@ const Analytics = () => {
 
           {/* Hourly Orders */}
           <div className="bg-white p-6 rounded-xl shadow-lg">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">⏰ Hourly Order Distribution</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Hourly Order Distribution</h3>
             <p className="text-sm text-gray-600 mb-3">Peak Hour: {analytics.peakHourRange}</p>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={analytics.hourlyData || []}>
@@ -588,32 +575,68 @@ const Analytics = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Payment Methods */}
           <div className="bg-white p-6 rounded-xl shadow-lg">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">💳 Payment Methods</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={analytics.paymentBreakdown || []}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ method, count }) => `${method}: ${count}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="count"
-                  nameKey="method"
-                >
-                  {(analytics.paymentBreakdown || []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Payment Methods</h3>
+
+            {/* Summary cards */}
+            <div className="space-y-3 mb-4">
+              {(analytics.paymentBreakdown || []).map((entry, index) => {
+                const isOnline = entry.method === 'online';
+                const isCash = entry.method === 'cash';
+                const icon = isOnline ? '📱' : isCash ? '💵' : '💳';
+                const color = isOnline ? 'blue' : isCash ? 'green' : 'purple';
+                const colorMap = {
+                  blue: 'bg-blue-50 border-blue-200 text-blue-700',
+                  green: 'bg-green-50 border-green-200 text-green-700',
+                  purple: 'bg-purple-50 border-purple-200 text-purple-700',
+                };
+                return (
+                  <div key={entry.method} className={`flex items-center justify-between p-4 rounded-xl border ${colorMap[color]}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{icon}</span>
+                      <div>
+                        <div className="font-semibold capitalize">{entry.method === 'online' ? 'Online Payment' : entry.method === 'cash' ? 'Cash Payment' : entry.method}</div>
+                        <div className="text-sm opacity-75">{entry.count} order{entry.count !== 1 ? 's' : ''}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-bold">₹{(entry.revenue || 0).toLocaleString()}</div>
+                      <div className="text-xs opacity-75">collected</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {(!analytics.paymentBreakdown || analytics.paymentBreakdown.length === 0) && (
+                <div className="text-center text-gray-400 py-8">No payment data yet</div>
+              )}
+            </div>
+
+            {/* Pie chart */}
+            {analytics.paymentBreakdown && analytics.paymentBreakdown.length > 0 && (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={analytics.paymentBreakdown}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    dataKey="revenue"
+                    nameKey="method"
+                  >
+                    {analytics.paymentBreakdown.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
+                  <Legend formatter={(value) => value.charAt(0).toUpperCase() + value.slice(1)} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           {/* Order Types */}
           <div className="bg-white p-6 rounded-xl shadow-lg">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">🏪 Order Types</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Order Types</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={analytics.typeBreakdown || []}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -628,10 +651,10 @@ const Analytics = () => {
 
         {/* Additional Insights */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">💡 Business Insights & Growth</h3>
+          <h3 className="text-xl font-bold text-gray-800 mb-4">Business Insights & Growth</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-semibold text-blue-800">📊 Performance</h4>
+              <h4 className="font-semibold text-blue-800">Performance</h4>
               <p className="text-sm text-blue-600 mt-1">
                 Your completion rate is {Math.round(analytics.completionRate || 0)}%. 
                 {analytics.completionRate > 90 ? ' Excellent!' : analytics.completionRate > 75 ? ' Good performance!' : ' Room for improvement.'}
@@ -639,7 +662,7 @@ const Analytics = () => {
             </div>
             
             <div className="bg-green-50 p-4 rounded-lg">
-              <h4 className="font-semibold text-green-800">💰 Revenue Growth</h4>
+              <h4 className="font-semibold text-green-800">Revenue Growth</h4>
               <p className="text-sm text-green-600 mt-1">
                 {analytics.revenueGrowth > 0 ? `📈 +${Math.round(analytics.revenueGrowth)}%` : 
                  analytics.revenueGrowth < 0 ? `📉 ${Math.round(analytics.revenueGrowth)}%` : '➡️ 0%'} vs last month
@@ -647,14 +670,14 @@ const Analytics = () => {
             </div>
             
             <div className="bg-purple-50 p-4 rounded-lg">
-              <h4 className="font-semibold text-purple-800">⏰ Peak Time</h4>
+              <h4 className="font-semibold text-purple-800">Peak Time</h4>
               <p className="text-sm text-purple-600 mt-1">
                 Busiest hour: {analytics.peakHourRange}. Plan staffing accordingly for optimal service.
               </p>
             </div>
 
             <div className="bg-pink-50 p-4 rounded-lg">
-              <h4 className="font-semibold text-pink-800">👥 Customer Base</h4>
+              <h4 className="font-semibold text-pink-800">Customer Base</h4>
               <p className="text-sm text-pink-600 mt-1">
                 {analytics.totalCustomers || 0} total customers, {Math.round(analytics.repeatCustomerRate || 0)}% are repeat customers.
               </p>
@@ -677,14 +700,14 @@ const Analytics = () => {
             </div>
             
             <div className="bg-white bg-opacity-20 p-4 rounded-lg">
-              <h4 className="font-semibold mb-2">⏰ Staffing Strategy</h4>
+              <h4 className="font-semibold mb-2">Staffing Strategy</h4>
               <p className="text-sm opacity-90">
                 Peak hours: {analytics.peakHourRange}. Ensure adequate staff during busy periods to maintain service quality.
               </p>
             </div>
             
             <div className="bg-white bg-opacity-20 p-4 rounded-lg">
-              <h4 className="font-semibold mb-2">💳 Payment Insights</h4>
+              <h4 className="font-semibold mb-2">Payment Insights</h4>
               <p className="text-sm opacity-90">
                 {analytics.paymentBreakdown && analytics.paymentBreakdown.length > 0
                   ? `Most used payment: ${analytics.paymentBreakdown[0]?.method}. Consider optimizing checkout flow.`

@@ -7,8 +7,15 @@ export default function DiscountManager({ restaurant }) {
   const [showForm, setShowForm] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [imageUploadMethod, setImageUploadMethod] = useState('url'); // 'url' or 'upload'
+  const [toast, setToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [imageUploadMethod, setImageUploadMethod] = useState('url');
   const [imageFile, setImageFile] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -35,7 +42,7 @@ export default function DiscountManager({ restaurant }) {
     if (file) {
       // Check if it's an image file
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
+        showToast('Please select an image file', 'error');
         return;
       }
       
@@ -96,10 +103,10 @@ export default function DiscountManager({ restaurant }) {
 
       fetchDiscounts();
       resetForm();
-      alert(editingDiscount ? 'Discount updated successfully!' : 'Discount created successfully!');
+      showToast(editingDiscount ? 'Discount updated successfully' : 'Discount created successfully');
     } catch (error) {
       console.error('Error saving discount:', error);
-      alert('Failed to save discount. Please try again.');
+      showToast('Failed to save discount', 'error');
     }
   };
 
@@ -126,20 +133,23 @@ export default function DiscountManager({ restaurant }) {
     setShowForm(true);
   };
 
-  const handleDelete = async (discountId) => {
-    if (!window.confirm('Are you sure you want to delete this discount?')) return;
-
-    try {
-      const token = localStorage.getItem('restaurantToken');
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      
-      await axios.delete(`/api/discounts/${discountId}`, config);
-      fetchDiscounts();
-      alert('Discount deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting discount:', error);
-      alert('Failed to delete discount. Please try again.');
-    }
+  const handleDelete = (discountId) => {
+    setConfirmModal({
+      message: 'Delete this discount? This action cannot be undone.',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const token = localStorage.getItem('restaurantToken');
+          const config = { headers: { Authorization: `Bearer ${token}` } };
+          await axios.delete(`/api/discounts/${discountId}`, config);
+          fetchDiscounts();
+          showToast('Discount deleted successfully');
+        } catch (error) {
+          console.error('Error deleting discount:', error);
+          showToast('Failed to delete discount', 'error');
+        }
+      }
+    });
   };
 
   const toggleActive = async (discount) => {
@@ -155,7 +165,7 @@ export default function DiscountManager({ restaurant }) {
       fetchDiscounts();
     } catch (error) {
       console.error('Error toggling discount status:', error);
-      alert('Failed to update discount status.');
+      showToast('Failed to update discount status', 'error');
     }
   };
 
@@ -655,6 +665,43 @@ export default function DiscountManager({ restaurant }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 ${
+          toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'
+        }`}>
+          {toast.type === 'error'
+            ? <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            : <svg className="w-4 h-4 shrink-0 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          }
+          {toast.message}
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Confirm Action</h3>
+            <p className="text-gray-600 text-sm mb-6">{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

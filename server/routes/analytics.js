@@ -64,7 +64,9 @@ router.get('/restaurant/:restaurantId', async (req, res) => {
     // Payment method breakdown
     const paymentBreakdown = filteredOrders.reduce((acc, order) => {
       const method = order.paymentMethod || 'cash';
-      acc[method] = (acc[method] || 0) + 1;
+      if (!acc[method]) acc[method] = { count: 0, revenue: 0 };
+      acc[method].count += 1;
+      acc[method].revenue += parseFloat(order.totalAmount || order.total || 0);
       return acc;
     }, {});
     
@@ -174,7 +176,7 @@ router.get('/restaurant/:restaurantId', async (req, res) => {
       },
       breakdowns: {
         status: Object.entries(statusBreakdown).map(([status, count]) => ({ status, count })),
-        payment: Object.entries(paymentBreakdown).map(([method, count]) => ({ method, count })),
+        payment: Object.entries(paymentBreakdown).map(([method, data]) => ({ method, count: data.count, revenue: Math.round(data.revenue) })),
         type: Object.entries(typeBreakdown).map(([type, count]) => ({ type, count }))
       },
       trends: {

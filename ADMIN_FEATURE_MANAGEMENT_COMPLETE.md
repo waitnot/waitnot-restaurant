@@ -1,4 +1,4 @@
-# Admin Feature Management System - COMPLETED ✅
+`# Admin Feature Management System - COMPLETED ✅
 
 ## Overview
 The comprehensive admin feature management system has been successfully implemented, allowing administrators to control which features are available to restaurant owners through a dynamic toggle system.
@@ -10,7 +10,7 @@ The comprehensive admin feature management system has been successfully implemen
 - **Migration Script**: `server/migrate-features.js` - adds features column with default values
 - **Default Features**: 20+ feature flags enabled by default for all restaurants
 
-### 2. Admin Interface
+### 2. Admin Interface`
 - **Admin Edit Restaurant Page**: `client/src/pages/AdminEditRestaurant.jsx`
 - **Feature Categories**: Organized features into logical groups:
   - Core Features (Menu, Orders, QR Codes, Tables)

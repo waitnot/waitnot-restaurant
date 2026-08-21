@@ -183,7 +183,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.created_at ASC
+                 ) ORDER BY m.display_order ASC NULLS LAST
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -229,7 +229,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.created_at ASC
+                 ) ORDER BY m.display_order ASC NULLS LAST
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -288,7 +288,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.created_at ASC
+                 ) ORDER BY m.display_order ASC NULLS LAST
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu
@@ -324,7 +324,11 @@ export const restaurantDB = {
   },
   
   async create(data) {
-    const hashedPassword = data.password ? await bcrypt.hash(data.password, 10) : null;
+    // Only hash if not already a bcrypt hash (starts with $2a$ or $2b$)
+    const isAlreadyHashed = data.password && data.password.startsWith('$2');
+    const hashedPassword = data.password
+      ? (isAlreadyHashed ? data.password : await bcrypt.hash(data.password, 10))
+      : null;
     
     const result = await query(`
       INSERT INTO restaurants (
@@ -434,7 +438,7 @@ export const restaurantDB = {
                    'image', m.image,
                    'available', m.available,
                    'displayOrder', m.display_order
-                 ) ORDER BY m.created_at ASC
+                 ) ORDER BY m.display_order ASC NULLS LAST
                ) FILTER (WHERE m.id IS NOT NULL), 
                '[]'::json
              ) as menu

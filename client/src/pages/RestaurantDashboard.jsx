@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Search, GripVertical, ShoppingCart } from 'lucide-react';
 import axios from 'axios';
 import io from 'socket.io-client';
 import FeatureGuard from '../components/FeatureGuard';
@@ -11,6 +11,163 @@ import { getWebSocketUrl, getEnvironmentInfo, getFrontendUrl } from '../config/e
 import { printCustomBill, getPrinterSettings, loadPrinterSettingsFromAPI } from '../utils/customBillGenerator.js';
 import DiscountManager from '../components/DiscountManager';
 import StaffManagement from '../components/StaffManagement';
+
+function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printStaffCustomerBill, printKitchenOrder, printReceipt, clearTableAndSaveToHistory, openEditOrderModal }) {
+  const [selectedFloorTable, setSelectedFloorTable] = useState(null);
+
+  const getTableOrders = (n) => activeDineInOrders.filter(o => parseInt(o.tableNumber) === n);
+  const getTableTotal = (t) => t.reduce((s, o) => s + (o.totalAmount || 0), 0);
+
+  const selectedOrders = selectedFloorTable ? getTableOrders(selectedFloorTable) : [];
+  const selectedTotal = getTableTotal(selectedOrders);
+  const isStaffOrder = selectedOrders.some(o => o.source === 'staff');
+  const firstOrder = selectedOrders[0];
+  const combinedItems = {};
+  selectedOrders.forEach(o => o.items.forEach(i => {
+    if (combinedItems[i.name]) { combinedItems[i.name].quantity += i.quantity; combinedItems[i.name].total += i.price * i.quantity; }
+    else combinedItems[i.name] = { name: i.name, price: i.price, quantity: i.quantity, total: i.price * i.quantity };
+  }));
+
+  const tableCount = restaurant?.tables || 10;
+
+  return (
+    <div className="flex gap-6 min-h-[400px]">
+      {/* Floor Plan — always visible, fixed width */}
+      <div className="w-full sm:w-80 shrink-0">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-800">Floor Plan</h2>
+            <div className="flex gap-3 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-200 border border-green-400 inline-block"></span>Free</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-200 border border-red-400 inline-block"></span>Busy</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
+              const tOrders = getTableOrders(n);
+              const tTotal = getTableTotal(tOrders);
+              const isOccupied = tOrders.length > 0;
+              const isSelected = selectedFloorTable === n;
+              return (
+                <button
+                  key={n}
+                  onClick={() => setSelectedFloorTable(isSelected ? null : n)}
+                  className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all ${
+                    isSelected
+                      ? 'border-primary bg-primary shadow-lg scale-105'
+                      : isOccupied
+                      ? 'bg-red-50 border-red-300 hover:border-red-500'
+                      : 'bg-green-50 border-green-300 hover:border-green-500'
+                  }`}
+                >
+                  <span className={`text-base font-bold leading-none ${isSelected ? 'text-white' : isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
+                  {isOccupied && !isSelected && (
+                    <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span>
+                  )}
+                  {!isOccupied && (
+                    <span className={`text-xs leading-none ${isSelected ? 'text-white/70' : 'text-green-500'}`}>Free</span>
+                  )}
+                  {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
+                </button>
+              );
+            })}
+          </div>
+          {activeDineInOrders.length === 0 && (
+            <p className="text-center text-gray-400 text-xs mt-4">No active orders</p>
+          )}
+        </div>
+      </div>
+
+      {/* Table Detail — shows when table is selected */}
+      <div className="flex-1 min-w-0">
+        {!selectedFloorTable ? (
+          <div className="h-full flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <svg className="w-16 h-16 mx-auto mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M14 3v18" />
+              </svg>
+              <p className="text-sm">Select a table to view details</p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{isStaffOrder ? 'Staff · ' : ''}Table {selectedFloorTable}</h3>
+                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Total</p>
+                <p className="text-3xl font-bold text-primary">₹{selectedTotal}</p>
+              </div>
+            </div>
+
+            {/* Items */}
+            {Object.values(combinedItems).length > 0 ? (
+              <div className="px-5 py-4 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
+                <div className="space-y-2">
+                  {Object.values(combinedItems).map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
+                  <span className="font-bold text-gray-800">Total</span>
+                  <span className="text-xl font-bold text-primary">₹{selectedTotal}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="px-5 py-6 border-b border-gray-100 text-center text-gray-400 text-sm">No orders for this table</div>
+            )}
+
+            {/* Status badges */}
+            {selectedOrders.length > 0 && (
+              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap">
+                {selectedOrders.map(o => (
+                  <span key={o._id} className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                    o.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
+                    : o.status === 'preparing' ? 'bg-blue-100 text-blue-700'
+                    : o.status === 'ready' ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-500'
+                  }`}>{o.status}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="px-5 py-4 flex flex-wrap gap-3">
+              <button
+                onClick={() => isStaffOrder ? printStaffKOT(firstOrder) : printKitchenOrder(selectedFloorTable, selectedOrders)}
+                className="px-5 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
+              >Print KOT</button>
+              <button
+                onClick={() => isStaffOrder ? printStaffCustomerBill(firstOrder) : printReceipt(selectedFloorTable, selectedOrders, selectedTotal)}
+                className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
+              >Print Bill</button>
+              <button
+                onClick={() => clearTableAndSaveToHistory(selectedFloorTable, selectedOrders, selectedTotal)}
+                className="px-5 py-2.5 bg-purple-500 text-white rounded-lg text-sm font-semibold hover:bg-purple-600 transition-colors"
+              >Clear Table</button>
+              {firstOrder && (firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
+                <button
+                  onClick={() => openEditOrderModal(firstOrder)}
+                  className="px-5 py-2.5 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors"
+                >Edit Order</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
@@ -58,6 +215,12 @@ export default function RestaurantDashboard() {
     }
   }, [activeTab, isFeatureEnabled]);
   const [showMenuForm, setShowMenuForm] = useState(false);
+  const [clearTableModal, setClearTableModal] = useState(null); // { tableNumber, tableOrders, totalAmount }
+  const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
+  const [toast, setToast] = useState(null); // { message, type: 'success'|'error' }
+  const [onlinePayStep, setOnlinePayStep] = useState(false); // show online sub-screen
+  const [onlinePayType, setOnlinePayType] = useState('upi'); // 'upi' | 'netbanking'
+  const [utrNumber, setUtrNumber] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [menuForm, setMenuForm] = useState({
     name: '', price: '', category: '', description: '', isVeg: true, image: ''
@@ -81,7 +244,13 @@ export default function RestaurantDashboard() {
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [editOrderSearchQuery, setEditOrderSearchQuery] = useState('');
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
-  const menuSearchInputRef = useRef(null);
+  const [arrangeMode, setArrangeMode] = useState(false);
+  const [orderedCategories, setOrderedCategories] = useState([]);
+  const [orderedMenu, setOrderedMenu] = useState([]);
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+  const dragType = useRef(null); // 'category' | 'item'
+  const dragItemCategory = useRef(null);  const menuSearchInputRef = useRef(null);
   const [availableWaiters, setAvailableWaiters] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
   
@@ -233,10 +402,10 @@ export default function RestaurantDashboard() {
       await fetchFeedback(restaurantId);
       await fetchFeedbackStats(restaurantId);
       
-      alert('✅ Response sent successfully!');
+      showToast('Response sent successfully');
     } catch (error) {
       console.error('Error sending feedback response:', error);
-      alert('❌ Failed to send response. Please try again.');
+      showToast('Failed to send response', 'error');
     }
   };
 
@@ -250,7 +419,7 @@ export default function RestaurantDashboard() {
       await fetchFeedbackStats(restaurantId);
     } catch (error) {
       console.error('Error updating feedback status:', error);
-      alert('❌ Failed to update feedback status. Please try again.');
+      showToast('Failed to update feedback status', 'error');
     }
   };
 
@@ -293,9 +462,9 @@ export default function RestaurantDashboard() {
   const testNotificationSound = () => {
     const success = notificationSound.testSound();
     if (success) {
-      alert('🔊 Test sound played successfully!');
+      showToast('Test sound played successfully');
     } else {
-      alert('❌ Failed to play test sound. Please check your browser settings and ensure sound is enabled.');
+      showToast('Failed to play test sound — check browser settings', 'error');
     }
     
     // Track test sound
@@ -352,40 +521,53 @@ export default function RestaurantDashboard() {
     }
   };
 
-  const deleteMenuItem = async (menuId) => {
-    if (!window.confirm('Are you sure you want to delete this menu item?')) return;
-    
+  const saveArrangeOrder = async () => {
     try {
       const restaurantId = localStorage.getItem('restaurantId');
-      const response = await axios.delete(`/api/restaurants/${restaurantId}/menu/${menuId}`);
-      
-      // Handle the response message
-      if (response.data.message) {
-        if (response.data.message.includes('marked unavailable') || response.data.message.includes('order history')) {
-          alert('⚠️ Menu item removed from availability\n\nThis item cannot be permanently deleted because it exists in order history. It has been marked as unavailable instead.');
-        } else {
-          alert('✅ Menu item deleted successfully');
-        }
-      }
-      
+      // Build order: categories first, then items within each category
+      const items = [];
+      let displayOrder = 1;
+      orderedCategories.forEach(cat => {
+        orderedMenu.filter(i => i.category === cat).forEach(item => {
+          items.push({ id: item._id, displayOrder: displayOrder++ });
+        });
+      });
+      await axios.put(`/api/restaurants/${restaurantId}/menu-reorder`, { items });
       fetchRestaurant(restaurantId);
     } catch (error) {
-      console.error('Error deleting menu item:', error);
-      
-      if (error.response?.data?.error) {
-        if (error.response.data.type === 'constraint_violation') {
-          alert('⚠️ Cannot Delete Menu Item\n\nThis item exists in order history and cannot be permanently deleted. It has been marked as unavailable instead.');
-        } else {
-          alert('❌ Error: ' + error.response.data.error);
-        }
-      } else {
-        alert('❌ Failed to delete menu item. Please try again.');
-      }
-      
-      // Refresh the restaurant data even if there was an error (in case of soft delete)
-      const restaurantId = localStorage.getItem('restaurantId');
-      fetchRestaurant(restaurantId);
+      console.error('Error saving order:', error);
+      showToast('Failed to save order', 'error');
     }
+  };
+
+  const deleteMenuItem = async (menuId) => {
+    setConfirmModal({
+      message: 'Delete this menu item? Items in order history will be marked unavailable instead.',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const restaurantId = localStorage.getItem('restaurantId');
+          const response = await axios.delete(`/api/restaurants/${restaurantId}/menu/${menuId}`);
+          if (response.data.message) {
+            if (response.data.message.includes('marked unavailable') || response.data.message.includes('order history')) {
+              showToast('Menu item removed from availability (exists in order history)', 'error');
+            } else {
+              showToast('Menu item deleted successfully');
+            }
+          }
+          fetchRestaurant(restaurantId);
+        } catch (error) {
+          console.error('Error deleting menu item:', error);
+          if (error.response?.data?.type === 'constraint_violation') {
+            showToast('Item marked unavailable — exists in order history', 'error');
+          } else {
+            showToast('Failed to delete menu item', 'error');
+          }
+          const restaurantId = localStorage.getItem('restaurantId');
+          fetchRestaurant(restaurantId);
+        }
+      }
+    });
   };
 
   const handleImageFileChange = (e) => {
@@ -393,13 +575,13 @@ export default function RestaurantDashboard() {
     if (file) {
       // Check if it's an image file
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
+        showToast('Please select an image file', 'error');
         return;
       }
       
       // Check file size (max 2MB for images)
       if (file.size > 2 * 1024 * 1024) {
-        alert('Image file is too large. Maximum size is 2MB.\n\nTip: Compress your image at tinypng.com or use a smaller image.');
+        showToast('Image too large — max 2MB', 'error');
         return;
       }
       
@@ -414,54 +596,49 @@ export default function RestaurantDashboard() {
     }
   };
 
-  const addTable = async () => {
-    try {
-      const restaurantId = localStorage.getItem('restaurantId');
-      const newTableCount = (restaurant.tables || 0) + 1;
-      
-      console.log('Adding table:', { restaurantId, newTableCount });
-      
-      const response = await axios.patch(`/api/restaurants/${restaurantId}/tables`, {
-        tables: newTableCount
-      });
-      
-      console.log('Table added response:', response.data);
-      
-      await fetchRestaurant(restaurantId);
-      alert(`Table ${newTableCount} added successfully!`);
-    } catch (error) {
-      console.error('Error adding table:', error);
-      console.error('Error response:', error.response?.data);
-      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
-      alert(`Failed to add table: ${errorMsg}`);
-    }
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const addTable = () => {
+    const newTableCount = (restaurant.tables || 0) + 1;
+    setConfirmModal({
+      message: `Add Table ${newTableCount}? A new QR code will be generated for this table.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const restaurantId = localStorage.getItem('restaurantId');
+          await axios.patch(`/api/restaurants/${restaurantId}/tables`, { tables: newTableCount });
+          await fetchRestaurant(restaurantId);
+          showToast(`Table ${newTableCount} added successfully`);
+        } catch (error) {
+          console.error('Error adding table:', error);
+          const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+          showToast(`Failed to add table: ${errorMsg}`, 'error');
+        }
+      }
+    });
   };
 
   const deleteTable = async (tableNum) => {
-    if (!window.confirm(`Delete Table ${tableNum}? This will remove the last table and its QR code.`)) {
-      return;
-    }
-    
-    try {
-      const restaurantId = localStorage.getItem('restaurantId');
-      const newTableCount = Math.max(0, (restaurant.tables || 0) - 1);
-      
-      console.log('Deleting table:', { restaurantId, tableNum, newTableCount });
-      
-      const response = await axios.patch(`/api/restaurants/${restaurantId}/tables`, {
-        tables: newTableCount
-      });
-      
-      console.log('Table deleted response:', response.data);
-      
-      await fetchRestaurant(restaurantId);
-      alert('Table deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting table:', error);
-      console.error('Error response:', error.response?.data);
-      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
-      alert(`Failed to delete table: ${errorMsg}`);
-    }
+    setConfirmModal({
+      message: `Delete Table ${tableNum}? This will remove the last table and its QR code.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const restaurantId = localStorage.getItem('restaurantId');
+          const newTableCount = Math.max(0, (restaurant.tables || 0) - 1);
+          await axios.patch(`/api/restaurants/${restaurantId}/tables`, { tables: newTableCount });
+          await fetchRestaurant(restaurantId);
+          showToast('Table deleted successfully');
+        } catch (error) {
+          console.error('Error deleting table:', error);
+          const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+          showToast(`Failed to delete table: ${errorMsg}`, 'error');
+        }
+      }
+    });
   };
 
   const downloadQRCode = async (tableNum, qrUrl) => {
@@ -469,7 +646,7 @@ export default function RestaurantDashboard() {
       // Get the QR code image
       const imgElement = document.querySelector(`#qr-table-${tableNum} img`);
       if (!imgElement) {
-        alert('QR code not found. Please try again.');
+        showToast('QR code not found', 'error');
         return;
       }
 
@@ -522,7 +699,7 @@ export default function RestaurantDashboard() {
       };
       
       qrImage.onerror = () => {
-        alert('Failed to load QR code. Please try again.');
+        showToast('Failed to load QR code', 'error');
       };
       
       // Use the API URL to generate QR code
@@ -530,121 +707,71 @@ export default function RestaurantDashboard() {
       
     } catch (error) {
       console.error('Error downloading QR code:', error);
-      alert('Failed to download QR code. Please try again.');
+      showToast('Failed to download QR code', 'error');
     }
   };
 
   const clearTableAndSaveToHistory = async (tableNumber, tableOrders, totalAmount) => {
-    console.log('🧹 Clear Table clicked:', { tableNumber, orderCount: tableOrders.length, totalAmount });
-    
-    // Create bill summary
-    const allItems = {};
-    tableOrders.forEach(order => {
-      order.items.forEach(item => {
-        const key = item.name;
-        if (allItems[key]) {
-          allItems[key].quantity += item.quantity;
-          allItems[key].total += item.price * item.quantity;
-        } else {
-          allItems[key] = {
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            total: item.price * item.quantity
-          };
-        }
-      });
-    });
+    setClearTableModal({ tableNumber, tableOrders, totalAmount });
+  };
 
-    const billSummary = Object.values(allItems)
-      .map(item => `${item.name} x ${item.quantity} = ₹${item.total}`)
-      .join('\n');
-
-    const confirmMessage = `Clear Table ${tableNumber} and Save to Order History?\n\n` +
-      `Orders: ${tableOrders.length}\n` +
-      `Customer: ${tableOrders[0].customerName}\n\n` +
-      `Items:\n${billSummary}\n\n` +
-      `TOTAL: ₹${totalAmount}\n\n` +
-      `This will:\n` +
-      `✓ Save all orders to Order History\n` +
-      `✓ Clear table from Table Orders\n` +
-      `✓ Ready table for next customer`;
-
-    if (!window.confirm(confirmMessage)) {
-      console.log('❌ Clear Table cancelled by user');
-      return;
-    }
-    
-    console.log('✅ Clearing table and saving to order history...');
-    
-    try {
-      // Mark all orders as completed (saves to order history)
-      for (const order of tableOrders) {
-        if (order.status !== 'completed') {
-          await updateOrderStatus(order._id, 'completed');
+  const confirmClearTable = (paymentMethod, paymentSubType, utr) => {
+    const { tableNumber, tableOrders } = clearTableModal;
+    setClearTableModal(null);
+    setOnlinePayStep(false);
+    setUtrNumber('');
+    setConfirmModal({
+      message: `Confirm clearing Table ${tableNumber}? All orders will be marked as completed.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          for (const order of tableOrders) {
+            await axios.patch(`/api/orders/${order._id}/payment`, {
+              paymentMethod,
+              paymentSubType: paymentSubType || null,
+              utrNumber: utr || null
+            });
+            if (order.status !== 'completed') {
+              await updateOrderStatus(order._id, 'completed');
+            }
+          }
+          const sessionKey = `table_session_${restaurant._id}_${tableNumber}`;
+          localStorage.removeItem(sessionKey);
+          const restaurantId = localStorage.getItem('restaurantId');
+          await fetchOrders(restaurantId);
+        } catch (error) {
+          console.error('❌ Error clearing table:', error);
+          showToast(`Failed to clear table: ${error.response?.data?.error || error.message}`, 'error');
         }
       }
-
-      // Clear the customer session for this table
-      const sessionKey = `table_session_${restaurant._id}_${tableNumber}`;
-      localStorage.removeItem(sessionKey);
-      
-      alert(`✅ Table Cleared Successfully!\n\nTable ${tableNumber}\nTotal: ₹${totalAmount}\n\nOrders saved to Order History.\nTable is ready for next customer.\n\nCustomer session cleared - next customer will need to enter their details.`);
-      
-      // Refresh orders
-      const restaurantId = localStorage.getItem('restaurantId');
-      await fetchOrders(restaurantId);
-      console.log('✅ Table cleared and orders refreshed');
-    } catch (error) {
-      console.error('❌ Error clearing table:', error);
-      alert(`Failed to clear table: ${error.response?.data?.error || error.message}`);
-    }
+    });
   };
 
   const clearIndividualOrder = async (order) => {
-    console.log('🧹 Clear Individual Order clicked:', { orderId: order._id, customer: order.customerName, total: order.totalAmount });
+    console.log('Clear Individual Order clicked:', { orderId: order._id, customer: order.customerName, total: order.totalAmount });
     
     const billSummary = order.items
       .map(item => `${item.name} x ${item.quantity} = ₹${item.price * item.quantity}`)
       .join('\n');
 
-    const orderTypeText = order.orderType === 'delivery' ? 'Delivery' : 
+    const orderTypeText = order.orderType === 'delivery' ? 'Delivery' :
                          order.orderType === 'takeaway' ? 'Takeaway' : 'Order';
 
-    const confirmMessage = `Clear ${orderTypeText} Order and Save to Order History?\n\n` +
-      `Customer: ${order.customerName}\n` +
-      `Phone: ${order.customerPhone}\n` +
-      `${order.deliveryAddress ? `Address: ${order.deliveryAddress}\n` : ''}` +
-      `\nItems:\n${billSummary}\n\n` +
-      `TOTAL: ₹${order.totalAmount}\n\n` +
-      `This will:\n` +
-      `✓ Save order to Order History\n` +
-      `✓ Remove from active orders\n` +
-      `✓ Mark as completed`;
-
-    if (!window.confirm(confirmMessage)) {
-      console.log('❌ Clear Order cancelled by user');
-      return;
-    }
-    
-    console.log('✅ Clearing individual order and saving to order history...');
-    
-    try {
-      // Mark order as completed (saves to order history)
-      if (order.status !== 'completed') {
-        await updateOrderStatus(order._id, 'completed');
+    setConfirmModal({
+      message: `Clear ${orderTypeText} for ${order.customerName} (₹${order.totalAmount})? This will save it to order history and mark it as completed.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          if (order.status !== 'completed') await updateOrderStatus(order._id, 'completed');
+          showToast('Order cleared and saved to history');
+          const restaurantId = localStorage.getItem('restaurantId');
+          await fetchOrders(restaurantId);
+        } catch (error) {
+          console.error('❌ Error clearing individual order:', error);
+          showToast(`Failed to clear order: ${error.response?.data?.error || error.message}`, 'error');
+        }
       }
-      
-      alert(`✅ Order Cleared Successfully!\n\n${orderTypeText} Order\nCustomer: ${order.customerName}\nTotal: ₹${order.totalAmount}\n\nOrder saved to Order History.`);
-      
-      // Refresh orders
-      const restaurantId = localStorage.getItem('restaurantId');
-      await fetchOrders(restaurantId);
-      console.log('✅ Individual order cleared and orders refreshed');
-    } catch (error) {
-      console.error('❌ Error clearing individual order:', error);
-      alert(`Failed to clear order: ${error.response?.data?.error || error.message}`);
-    }
+    });
   };
 
   const printReceipt = (tableNumber, tableOrders, totalAmount) => {
@@ -879,7 +1006,7 @@ export default function RestaurantDashboard() {
         }, 500);
       };
     } else {
-      alert('Please allow popups to print receipts');
+      showToast('Please allow popups to print', 'error');
     }
   };
 
@@ -1080,7 +1207,7 @@ export default function RestaurantDashboard() {
         }, 500);
       };
     } else {
-      alert('Please allow popups to print receipts');
+      showToast('Please allow popups to print', 'error');
     }
   };
 
@@ -1088,7 +1215,7 @@ export default function RestaurantDashboard() {
     const settings = getPrinterSettings();
     
     if (!settings.enableKitchenPrinting) {
-      alert('Kitchen printing is disabled in settings');
+      showToast('Kitchen printing is disabled in settings', 'error');
       return;
     }
 
@@ -1108,7 +1235,7 @@ export default function RestaurantDashboard() {
     });
 
     if (unprintedItems.length === 0) {
-      alert('No new items to print to kitchen');
+      showToast('No new items to print to kitchen', 'error');
       return;
     }
 
@@ -1256,7 +1383,7 @@ export default function RestaurantDashboard() {
         }, 250);
       };
     } else {
-      alert('Please allow popups to print kitchen orders');
+      showToast('Please allow popups to print', 'error');
     }
   };
 
@@ -1264,7 +1391,7 @@ export default function RestaurantDashboard() {
     const settings = getPrinterSettings();
     
     if (!settings.enableKitchenPrinting) {
-      alert('Kitchen printing is disabled in settings');
+      showToast('Kitchen printing is disabled in settings', 'error');
       return;
     }
 
@@ -1272,7 +1399,7 @@ export default function RestaurantDashboard() {
     const unprintedItems = order.items.filter(item => !item.printed_to_kitchen);
     
     if (unprintedItems.length === 0) {
-      alert('No new items to print to kitchen');
+      showToast('No new items to print to kitchen', 'error');
       return;
     }
 
@@ -1424,7 +1551,7 @@ export default function RestaurantDashboard() {
         }, 250);
       };
     } else {
-      alert('Please allow popups to print kitchen orders');
+      showToast('Please allow popups to print', 'error');
     }
   };
 
@@ -1462,17 +1589,17 @@ export default function RestaurantDashboard() {
   const printStaffKOTOnly = () => {
     // Validate required fields - only items are required now
     if (receptionistOrder.items.length === 0) {
-      alert('Please select at least one item.');
+      showToast('Please select at least one item', 'error');
       return;
     }
 
     if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
-      alert('Please enter delivery address for delivery orders.');
+      showToast('Please enter a delivery address', 'error');
       return;
     }
 
     if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
-      alert('Please select a table number for dine-in orders.');
+      showToast('Please select a table number', 'error');
       return;
     }
 
@@ -1502,17 +1629,17 @@ export default function RestaurantDashboard() {
   const printStaffBillOnly = () => {
     // Validate required fields - only items are required now
     if (receptionistOrder.items.length === 0) {
-      alert('Please select at least one item.');
+      showToast('Please select at least one item', 'error');
       return;
     }
 
     if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
-      alert('Please enter delivery address for delivery orders.');
+      showToast('Please enter a delivery address', 'error');
       return;
     }
 
     if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
-      alert('Please select a table number for dine-in orders.');
+      showToast('Please select a table number', 'error');
       return;
     }
 
@@ -1612,7 +1739,7 @@ export default function RestaurantDashboard() {
       }
 
     // Clear the form
-    console.log('🧹 Clearing Staff order form');
+    console.log('Clearing Staff order form');
     setReceptionistOrder({
       customerName: '',
       customerPhone: '',
@@ -1659,7 +1786,7 @@ export default function RestaurantDashboard() {
             === KITCHEN ORDER TICKET ===
           </div>
           <div style="font-size: 10px; margin-top: 5px;">
-            👥 Staff ORDER
+            Staff ORDER
           </div>
         </div>
 
@@ -1725,7 +1852,7 @@ export default function RestaurantDashboard() {
 
         <!-- Footer -->
         <div style="text-align: center; margin-top: 20px; font-size: 10px; border-top: 1px dashed #000; padding-top: 10px;">
-          <div style="margin-bottom: 5px;">🍳 PREPARE WITH CARE 🍳</div>
+          <div style="margin-bottom: 5px;">PREPARE WITH CARE </div>
           <div style="margin-bottom: 10px;">Staff Order - Priority Service</div>
           <div style="font-size: 9px; color: #666;">
             Printed: ${dateStr} ${timeStr}
@@ -1776,7 +1903,7 @@ export default function RestaurantDashboard() {
         }, 250);
       }, 500);
     } else {
-      alert('Please allow popups to print KOT');
+      showToast('Please allow popups to print', 'error');
     }
   };
 
@@ -1817,7 +1944,7 @@ export default function RestaurantDashboard() {
             ${restaurant.name.toUpperCase()}
           </div>
           <div style="font-size: 10px;">
-            👥 Staff Order Receipt
+            Staff Order Receipt
           </div>
         </div>
 
@@ -1944,7 +2071,7 @@ export default function RestaurantDashboard() {
         }, 250);
       }, 500);
     } else {
-      alert('Please allow popups to print customer bill');
+      showToast('Please allow popups to print', 'error');
     }
   };
 
@@ -2011,7 +2138,7 @@ export default function RestaurantDashboard() {
   const saveEditedOrder = async () => {
     try {
       if (!editingOrder.items.length) {
-        alert('❌ Order must have at least one item');
+        showToast('Order must have at least one item', 'error');
         return;
       }
 
@@ -2046,12 +2173,12 @@ export default function RestaurantDashboard() {
         orderSource: editingOrder.source || 'qr'
       });
       
-      alert('✅ Order updated successfully!');
+      showToast('Order updated successfully');
       closeEditOrderModal();
       
     } catch (error) {
       console.error('❌ Error updating order:', error);
-      alert(`❌ Failed to update order: ${error.response?.data?.error || error.message}`);
+      showToast(`Failed to update order: ${error.response?.data?.error || error.message}`, 'error');
     }
   };
 
@@ -2137,7 +2264,7 @@ export default function RestaurantDashboard() {
                 className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
               >
                 <Settings size={18} className="sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Printer Settings</span>
+                <span className="hidden sm:inline">Settings</span>
               </button>
             </FeatureGuard>
             <button 
@@ -2145,7 +2272,6 @@ export default function RestaurantDashboard() {
               className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
               title="Notification sound settings"
             >
-              <span className="text-lg">🔔</span>
               <span className="hidden sm:inline">Notifications</span>
             </button>
             <button onClick={logout} className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base">
@@ -2166,8 +2292,8 @@ export default function RestaurantDashboard() {
                 activeTab === 'Staff' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
             >
-              <span className="hidden sm:inline">👥 Staff Order</span>
-              <span className="sm:hidden">👥 Staff</span>
+              <span className="hidden sm:inline">Staff Order</span>
+              <span className="sm:hidden">Staff</span>
             </button>
           </FeatureGuard>
 
@@ -2298,8 +2424,8 @@ export default function RestaurantDashboard() {
                 activeTab === 'staff-management' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
             >
-              <span className="hidden sm:inline">👥 Staff</span>
-              <span className="sm:hidden">👥</span>
+              <span className="hidden sm:inline">Staff</span>
+              <span className="sm:hidden">Staff</span>
             </button>
           </FeatureGuard>
           
@@ -2309,8 +2435,8 @@ export default function RestaurantDashboard() {
               activeTab === 'discounts' ? 'bg-primary text-white' : 'bg-white text-gray-700'
             }`}
           >
-            <span className="hidden sm:inline">🎉 Discounts</span>
-            <span className="sm:hidden">🎉</span>
+            <span className="hidden sm:inline">Discounts</span>
+            <span className="sm:hidden">Discounts</span>
           </button>
         </div>
 
@@ -2327,19 +2453,19 @@ export default function RestaurantDashboard() {
                   <div>
                     <h3 className="text-lg font-bold text-gray-800">
                       {order.source === 'staff' ? (
-                        order.orderType === 'takeaway' ? '👥 Staff - Takeaway' : 
-                        order.orderType === 'delivery' ? '👥 Staff - Delivery' : 
-                        '👥 Staff Order'
+                        order.orderType === 'takeaway' ? 'Staff - Takeaway' : 
+                        order.orderType === 'delivery' ? 'Staff - Delivery' : 
+                        'Staff Order'
                       ) : (
-                        '🚚 Delivery Order'
+                        'Delivery Order'
                       )}
                     </h3>
                     <p className="text-sm text-gray-600">{order.customerName} • {order.customerPhone}</p>
                     {order.waiterNumber && (
-                      <p className="text-sm font-semibold text-blue-600 mt-1">👤 Waiter: {order.waiterNumber}</p>
+                      <p className="text-sm font-semibold text-blue-600 mt-1">Waiter: {order.waiterNumber}</p>
                     )}
                     {order.deliveryAddress && (
-                      <p className="text-sm text-gray-600 mt-1">📍 {order.deliveryAddress}</p>
+                      <p className="text-sm text-gray-600 mt-1">{order.deliveryAddress}</p>
                     )}
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm font-semibold ${statusColors[order.status]}`}>
@@ -2369,20 +2495,20 @@ export default function RestaurantDashboard() {
                         onClick={() => printStaffKOT(order)}
                         className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
                       >
-                        🍳 Print KOT
+                        Print KOT
                       </button>
                       <button
                         onClick={() => printStaffCustomerBill(order)}
                         className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
                       >
-                        🖨️ Print Bill
+                        Print Bill
                       </button>
                       {/* Clear Order Button for Staff Orders */}
                       <button
                         onClick={() => clearIndividualOrder(order)}
                         className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 font-semibold flex items-center justify-center gap-2"
                       >
-                        🧹 Clear Order
+                        Clear Order
                       </button>
                       {/* Edit Order Button for Completed Staff Orders */}
                       {(order.status === 'completed' || order.status === 'pending') && (
@@ -2404,7 +2530,7 @@ export default function RestaurantDashboard() {
                           onClick={() => printKitchenOrderIndividual(order)}
                           className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
                         >
-                          🍳 Print Bill (Kitchen)
+                          Print Bill (Kitchen)
                         </button>
                       )}
                       
@@ -2413,7 +2539,7 @@ export default function RestaurantDashboard() {
                         onClick={() => printIndividualReceipt(order)}
                         className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
                       >
-                        🖨️ Print Receipt
+                        Print Receipt
                       </button>
                       
                       {/* Edit Order Button for QR Orders */}
@@ -2473,376 +2599,266 @@ export default function RestaurantDashboard() {
         )}
 
         {activeTab === 'dine-in' && (
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800">Dine-In / Table Orders</h2>
-              <p className="text-gray-600 text-xs sm:text-sm">Total: {activeDineInOrders.length} active orders</p>
-            </div>
-            
-            {/* Group orders by table - only show active orders (not completed) */}
-            {Object.entries(
-              dineInOrders
-                .filter(order => order.status !== 'completed')
-                .reduce((acc, order) => {
-                  const tableNum = order.tableNumber;
-                  if (!acc[tableNum]) acc[tableNum] = [];
-                  acc[tableNum].push(order);
-                  return acc;
-                }, {})
-            ).map(([tableNum, tableOrders]) => {
-              // Check if this is a Staff order
-              const isStaffOrder = tableOrders.some(order => order.source === 'staff');
-              
-              // Combine all items from all orders
-              const combinedItems = {};
-              tableOrders.forEach(order => {
-                order.items.forEach(item => {
-                  const key = item.name;
-                  if (combinedItems[key]) {
-                    combinedItems[key].quantity += item.quantity;
-                    combinedItems[key].total += item.price * item.quantity;
-                  } else {
-                    combinedItems[key] = {
-                      name: item.name,
-                      price: item.price,
-                      quantity: item.quantity,
-                      total: item.price * item.quantity
-                    };
-                  }
-                });
-              });
-              
-              const tableTotal = tableOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-              const firstOrder = tableOrders[0];
-              
-              return (
-                <div key={tableNum} className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg shadow-lg p-4 sm:p-6 mb-4">
-                  {/* Table Header */}
-                  <div className="flex justify-between items-center mb-4 pb-3 border-b-2 border-purple-200">
-                    <div>
-                      <h3 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        {isStaffOrder ? '👥 Staff - Table' : '🍽️ Table'} {tableNum}
-                      </h3>
-                      <p className="text-sm text-gray-600">{tableOrders.length} order(s)</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Total</p>
-                      <p className="text-2xl font-bold text-primary">₹{tableTotal}</p>
-                    </div>
-                  </div>
-
-                  {/* Combined Bill */}
-                  <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-                    <div className="mb-4">
-                      <p className="text-sm text-gray-600">{firstOrder.customerName} • {firstOrder.customerPhone}</p>
-                      <p className="text-xs text-gray-500">{new Date(firstOrder.createdAt).toLocaleTimeString()}</p>
-                    </div>
-
-                    <div className="mb-4">
-                      {Object.values(combinedItems).map((item, idx) => (
-                        <div key={idx} className="flex justify-between py-2 text-sm">
-                          <span>{item.name} x {item.quantity}</span>
-                          <span>₹{item.total}</span>
-                        </div>
-                      ))}
-                      <div className="border-t-2 mt-3 pt-3 flex justify-between font-bold text-lg">
-                        <span>Subtotal</span>
-                        <span className="text-primary">₹{tableTotal}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Kitchen Print, Print Receipt, and Clear Table Buttons for Table */}
-                  <div className="mt-4 pt-4 border-t-2 border-purple-200">
-                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                      {isStaffOrder ? (
-                        // Staff Order Print Buttons
-                        <>
-                          <button
-                            onClick={() => printStaffKOT(firstOrder)}
-                            className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                          >
-                            🍳 <span className="hidden sm:inline">Print KOT</span><span className="sm:hidden">KOT</span>
-                          </button>
-                          <button
-                            onClick={() => printStaffCustomerBill(firstOrder)}
-                            className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                          >
-                            🖨️ <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Bill</span>
-                          </button>
-                          {/* Clear Table Button for Staff Orders */}
-                          <button
-                            onClick={() => clearTableAndSaveToHistory(tableNum, tableOrders, tableTotal)}
-                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 sm:py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                          >
-                            🧹 <span className="hidden sm:inline">Clear Table</span><span className="sm:hidden">Clear</span>
-                          </button>
-                          {/* Edit Order Button for Completed Staff Orders */}
-                          {(firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
-                            <button
-                              onClick={() => openEditOrderModal(firstOrder)}
-                              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 sm:py-3 rounded-lg hover:from-green-600 hover:to-emerald-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                            >
-                              <Edit size={16} />
-                              <span className="hidden sm:inline">Edit Order</span><span className="sm:hidden">Edit</span>
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        // Regular Table Order Print Buttons
-                        <>
-                          {/* Kitchen Print Button - Always visible */}
-                          <button
-                            onClick={() => printKitchenOrder(tableNum, tableOrders)}
-                            className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 sm:py-3 rounded-lg hover:from-orange-600 hover:to-red-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                          >
-                            🍳 <span className="hidden sm:inline">Print KOT</span><span className="sm:hidden">KOT</span>
-                          </button>
-                          
-                          {/* Print Receipt Button (Cash Counter) */}
-                          <button
-                            onClick={() => printReceipt(tableNum, tableOrders, tableTotal)}
-                            className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                          >
-                            🖨️ <span className="hidden sm:inline">Print Bill</span><span className="sm:hidden">Bill</span>
-                          </button>
-                          
-                          {/* Clear Table Button */}
-                          <button
-                            onClick={() => clearTableAndSaveToHistory(tableNum, tableOrders, tableTotal)}
-                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 sm:py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                          >
-                            🧹 <span className="hidden sm:inline">Clear Table</span><span className="sm:hidden">Clear</span>
-                          </button>
-                          
-                          {/* Edit Order Button for QR Orders */}
-                          {(firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
-                            <button
-                              onClick={() => openEditOrderModal(firstOrder)}
-                              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 sm:py-3 rounded-lg hover:from-green-600 hover:to-emerald-600 font-bold text-sm sm:text-base shadow-lg flex items-center justify-center gap-1 sm:gap-2"
-                            >
-                              <Edit size={16} />
-                              <span className="hidden sm:inline">Edit Order</span><span className="sm:hidden">Edit</span>
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            
-            {activeDineInOrders.length === 0 && (
-              <div className="text-center py-12 text-gray-500">No active table orders</div>
-            )}
-          </div>
+          <FloorPlanView
+            restaurant={restaurant}
+            activeDineInOrders={activeDineInOrders}
+            printStaffKOT={printStaffKOT}
+            printStaffCustomerBill={printStaffCustomerBill}
+            printKitchenOrder={printKitchenOrder}
+            printReceipt={printReceipt}
+            clearTableAndSaveToHistory={clearTableAndSaveToHistory}
+            openEditOrderModal={openEditOrderModal}
+          />
         )}
 
         {activeTab === 'menu' && (
           <div>
-            {/* Header with Add Button and Search */}
+            {/* Header with Add Button, Search, and Arrange toggle */}
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4 sm:mb-6">
-              <FeatureGuard feature="menuManagement">
+              <div className="flex gap-2">
+                <FeatureGuard feature="menuManagement">
+                  <button
+                    onClick={() => setShowMenuForm(true)}
+                    className="bg-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm sm:text-base"
+                  >
+                    <Plus size={18} />
+                    Add Menu Item
+                  </button>
+                </FeatureGuard>
                 <button
-                  onClick={() => setShowMenuForm(true)}
-                  className="bg-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm sm:text-base"
+                  onClick={async () => {
+                    if (!arrangeMode) {
+                      const cats = [...new Set(restaurant.menu.map(i => i.category).filter(Boolean))];
+                      setOrderedCategories(cats);
+                      setOrderedMenu([...restaurant.menu]);
+                      setArrangeMode(true);
+                    } else {
+                      await saveArrangeOrder();
+                      setArrangeMode(false);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 border transition-colors ${
+                    arrangeMode
+                      ? 'bg-green-500 text-white border-green-500 hover:bg-green-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
                 >
-                  <Plus size={18} className="sm:w-5 sm:h-5" />
-                  Add Menu Item
+                  <GripVertical size={16} />
+                  {arrangeMode ? 'Save Order' : 'Arrange'}
                 </button>
-              </FeatureGuard>
+                {arrangeMode && (
+                  <button
+                    onClick={() => setArrangeMode(false)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
 
               {/* Search Input */}
-              <div className="w-full sm:w-auto sm:max-w-md flex-1 sm:flex-initial">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-gray-400" />
+              {!arrangeMode && (
+                <div className="w-full sm:w-auto sm:max-w-md flex-1 sm:flex-initial">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      ref={menuSearchInputRef}
+                      type="text"
+                      placeholder="Search menu items... (Press / to focus)"
+                      value={menuSearchQuery}
+                      onChange={(e) => setMenuSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      onKeyDown={(e) => { if (e.key === 'Escape') setMenuSearchQuery(''); }}
+                    />
+                    {menuSearchQuery && (
+                      <button onClick={() => setMenuSearchQuery('')} className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                        <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                      </button>
+                    )}
                   </div>
-                  <input
-                    ref={menuSearchInputRef}
-                    type="text"
-                    placeholder="Search menu items... (Press / to focus)"
-                    value={menuSearchQuery}
-                    onChange={(e) => setMenuSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setMenuSearchQuery('');
-                      }
-                    }}
-                  />
-                  {menuSearchQuery && (
-                    <button
-                      onClick={() => setMenuSearchQuery('')}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    >
-                      <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-                    </button>
-                  )}
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Search Results Count */}
-            {menuSearchQuery && (
+            {menuSearchQuery && !arrangeMode && (
               <div className="mb-4 text-sm text-gray-600">
-                {restaurant.menu
-                  .filter(item => 
-                    item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
-                    item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
-                    item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
-                  ).length} items found for "{menuSearchQuery}"
+                {restaurant.menu.filter(item =>
+                  item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                  item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                  item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
+                ).length} items found for "{menuSearchQuery}"
                 <span className="ml-2 text-gray-400">• Press Escape to clear</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {restaurant.menu
-                .filter(item => 
-                  !menuSearchQuery || 
+            {/* ARRANGE MODE */}
+            {arrangeMode ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">Drag categories to reorder them, and drag items within a category to reorder items.</p>
+                {orderedCategories.map((category, catIndex) => (
+                  <div
+                    key={category}
+                    draggable
+                    onDragStart={() => { dragItem.current = catIndex; dragType.current = 'category'; }}
+                    onDragEnter={() => { dragOverItem.current = catIndex; }}
+                    onDragEnd={() => {
+                      if (dragType.current !== 'category') return;
+                      const cats = [...orderedCategories];
+                      const [moved] = cats.splice(dragItem.current, 1);
+                      cats.splice(dragOverItem.current, 0, moved);
+                      setOrderedCategories(cats);
+                      dragItem.current = null;
+                      dragOverItem.current = null;
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="bg-white rounded-xl border-2 border-dashed border-gray-200 hover:border-primary transition-colors cursor-grab active:cursor-grabbing"
+                  >
+                    {/* Category header */}
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+                      <GripVertical size={18} className="text-gray-400 shrink-0" />
+                      <span className="font-bold text-gray-800">{category}</span>
+                      <span className="text-sm text-gray-400">({orderedMenu.filter(i => i.category === category).length})</span>
+                    </div>
+
+                    {/* Items within category */}
+                    <div className="p-3 space-y-2">
+                      {orderedMenu.filter(i => i.category === category).map((item, itemIndex) => {
+                        const globalIndex = orderedMenu.findIndex(i => i._id === item._id);
+                        return (
+                          <div
+                            key={item._id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              dragItem.current = globalIndex;
+                              dragType.current = 'item';
+                              dragItemCategory.current = category;
+                            }}
+                            onDragEnter={(e) => {
+                              e.stopPropagation();
+                              dragOverItem.current = globalIndex;
+                            }}
+                            onDragEnd={(e) => {
+                              e.stopPropagation();
+                              if (dragType.current !== 'item') return;
+                              if (dragItemCategory.current !== category) return;
+                              const menu = [...orderedMenu];
+                              const [moved] = menu.splice(dragItem.current, 1);
+                              menu.splice(dragOverItem.current, 0, moved);
+                              setOrderedMenu(menu);
+                              dragItem.current = null;
+                              dragOverItem.current = null;
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing hover:bg-gray-100 transition-colors"
+                          >
+                            <GripVertical size={16} className="text-gray-400 shrink-0" />
+                            {item.image && (
+                              <img src={item.image} alt={item.name} className="w-10 h-10 rounded object-cover shrink-0"
+                                onError={(e) => { e.target.style.display = 'none'; }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-800 text-sm truncate">{item.name}</p>
+                              <p className="text-xs text-gray-500">₹{item.price} · {item.isVeg ? 'Veg' : 'Non-Veg'}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* NORMAL VIEW */
+              <>
+                <div className="space-y-8">
+                  {(() => {
+                    const filtered = restaurant.menu.filter(item =>
+                      !menuSearchQuery ||
+                      item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                      item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+                      item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
+                    );
+                    const categories = [...new Set(filtered.map(item => item.category).filter(Boolean))];
+                    return categories.map(category => (
+                      <div key={category}>
+                        <h3 className="text-lg font-bold text-gray-800 mb-3 pb-2 border-b border-gray-200 flex items-center gap-2">
+                          <span>{category}</span>
+                          <span className="text-sm font-normal text-gray-400">({filtered.filter(i => i.category === category).length})</span>
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                          {filtered.filter(item => item.category === category).map((item) => (
+                            <div key={item._id} className={`bg-white rounded-lg shadow-md overflow-hidden ${!item.available ? 'opacity-60 border-2 border-red-200' : ''}`}>
+                              {!item.available && (
+                                <div className="bg-red-500 text-white text-xs px-2 py-1 text-center">UNAVAILABLE - Removed from menu</div>
+                              )}
+                              {item.image && (
+                                <div className="h-32 bg-gray-100">
+                                  <img src={item.image} alt={item.name}
+                                    className={`w-full h-full object-cover ${!item.available ? 'grayscale' : ''}`}
+                                    onError={(e) => { e.target.style.display = 'none'; }} />
+                                </div>
+                              )}
+                              <div className="p-4">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h3 className={`font-bold ${!item.available ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                                    {menuSearchQuery ? (
+                                      <span dangerouslySetInnerHTML={{ __html: item.name.replace(new RegExp(`(${menuSearchQuery})`, 'gi'), '<mark class="bg-yellow-200 px-1 rounded">$1</mark>') }} />
+                                    ) : item.name}
+                                  </h3>
+                                  <div className="flex gap-2">
+                                    <FeatureGuard feature="menuManagement">
+                                      <button onClick={() => { setEditingItem(item); setMenuForm(item); setShowMenuForm(true); }} className="text-blue-500 hover:text-blue-700" title="Edit item">
+                                        <Edit size={18} />
+                                      </button>
+                                    </FeatureGuard>
+                                    <FeatureGuard feature="menuManagement">
+                                      <button onClick={() => deleteMenuItem(item._id)} className="text-red-500 hover:text-red-700" title="Delete item">
+                                        <Trash2 size={18} />
+                                      </button>
+                                    </FeatureGuard>
+                                  </div>
+                                </div>
+                                <p className={`text-sm mb-2 ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>{item.description}</p>
+                                <div className="flex justify-between items-center">
+                                  <span className={`text-lg font-bold ${!item.available ? 'text-gray-400 line-through' : 'text-primary'}`}>₹{item.price}</span>
+                                  <div>
+                                    {item.isVeg ? (
+                                      <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-green-600'}`}>Veg</span>
+                                    ) : (
+                                      <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-red-600'}`}>Non-Veg</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {!item.available && <div className="mt-1 text-xs text-red-500 font-medium text-right">In Order History</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+
+                {menuSearchQuery && restaurant.menu.filter(item =>
                   item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
                   item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
                   item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
-                )
-                .map((item) => (
-                <div key={item._id} className={`bg-white rounded-lg shadow-md overflow-hidden ${
-                  !item.available ? 'opacity-60 border-2 border-red-200' : ''
-                }`}>
-                  {/* Unavailable Badge */}
-                  {!item.available && (
-                    <div className="bg-red-500 text-white text-xs px-2 py-1 text-center">
-                      UNAVAILABLE - Removed from menu
-                    </div>
-                  )}
-                  
-                  {/* Item Image */}
-                  {item.image && (
-                    <div className="h-32 bg-gray-100">
-                      <img 
-                        src={item.image} 
-                        alt={item.name} 
-                        className={`w-full h-full object-cover ${!item.available ? 'grayscale' : ''}`}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  )}
-                  
-                  <div className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className={`font-bold ${!item.available ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
-                        {menuSearchQuery ? (
-                          <span dangerouslySetInnerHTML={{
-                            __html: item.name.replace(
-                              new RegExp(`(${menuSearchQuery})`, 'gi'),
-                              '<mark class="bg-yellow-200 px-1 rounded">$1</mark>'
-                            )
-                          }} />
-                        ) : (
-                          item.name
-                        )}
-                      </h3>
-                      <div className="flex gap-2">
-                        <FeatureGuard feature="menuManagement">
-                          <button
-                            onClick={() => {
-                              setEditingItem(item);
-                              setMenuForm(item);
-                              setShowMenuForm(true);
-                            }}
-                            className="text-blue-500 hover:text-blue-700"
-                            title={!item.available ? 'Edit unavailable item' : 'Edit item'}
-                          >
-                            <Edit size={18} />
-                          </button>
-                        </FeatureGuard>
-                        <FeatureGuard feature="menuManagement">
-                          <button
-                            onClick={() => deleteMenuItem(item._id)}
-                            className="text-red-500 hover:text-red-700"
-                            title={!item.available ? 'Permanently delete (if possible)' : 'Delete item'}
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </FeatureGuard>
-                      </div>
-                    </div>
-                    <p className={`text-sm mb-2 ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {menuSearchQuery && item.description ? (
-                        <span dangerouslySetInnerHTML={{
-                          __html: item.description.replace(
-                            new RegExp(`(${menuSearchQuery})`, 'gi'),
-                            '<mark class="bg-yellow-200 px-1 rounded">$1</mark>'
-                          )
-                        }} />
-                      ) : (
-                        item.description
-                      )}
-                    </p>
-                    <div className="flex justify-between items-center">
-                      <span className={`text-lg font-bold ${!item.available ? 'text-gray-400 line-through' : 'text-primary'}`}>
-                        ₹{item.price}
-                      </span>
-                      <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {menuSearchQuery ? (
-                          <span dangerouslySetInnerHTML={{
-                            __html: item.category.replace(
-                              new RegExp(`(${menuSearchQuery})`, 'gi'),
-                              '<mark class="bg-yellow-200 px-1 rounded">$1</mark>'
-                            )
-                          }} />
-                        ) : (
-                          item.category
-                        )}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex justify-between items-center">
-                      <div>
-                        {item.isVeg ? (
-                          <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-green-600'}`}>
-                            🌱 Veg
-                          </span>
-                        ) : (
-                          <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-red-600'}`}>
-                            🍖 Non-Veg
-                          </span>
-                        )}
-                      </div>
-                      {!item.available && (
-                        <span className="text-xs text-red-500 font-medium">
-                          In Order History
-                        </span>
-                      )}
-                    </div>
+                ).length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-4xl mb-4"></div>
+                    <div className="text-lg font-medium">No menu items found</div>
+                    <div className="text-sm mt-2">Try searching with different keywords or check your spelling</div>
+                    <button onClick={() => setMenuSearchQuery('')} className="mt-4 text-primary hover:text-red-600 font-medium">Clear search</button>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            {/* No results message */}
-            {menuSearchQuery && restaurant.menu
-              .filter(item => 
-                item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
-                item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
-                item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
-              ).length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-4xl mb-4">🔍</div>
-                <div className="text-lg font-medium">No menu items found</div>
-                <div className="text-sm mt-2">Try searching with different keywords or check your spelling</div>
-                <button
-                  onClick={() => setMenuSearchQuery('')}
-                  className="mt-4 text-primary hover:text-red-600 font-medium"
-                >
-                  Clear search
-                </button>
-              </div>
+                )}
+              </>
             )}
 
-            {showMenuForm && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            {showMenuForm && (              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-lg p-4 sm:p-6 md:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">
                     {editingItem ? 'Edit Menu Item' : 'Add Menu Item'}
@@ -3000,7 +3016,7 @@ export default function RestaurantDashboard() {
                             onChange={() => setMenuForm({...menuForm, isVeg: true})}
                             className="w-4 h-4"
                           />
-                          <span className="text-green-600">🌱 Vegetarian</span>
+                          <span className="text-green-600">Vegetarian</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -3009,7 +3025,7 @@ export default function RestaurantDashboard() {
                             onChange={() => setMenuForm({...menuForm, isVeg: false})}
                             className="w-4 h-4"
                           />
-                          <span className="text-red-600">🍖 Non-Vegetarian</span>
+                          <span className="text-red-600">Non-Vegetarian</span>
                         </label>
                       </div>
                     </div>
@@ -3061,7 +3077,7 @@ export default function RestaurantDashboard() {
                     console.log('Current restaurant:', restaurant);
                     console.log('Restaurant ID:', localStorage.getItem('restaurantId'));
                     console.log('Current tables:', restaurant.tables);
-                    alert(`Restaurant ID: ${localStorage.getItem('restaurantId')}\nCurrent tables: ${restaurant.tables}`);
+                    showToast(`ID: ${localStorage.getItem('restaurantId')} | Tables: ${restaurant.tables}`);
                   }}
                   className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 text-sm"
                   title="Debug Info"
@@ -3144,140 +3160,121 @@ export default function RestaurantDashboard() {
         )}
 
         {activeTab === 'history' && (
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800">📜 Order History</h2>
-              <p className="text-gray-600 text-xs sm:text-sm">
-                Completed orders: {orders.filter(o => o.status === 'completed').length}
-              </p>
+          <div>
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">Order History</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Completed orders: {orders.filter(o => o.status === 'completed').length}</p>
+              </div>
             </div>
-            
-            {/* Group completed orders by table/session */}
-            {(() => {
-              const completedOrders = orders.filter(order => order.status === 'completed');
-              
-              // Group dine-in orders by table and completion time (within 1 minute = same bill)
-              const groupedOrders = [];
-              const processedIds = new Set();
-              
-              completedOrders.forEach(order => {
-                if (processedIds.has(order._id)) return;
-                
-                if (order.orderType === 'dine-in') {
-                  // Find all orders from same table completed around the same time
-                  const relatedOrders = completedOrders.filter(o => 
-                    o.orderType === 'dine-in' &&
-                    o.tableNumber === order.tableNumber &&
-                    Math.abs(new Date(o.updatedAt) - new Date(order.updatedAt)) < 60000 // Within 1 minute
-                  );
-                  
-                  relatedOrders.forEach(o => processedIds.add(o._id));
-                  groupedOrders.push(relatedOrders);
-                } else {
-                  // Delivery orders are individual
-                  processedIds.add(order._id);
-                  groupedOrders.push([order]);
-                }
-              });
-              
-              return groupedOrders.map((orderGroup, groupIdx) => {
-                const firstOrder = orderGroup[0];
-                const isDineIn = firstOrder.orderType === 'dine-in';
-                
-                // Combine items if multiple orders
-                const combinedItems = {};
-                let totalAmount = 0;
-                
-                orderGroup.forEach(order => {
-                  totalAmount += order.totalAmount;
-                  order.items.forEach(item => {
-                    const key = item.name;
-                    if (combinedItems[key]) {
-                      combinedItems[key].quantity += item.quantity;
-                      combinedItems[key].total += item.price * item.quantity;
+
+            {orders.filter(o => o.status === 'completed').length === 0 ? (
+              <div className="text-center py-16 text-gray-400 bg-white rounded-xl">
+                <p className="text-sm">No completed orders yet</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                {/* Table header */}
+                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <div className="col-span-3">Order</div>
+                  <div className="col-span-2">Customer</div>
+                  <div className="col-span-3">Items</div>
+                  <div className="col-span-2 text-right">Amount</div>
+                  <div className="col-span-1 text-center">Pay</div>
+                  <div className="col-span-1 text-right">Print</div>
+                </div>
+
+                {/* Rows */}
+                {(() => {
+                  const completedOrders = orders.filter(o => o.status === 'completed');
+                  const groupedOrders = [];
+                  const processedIds = new Set();
+
+                  completedOrders.forEach(order => {
+                    if (processedIds.has(order._id)) return;
+                    if (order.orderType === 'dine-in') {
+                      const related = completedOrders.filter(o =>
+                        o.orderType === 'dine-in' &&
+                        o.tableNumber === order.tableNumber &&
+                        Math.abs(new Date(o.updatedAt) - new Date(order.updatedAt)) < 60000
+                      );
+                      related.forEach(o => processedIds.add(o._id));
+                      groupedOrders.push(related);
                     } else {
-                      combinedItems[key] = {
-                        name: item.name,
-                        price: item.price,
-                        quantity: item.quantity,
-                        total: item.price * item.quantity
-                      };
+                      processedIds.add(order._id);
+                      groupedOrders.push([order]);
                     }
                   });
-                });
-                
-                return (
-                  <div key={groupIdx} className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-800">
-                          {isDineIn ? (
-                            firstOrder.source === 'staff' ? 
-                              `📞 Staff - Table ${firstOrder.tableNumber}` : 
-                              `🍽️ Table ${firstOrder.tableNumber}`
-                          ) : (
-                            firstOrder.source === 'staff' ? (
-                              firstOrder.orderType === 'takeaway' ? '📞 Staff - Takeaway' :
-                              firstOrder.orderType === 'delivery' ? '📞 Staff - Delivery' :
-                              '📞 Staff Order'
-                            ) : (
-                              '🚚 Delivery Order'
-                            )
+
+                  return groupedOrders.map((orderGroup, idx) => {
+                    const first = orderGroup[0];
+                    const isDineIn = first.orderType === 'dine-in';
+                    const combinedItems = {};
+                    let total = 0;
+                    orderGroup.forEach(o => {
+                      total += o.totalAmount;
+                      o.items.forEach(i => {
+                        if (combinedItems[i.name]) { combinedItems[i.name].qty += i.quantity; combinedItems[i.name].amt += i.price * i.quantity; }
+                        else combinedItems[i.name] = { qty: i.quantity, amt: i.price * i.quantity };
+                      });
+                    });
+                    const itemList = Object.entries(combinedItems);
+                    const label = isDineIn
+                      ? `${first.source === 'staff' ? 'Staff · ' : ''}Table ${first.tableNumber}`
+                      : first.orderType === 'takeaway' ? 'Takeaway'
+                      : first.orderType === 'delivery' ? 'Delivery'
+                      : 'Order';
+
+                    return (
+                      <div key={idx} className={`grid grid-cols-12 gap-2 px-4 py-3 items-start border-b border-gray-50 hover:bg-gray-50 transition-colors text-sm ${idx % 2 === 0 ? '' : 'bg-gray-50/30'}`}>
+                        {/* Order */}
+                        <div className="col-span-3">
+                          <p className="font-semibold text-gray-800">{label}</p>
+                          <p className="text-xs text-gray-400">{new Date(first.updatedAt).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</p>
+                          {first.paymentMethod && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${first.paymentMethod === 'online' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>
+                              {first.paymentMethod}
+                            </span>
                           )}
-                          {orderGroup.length > 1 && ` (${orderGroup.length} orders)`}
-                        </h3>
-                        <p className="text-sm text-gray-600">{firstOrder.customerName} • {firstOrder.customerPhone}</p>
-                        <p className="text-xs text-gray-500">{new Date(firstOrder.updatedAt).toLocaleString()}</p>
-                        {firstOrder.deliveryAddress && (
-                          <p className="text-sm text-gray-600 mt-1">📍 {firstOrder.deliveryAddress}</p>
-                        )}
-                      </div>
-                      <span className="px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
-                        Completed
-                      </span>
-                    </div>
-
-                    <div className="mb-4">
-                      {Object.values(combinedItems).map((item, idx) => (
-                        <div key={idx} className="flex justify-between py-1 text-sm">
-                          <span>{item.name} x {item.quantity}</span>
-                          <span>₹{item.total}</span>
                         </div>
-                      ))}
-                      <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                        <span>Total</span>
-                        <span className="text-primary">₹{totalAmount}</span>
+                        {/* Customer */}
+                        <div className="col-span-2">
+                          <p className="text-gray-700 truncate">{first.customerName || '—'}</p>
+                          {first.customerPhone && <p className="text-xs text-gray-400">{first.customerPhone}</p>}
+                        </div>
+                        {/* Items */}
+                        <div className="col-span-3 space-y-0.5">
+                          {itemList.slice(0, 3).map(([name, d]) => (
+                            <p key={name} className="text-gray-600 text-xs truncate">{name} ×{d.qty}</p>
+                          ))}
+                          {itemList.length > 3 && <p className="text-xs text-gray-400">+{itemList.length - 3} more</p>}
+                        </div>
+                        {/* Amount */}
+                        <div className="col-span-2 text-right">
+                          <p className="font-bold text-primary">₹{total}</p>
+                        </div>
+                        {/* Pay status */}
+                        <div className="col-span-1 text-center">
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${first.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {first.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                          </span>
+                        </div>
+                        {/* Print */}
+                        <div className="col-span-1 text-right">
+                          <button
+                            onClick={() => orderGroup.length === 1 ? printIndividualReceipt(first) : printReceipt(isDineIn ? first.tableNumber : 'Order', orderGroup, total)}
+                            className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors"
+                            title="Print receipt"
+                          >
+                            <Printer size={16} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Print Receipt Button for History */}
-                    <div className="mt-3">
-                      <button
-                        onClick={() => {
-                          if (orderGroup.length === 1) {
-                            // Single order - print individual receipt
-                            printIndividualReceipt(orderGroup[0]);
-                          } else {
-                            // Multiple orders - print combined receipt like table bill
-                            printReceipt(
-                              isDineIn ? firstOrder.tableNumber : 'Delivery', 
-                              orderGroup, 
-                              totalAmount
-                            );
-                          }
-                        }}
-                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
-                      >
-                        🖨️ Print Receipt
-                      </button>
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-            
-            {orders.filter(o => o.status === 'completed').length === 0 && (
-              <div className="text-center py-12 text-gray-500">No completed orders yet</div>
+                    );
+                  });
+                })()}
+              </div>
             )}
           </div>
         )}
@@ -3344,7 +3341,7 @@ export default function RestaurantDashboard() {
                     
                     {!item.isAnonymous && (
                       <div className="text-sm text-gray-600 mb-2">
-                        {item.customerPhone && `📞 ${item.customerPhone}`}
+                        {item.customerPhone && `${item.customerPhone}`}
                         {item.customerEmail && ` | 📧 ${item.customerEmail}`}
                         {item.tableNumber && ` | 🪑 Table ${item.tableNumber}`}
                       </div>
@@ -3461,377 +3458,166 @@ export default function RestaurantDashboard() {
         )}
 
         {/* Staff Order Tab */}
+        {/* Staff Order Tab */}
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800">👥 Staff Order</h2>
-            </div>
-
-            {/* Order Form */}
-            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">📝 New Order</h3>
-              
-              {/* Customer Information */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
-                  <input
-                    type="text"
-                    value={receptionistOrder.customerName}
-                    onChange={(e) => setReceptionistOrder({...receptionistOrder, customerName: e.target.value})}
-                    placeholder="Enter customer name (optional)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number (Optional)</label>
-                  <input
-                    type="tel"
-                    value={receptionistOrder.customerPhone}
-                    onChange={(e) => setReceptionistOrder({...receptionistOrder, customerPhone: e.target.value})}
-                    placeholder="Enter phone number (optional)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assign Waiter (Optional)</label>
-                  <select
-                    value={receptionistOrder.waiterId}
-                    onChange={(e) => {
-                      const selectedWaiter = availableWaiters.find(w => w.id === parseInt(e.target.value));
-                      setReceptionistOrder({
-                        ...receptionistOrder, 
-                        waiterId: e.target.value,
-                        waiterNumber: selectedWaiter?.waiter_number || ''
-                      });
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">Select Waiter</option>
-                    {availableWaiters.map(waiter => (
-                      <option key={waiter.id} value={waiter.id}>
-                        {waiter.waiter_number} - {waiter.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Order Type Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Order Type *</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setReceptionistOrder({...receptionistOrder, orderType: 'takeaway', deliveryAddress: ''})}
-                    className={`p-3 rounded-lg border-2 font-semibold text-sm ${
-                      receptionistOrder.orderType === 'takeaway'
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-primary'
-                    }`}
-                  >
-                    🥡 Takeaway/Parcel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReceptionistOrder({...receptionistOrder, orderType: 'delivery', deliveryAddress: ''})}
-                    className={`p-3 rounded-lg border-2 font-semibold text-sm ${
-                      receptionistOrder.orderType === 'delivery'
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-primary'
-                    }`}
-                  >
-                    🚚 Home Delivery
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReceptionistOrder({...receptionistOrder, orderType: 'dine-in', deliveryAddress: ''})}
-                    className={`p-3 rounded-lg border-2 font-semibold text-sm ${
-                      receptionistOrder.orderType === 'dine-in'
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-primary'
-                    }`}
-                  >
-                    🍽️ Dine-In
-                  </button>
-                </div>
-              </div>
-
-              {/* Delivery Address (if delivery selected) */}
-              {receptionistOrder.orderType === 'delivery' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Delivery Address *</label>
-                  <textarea
-                    value={receptionistOrder.deliveryAddress}
-                    onChange={(e) => setReceptionistOrder({...receptionistOrder, deliveryAddress: e.target.value})}
-                    placeholder="Enter complete delivery address"
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
-                  />
-                </div>
-              )}
-
-              {/* Table Number (if dine-in selected) */}
-              {receptionistOrder.orderType === 'dine-in' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Table Number *</label>
-                  <select
-                    value={receptionistOrder.tableNumber}
-                    onChange={(e) => setReceptionistOrder({...receptionistOrder, tableNumber: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
-                  >
-                    <option value="">Select Table</option>
-                    {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map((tableNum) => (
-                      <option key={tableNum} value={tableNum}>Table {tableNum}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Menu Items Selection */}
-              <div className="mb-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-3">Select Menu Items</h4>
-                
-                {/* Search Bar */}
-                <div className="mb-4">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search menu items..."
-                      value={staffSearchQuery}
-                      onChange={(e) => setStaffSearchQuery(e.target.value)}
-                      className="w-full px-3 py-2 pl-9 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </div>
-                    {staffSearchQuery && (
-                      <button
-                        onClick={() => setStaffSearchQuery('')}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Category Filter */}
-                <div className="mb-4">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setSelectedCategory('all')}
-                      className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                        selectedCategory === 'all'
-                          ? 'bg-primary text-white'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                    >
-                      All Items
+          <div className="flex gap-0 h-[calc(100vh-140px)] -m-3 sm:-m-4 overflow-hidden">
+            {/* LEFT: Menu Panel */}
+            <div className="flex flex-col w-full lg:w-[58%] bg-gray-50 border-r border-gray-200 overflow-hidden">
+              {/* Order config bar */}
+              <div className="bg-white border-b border-gray-100 px-4 py-3 flex flex-wrap gap-2 items-center shrink-0">
+                {/* Order type */}
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                  {[{id:'takeaway',label:'Takeaway'},{id:'delivery',label:'Delivery'},{id:'dine-in',label:'Dine-In'}].map(t => (
+                    <button key={t.id} onClick={() => setReceptionistOrder({...receptionistOrder, orderType: t.id, deliveryAddress: ''})}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {t.label}
                     </button>
-                    {[...new Set(restaurant?.menu?.filter(item => item.available).map(item => item.category) || [])].map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                          selectedCategory === category
-                            ? 'bg-primary text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {category}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Search Results Info */}
-                {staffSearchQuery && (
-                  <div className="mb-3 text-sm text-gray-600">
-                    {(() => {
-                      const searchResults = restaurant?.menu
-                        ?.filter(item => item.available && (selectedCategory === 'all' || item.category === selectedCategory))
-                        ?.filter(item =>
-                          item.name.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                          item.description?.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                          item.category.toLowerCase().includes(staffSearchQuery.toLowerCase())
-                        ) || [];
-                      
-                      return searchResults.length > 0 ? (
-                        <p>Found {searchResults.length} item{searchResults.length !== 1 ? 's' : ''} for "{staffSearchQuery}"</p>
-                      ) : (
-                        <p>No items found for "{staffSearchQuery}". Try a different search term.</p>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {/* Menu Items Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-                  {restaurant?.menu
-                    ?.filter(item => item.available && (selectedCategory === 'all' || item.category === selectedCategory))
-                    ?.filter(item => {
-                      if (!staffSearchQuery.trim()) return true;
-                      return item.name.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                             item.description?.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                             item.category.toLowerCase().includes(staffSearchQuery.toLowerCase());
-                    })
-                    ?.map((item) => (
-                    <div key={item._id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <h5 className="font-semibold text-gray-800 text-sm">{item.name}</h5>
-                          <p className="text-xs text-gray-600">{item.category}</p>
-                          <p className="text-sm font-bold text-primary">₹{item.price}</p>
-                        </div>
-                        {item.image && (
-                          <img 
-                            src={item.image} 
-                            alt={item.name}
-                            className="w-12 h-12 object-cover rounded-lg ml-2"
-                          />
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateReceptionistOrderItem(item, -1)}
-                            className="w-6 h-6 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center justify-center text-sm font-bold"
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center font-semibold">
-                            {receptionistOrder.items.find(orderItem => orderItem._id === item._id)?.quantity || 0}
-                          </span>
-                          <button
-                            onClick={() => updateReceptionistOrderItem(item, 1)}
-                            className="w-6 h-6 rounded-full bg-primary text-white hover:bg-red-600 flex items-center justify-center text-sm font-bold"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    </div>
                   ))}
                 </div>
+                {/* Table select for dine-in */}
+                {receptionistOrder.orderType === 'dine-in' && (
+                  <select value={receptionistOrder.tableNumber} onChange={e => setReceptionistOrder({...receptionistOrder, tableNumber: e.target.value})}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary bg-white">
+                    <option value="">Table #</option>
+                    {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => <option key={n} value={n}>Table {n}</option>)}
+                  </select>
+                )}
+                {/* Delivery address */}
+                {receptionistOrder.orderType === 'delivery' && (
+                  <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder({...receptionistOrder, deliveryAddress: e.target.value})}
+                    placeholder="Delivery address" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary flex-1 min-w-[160px]" />
+                )}
+                {/* Waiter */}
+                <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder({...receptionistOrder, waiterId: e.target.value, waiterNumber: w?.waiter_number||''}); }}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary bg-white">
+                  <option value="">Waiter</option>
+                  {availableWaiters.map(w => <option key={w.id} value={w.id}>{w.waiter_number} {w.name}</option>)}
+                </select>
+                {/* Customer name */}
+                <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder({...receptionistOrder, customerName: e.target.value})}
+                  placeholder="Customer name" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary min-w-[120px]" />
               </div>
 
-              {/* Order Summary */}
-              {receptionistOrder.items.length > 0 && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="text-md font-semibold text-gray-800 mb-3">Order Summary</h4>
-                  <div className="space-y-3">
-                    {receptionistOrder.items.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm">
-                        <div className="flex-1">
-                          <span className="font-medium text-gray-800">{item.name}</span>
-                          <div className="text-sm text-gray-600">₹{item.price} each</div>
+              {/* Search */}
+              <div className="px-3 pt-3 pb-2 shrink-0">
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                  <Search size={14} className="text-gray-400 shrink-0" />
+                  <input value={staffSearchQuery} onChange={e => setStaffSearchQuery(e.target.value)} placeholder="Search items..."
+                    className="flex-1 text-sm outline-none text-gray-700 placeholder-gray-400 bg-transparent" />
+                  {staffSearchQuery && <button onClick={() => setStaffSearchQuery('')}><X size={14} className="text-gray-400" /></button>}
+                </div>
+              </div>
+
+              {/* Category tabs */}
+              <div className="px-3 pb-2 shrink-0 flex gap-2 overflow-x-auto hide-scrollbar">
+                {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category) || [])]].map(cat => (
+                  <button key={cat} onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-primary'}`}>
+                    {cat === 'all' ? 'All' : cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Menu grid */}
+              <div className="flex-1 overflow-y-auto px-3 pb-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {restaurant?.menu?.filter(i => i.available)
+                    .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
+                    .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()) || i.category?.toLowerCase().includes(staffSearchQuery.toLowerCase()))
+                    .map(item => {
+                      const inOrder = receptionistOrder.items.find(x => x._id === item._id);
+                      return (
+                        <div key={item._id} onClick={() => updateReceptionistOrderItem(item, 1)}
+                          className="bg-white rounded-xl border border-gray-100 p-3 cursor-pointer hover:border-primary hover:shadow-md transition-all active:scale-95 relative">
+                          {item.image && <img src={item.image} alt={item.name} className="w-full h-20 object-cover rounded-lg mb-2" onError={e => e.target.style.display='none'} />}
+                          <p className="font-semibold text-gray-800 text-sm leading-tight">{item.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{item.category} · {item.isVeg ? '🟢' : '🔴'}</p>
+                          <p className="text-primary font-bold text-sm mt-1">₹{item.price}</p>
+                          {inOrder && (
+                            <span className="absolute top-2 right-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{inOrder.quantity}</span>
+                          )}
                         </div>
-                        
-                        {/* Quantity Controls */}
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => updateReceptionistOrderItem(item, -1)}
-                              className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center justify-center text-sm font-bold transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="w-8 text-center font-semibold text-gray-800">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => updateReceptionistOrderItem(item, 1)}
-                              className="w-7 h-7 rounded-full bg-primary text-white hover:bg-red-600 flex items-center justify-center text-sm font-bold transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
-                          
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => {
-                              setReceptionistOrder(prevOrder => ({
-                                ...prevOrder,
-                                items: prevOrder.items.filter((_, i) => i !== index)
-                              }));
-                            }}
-                            className="w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-sm font-bold transition-colors"
-                            title="Remove item"
-                          >
-                            ×
-                          </button>
-                          
-                          {/* Item Total */}
-                          <div className="min-w-[60px] text-right">
-                            <span className="font-semibold text-gray-800">₹{item.price * item.quantity}</span>
-                          </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT: Cart / Order Summary */}
+            <div className="hidden lg:flex lg:flex-col lg:w-[42%] bg-white overflow-hidden">
+              {/* Cart header */}
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg">Current Order</h3>
+                  <p className="text-xs text-gray-400 capitalize">{receptionistOrder.orderType}{receptionistOrder.tableNumber ? ` · Table ${receptionistOrder.tableNumber}` : ''}{receptionistOrder.customerName ? ` · ${receptionistOrder.customerName}` : ''}</p>
+                </div>
+                {receptionistOrder.items.length > 0 && (
+                  <button onClick={clearReceptionistOrder} className="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear</button>
+                )}
+              </div>
+
+              {/* Cart items */}
+              <div className="flex-1 overflow-y-auto px-4 py-3">
+                {receptionistOrder.items.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-300">
+                    <ShoppingCart size={48} className="mb-3 opacity-30" />
+                    <p className="text-sm">Add items from the menu</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {receptionistOrder.items.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3 py-2 border-b border-gray-50">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                          <p className="text-xs text-gray-400">₹{item.price} each</p>
                         </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-600">-</button>
+                          <span className="w-6 text-center text-sm font-bold text-gray-800">{item.quantity}</span>
+                          <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-6 h-6 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">+</button>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-700 w-14 text-right shrink-0">₹{item.price * item.quantity}</p>
+                        <button onClick={() => setReceptionistOrder(prev => ({...prev, items: prev.items.filter((_,i) => i !== idx)}))} className="text-gray-300 hover:text-red-400 shrink-0"><X size={14} /></button>
                       </div>
                     ))}
-                    <div className="border-t pt-3 flex justify-between font-bold text-lg bg-white p-3 rounded-lg">
-                      <span>Total</span>
-                      <span className="text-primary">₹{receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
-                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
+              <div className="px-4 py-2 shrink-0">
+                <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder({...receptionistOrder, specialInstructions: e.target.value})}
+                  placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* Total & Actions */}
+              {receptionistOrder.items.length > 0 && (
+                <div className="px-4 pb-4 pt-2 border-t border-gray-100 shrink-0">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-gray-500 text-sm">{receptionistOrder.items.reduce((s,i) => s + i.quantity, 0)} items</span>
+                    <span className="text-2xl font-bold text-gray-900">₹{receptionistOrder.items.reduce((s,i) => s + i.price * i.quantity, 0)}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-orange-600 transition-colors">KOT</button>
+                    <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors">Bill</button>
+                    <button onClick={clearReceptionistOrder} className="bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">Save</button>
                   </div>
                 </div>
               )}
-
-              {/* Special Instructions */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Special Instructions (Optional)</label>
-                <textarea
-                  value={receptionistOrder.specialInstructions}
-                  onChange={(e) => setReceptionistOrder({...receptionistOrder, specialInstructions: e.target.value})}
-                  placeholder="Any special requests or cooking instructions..."
-                  rows="2"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              {/* Print Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={printStaffKOTOnly}
-                  disabled={receptionistOrder.items.length === 0}
-                  className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  🍳 Print KOT
-                </button>
-                <button
-                  onClick={printStaffBillOnly}
-                  disabled={receptionistOrder.items.length === 0}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 px-6 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  🖨️ Print Bill
-                </button>
-                <button
-                  onClick={clearReceptionistOrder}
-                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 font-semibold"
-                >
-                  💾 Save & Clear
-                </button>
-              </div>
-
-              {/* Print Options Info */}
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <h5 className="font-semibold text-blue-800 mb-2">🖨️ Print & Save Workflow</h5>
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• <strong>🍳 Print KOT</strong> - Print kitchen ticket (unlimited prints)</li>
-                  <li>• <strong>🖨️ Print Bill</strong> - Print customer receipt (unlimited prints)</li>
-                  <li>• <strong>💾 Save & Clear</strong> - Save order to history and clear form</li>
-                  <li>• <strong>Form Persistence</strong> - Data stays until you click Save & Clear</li>
-                  <li>• <strong>Multiple Prints</strong> - Print as many times as needed before saving</li>
-                </ul>
-              </div>
             </div>
+
+            {/* Mobile: Cart button + bottom sheet handled via successMessage */}
+            {receptionistOrder.items.length > 0 && (
+              <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 z-20">
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">{receptionistOrder.items.reduce((s,i) => s + i.quantity,0)} items</p>
+                  <p className="font-bold text-gray-900">₹{receptionistOrder.items.reduce((s,i) => s + i.price * i.quantity,0)}</p>
+                </div>
+                <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
+                <button onClick={printStaffBillOnly} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
+                <button onClick={clearReceptionistOrder} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Save</button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -4177,6 +3963,169 @@ export default function RestaurantDashboard() {
                   Save Changes
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Table Payment Modal */}
+      {clearTableModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+
+            {!onlinePayStep ? (
+              <>
+                <h2 className="text-xl font-bold text-gray-800 mb-1">Clear Table {clearTableModal.tableNumber}</h2>
+                <p className="text-gray-500 text-sm mb-5">Select payment method to complete and clear this table.</p>
+
+                {/* Bill summary */}
+                <div className="bg-gray-50 rounded-xl p-4 mb-5 text-sm space-y-1">
+                  {(() => {
+                    const allItems = {};
+                    clearTableModal.tableOrders.forEach(order => {
+                      order.items.forEach(item => {
+                        if (allItems[item.name]) {
+                          allItems[item.name].quantity += item.quantity;
+                          allItems[item.name].total += item.price * item.quantity;
+                        } else {
+                          allItems[item.name] = { quantity: item.quantity, total: item.price * item.quantity };
+                        }
+                      });
+                    });
+                    return Object.entries(allItems).map(([name, d]) => (
+                      <div key={name} className="flex justify-between text-gray-600">
+                        <span>{name} × {d.quantity}</span>
+                        <span>₹{d.total}</span>
+                      </div>
+                    ));
+                  })()}
+                  <div className="border-t pt-2 flex justify-between font-bold text-gray-800 text-base">
+                    <span>Total</span>
+                    <span className="text-primary">₹{clearTableModal.totalAmount}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-5">
+                  <button
+                    onClick={() => { setOnlinePayStep(true); setOnlinePayType('upi'); setUtrNumber(''); }}
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all text-left"
+                  >
+                    <div>
+                      <div className="font-semibold text-gray-800">Online Payment</div>
+                      <div className="text-xs text-gray-500">UPI, Net Banking</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => confirmClearTable('cash', null, null)}
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all text-left"
+                  >
+                    <div>
+                      <div className="font-semibold text-gray-800">Cash Payment</div>
+                      <div className="text-xs text-gray-500">Paid at table</div>
+                    </div>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setClearTableModal(null)}
+                  className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setOnlinePayStep(false)}
+                  className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4"
+                >
+                  ← Back
+                </button>
+                <h2 className="text-xl font-bold text-gray-800 mb-1">Online Payment</h2>
+                <p className="text-gray-500 text-sm mb-5">Table {clearTableModal.tableNumber} · ₹{clearTableModal.totalAmount}</p>
+
+                {/* UPI / Net Banking toggle */}
+                <div className="flex gap-2 mb-5">
+                  {['upi', 'netbanking'].map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setOnlinePayType(type)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
+                        onlinePayType === type
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {type === 'upi' ? 'UPI' : 'Net Banking'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* UTR Number (optional) */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR / Reference Number <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={utrNumber}
+                    onChange={e => setUtrNumber(e.target.value)}
+                    placeholder="Enter UTR or transaction ID"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+                  />
+                </div>
+
+                <button
+                  onClick={() => confirmClearTable('online', onlinePayType, utrNumber)}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-xl font-bold hover:from-blue-600 hover:to-blue-700 transition-all mb-3"
+                >
+                  Confirm {onlinePayType === 'upi' ? 'UPI' : 'Net Banking'} Payment
+                </button>
+                <button
+                  onClick={() => { setClearTableModal(null); setOnlinePayStep(false); }}
+                  className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 transition-all animate-fade-in ${
+          toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'
+        }`}>
+          {toast.type === 'error' ? (
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          ) : (
+            <svg className="w-4 h-4 shrink-0 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          )}
+          {toast.message}
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Confirm Action</h3>
+            <p className="text-gray-600 text-sm mb-6">{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-red-600 transition-colors"
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>

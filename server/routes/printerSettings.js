@@ -65,6 +65,8 @@ router.get('/', verifyRestaurantToken, async (req, res) => {
           email: '',
           showGST: false,
           gstNumber: '',
+          gstCharge: 0,
+          serviceCharge: 0,
           billTemplate: 'modern'
         }
       };

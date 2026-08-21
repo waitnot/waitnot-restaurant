@@ -958,7 +958,7 @@ Thank you!`
       </section>
 
       {/* How It Works Section */}
-      <div className="py-20 bg-black text-white">
+      <div id="how-it-works" className="py-20 bg-black text-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-4xl sm:text-5xl font-bold mb-6">

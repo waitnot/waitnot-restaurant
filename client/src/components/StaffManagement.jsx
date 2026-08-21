@@ -30,6 +30,8 @@ export default function StaffManagement({ restaurantId }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [activeTab, setActiveTab] = useState('staff');
+  const [toast, setToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -37,6 +39,11 @@ export default function StaffManagement({ restaurantId }) {
     password: '',
     role: 'waiter'
   });
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     if (restaurantId) {
@@ -54,7 +61,7 @@ export default function StaffManagement({ restaurantId }) {
       setStaff(data);
     } catch (error) {
       console.error('Error fetching staff:', error);
-      alert('Failed to fetch staff members');
+      showToast('Failed to fetch staff members', 'error');
     } finally {
       setLoading(false);
     }
@@ -69,46 +76,40 @@ export default function StaffManagement({ restaurantId }) {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    
-    try {
-      if (editingStaff) {
-        // Update existing staff using restaurant owner endpoint
-        const { data } = await axios.put(`/api/staff/restaurant/${restaurantId}/staff/${editingStaff.id}`, {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          role: formData.role
-        });
-        
-        setStaff(staff.map(s => s.id === editingStaff.id ? data : s));
-        alert('Staff member updated successfully!');
-      } else {
-        // Add new staff
-        const { data } = await axios.post('/api/staff', {
-          restaurantId,
-          ...formData
-        });
-        
-        setStaff([data, ...staff]);
-        alert('Staff member added successfully!');
+    const isEdit = !!editingStaff;
+    setConfirmModal({
+      message: isEdit
+        ? `Update ${formData.name}'s details?`
+        : `Add ${formData.name} as ${formData.role}?`,
+      confirmLabel: isEdit ? 'Update' : 'Add',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          if (isEdit) {
+            const { data } = await axios.put(`/api/staff/restaurant/${restaurantId}/staff/${editingStaff.id}`, {
+              name: formData.name,
+              email: formData.email,
+              phone: formData.phone,
+              role: formData.role
+            });
+            setStaff(staff.map(s => s.id === editingStaff.id ? data : s));
+            showToast('Staff member updated successfully');
+          } else {
+            const { data } = await axios.post('/api/staff', { restaurantId, ...formData });
+            setStaff([data, ...staff]);
+            showToast('Staff member added successfully');
+          }
+          setFormData({ name: '', email: '', phone: '', password: '', role: 'waiter' });
+          setShowAddForm(false);
+          setEditingStaff(null);
+        } catch (error) {
+          console.error('Error saving staff:', error);
+          showToast(error.response?.data?.error || 'Failed to save staff member', 'error');
+        }
       }
-      
-      // Reset form
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        password: '',
-        role: 'waiter'
-      });
-      setShowAddForm(false);
-      setEditingStaff(null);
-    } catch (error) {
-      console.error('Error saving staff:', error);
-      alert(error.response?.data?.error || 'Failed to save staff member');
-    }
+    });
   };
 
   const handleEdit = (staffMember) => {
@@ -123,19 +124,21 @@ export default function StaffManagement({ restaurantId }) {
     setShowAddForm(true);
   };
 
-  const handleDelete = async (staffId, staffName) => {
-    if (!window.confirm(`Are you sure you want to delete ${staffName}?`)) {
-      return;
-    }
-    
-    try {
-      await axios.delete(`/api/staff/restaurant/${restaurantId}/staff/${staffId}`);
-      setStaff(staff.filter(s => s.id !== staffId));
-      alert('Staff member deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting staff:', error);
-      alert(error.response?.data?.error || 'Failed to delete staff member');
-    }
+  const handleDelete = (staffId, staffName) => {
+    setConfirmModal({
+      message: `Delete ${staffName}? This action cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await axios.delete(`/api/staff/restaurant/${restaurantId}/staff/${staffId}`);
+          setStaff(staff.filter(s => s.id !== staffId));
+          showToast('Staff member deleted successfully');
+        } catch (error) {
+          console.error('Error deleting staff:', error);
+          showToast(error.response?.data?.error || 'Failed to delete staff member', 'error');
+        }
+      }
+    });
   };
 
   const toggleStaffStatus = async (staffId, currentStatus) => {
@@ -147,7 +150,7 @@ export default function StaffManagement({ restaurantId }) {
       setStaff(staff.map(s => s.id === staffId ? data : s));
     } catch (error) {
       console.error('Error updating staff status:', error);
-      alert('Failed to update staff status');
+      showToast('Failed to update staff status', 'error');
     }
   };
 
@@ -493,6 +496,45 @@ export default function StaffManagement({ restaurantId }) {
           </div>
         </div>
       )}
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 ${
+          toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'
+        }`}>
+          {toast.type === 'error'
+            ? <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            : <svg className="w-4 h-4 shrink-0 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          }
+          {toast.message}
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Confirm Action</h3>
+            <p className="text-gray-600 text-sm mb-6">{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-red-600 transition-colors"
+              >
+                {confirmModal.confirmLabel || 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// end of file

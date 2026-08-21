@@ -3,8 +3,42 @@ import { orderDB } from '../db.js';
 
 const router = express.Router();
 
+// In-memory rate limiter: max 1 order per session per 60 seconds
+const orderRateLimit = new Map(); // key: sessionKey, value: timestamp
+
+const checkOrderRateLimit = (req, res, next) => {
+  // Build key from restaurantId + tableNumber + IP
+  const { restaurantId, tableNumber, isQrOrder } = req.body;
+  if (!isQrOrder) return next(); // Only limit QR/customer orders
+
+  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+  const key = `${restaurantId}_${tableNumber || 'notbl'}_${ip}`;
+  const now = Date.now();
+  const LIMIT_MS = 60 * 1000; // 60 seconds
+
+  const last = orderRateLimit.get(key);
+  if (last && now - last < LIMIT_MS) {
+    const waitSecs = Math.ceil((LIMIT_MS - (now - last)) / 1000);
+    return res.status(429).json({
+      error: `Order already placed recently. Please wait ${waitSecs} seconds before placing another order.`,
+      retryAfter: waitSecs
+    });
+  }
+
+  orderRateLimit.set(key, now);
+
+  // Clean up old entries every 200 requests
+  if (orderRateLimit.size > 200) {
+    for (const [k, t] of orderRateLimit.entries()) {
+      if (now - t > LIMIT_MS) orderRateLimit.delete(k);
+    }
+  }
+
+  next();
+};
+
 // Create order
-router.post('/', async (req, res) => {
+router.post('/', checkOrderRateLimit, async (req, res) => {
   try {
     console.log('📝 Order creation request received');
     console.log('Order data:', JSON.stringify(req.body, null, 2));

@@ -167,4 +167,21 @@ router.delete('/:id/menu/:menuId', async (req, res) => {
   }
 });
 
+// Reorder menu items (bulk update display_order)
+router.put('/:id/menu-reorder', async (req, res) => {
+  try {
+    const { items } = req.body; // [{ id, displayOrder }]
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
+
+    for (const { id, displayOrder } of items) {
+      await restaurantDB.updateMenuItem(req.params.id, id, { displayOrder });
+    }
+
+    const restaurant = await restaurantDB.findById(req.params.id);
+    res.json(restaurant);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
