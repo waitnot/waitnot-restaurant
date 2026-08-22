@@ -534,9 +534,24 @@ export default function RestaurantDashboard() {
       const items = data.menuItems || data.menu || [];
       if (!items.length) { alert('No menu items found in file.'); return; }
       const restaurantId = localStorage.getItem('restaurantId');
-      setImportProgress({ current: 0, total: items.length });
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
+
+      // Fetch current menu to skip already-imported items (resume support)
+      const { data: currentRestaurant } = await axios.get(`/api/restaurants/${restaurantId}`);
+      const existingNames = new Set(
+        (currentRestaurant.menu || []).map(m => m.name.trim().toLowerCase())
+      );
+
+      const pending = items.filter(item => !existingNames.has((item.name || '').trim().toLowerCase()));
+      const skipped = items.length - pending.length;
+
+      if (!pending.length) {
+        alert('All items already imported. Nothing to do.');
+        return;
+      }
+
+      setImportProgress({ current: 0, total: pending.length });
+      for (let i = 0; i < pending.length; i++) {
+        const item = pending[i];
         await axios.post(`/api/restaurants/${restaurantId}/menu`, {
           name: item.name,
           price: item.price,
@@ -547,13 +562,16 @@ export default function RestaurantDashboard() {
           available: item.available !== undefined ? item.available : true,
           displayOrder: item.displayOrder || null
         });
-        setImportProgress({ current: i + 1, total: items.length });
+        setImportProgress({ current: i + 1, total: pending.length });
       }
       await fetchRestaurant(restaurantId);
-      alert(`✅ Imported ${items.length} menu items successfully!`);
+      const msg = skipped > 0
+        ? `✅ Imported ${pending.length} items. Skipped ${skipped} already existing items.`
+        : `✅ Imported ${pending.length} menu items successfully!`;
+      alert(msg);
     } catch (err) {
       console.error('Import error:', err);
-      alert('Failed to import menu. Please check the file format.');
+      alert('Import failed. Re-import the same file to resume from where it stopped.');
     } finally {
       setImportingMenu(false);
       setImportProgress({ current: 0, total: 0 });
