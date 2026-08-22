@@ -408,6 +408,40 @@ ipcMain.handle('show-message-box', async (event, options) => {
   return result;
 });
 
+// Silent print IPC handler — no dialog
+ipcMain.handle('silent-print', async (event, { html, printerName }) => {
+  return new Promise((resolve) => {
+    const printWin = new BrowserWindow({
+      show: false,
+      webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+
+    printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    printWin.webContents.on('did-finish-load', () => {
+      const options = {
+        silent: true,
+        printBackground: true,
+        deviceName: printerName || '',
+        margins: { marginType: 'none' },
+        pageSize: 'A8' // ~80mm thermal receipt size
+      };
+
+      printWin.webContents.print(options, (success, errorType) => {
+        printWin.close();
+        if (success) resolve({ success: true });
+        else resolve({ success: false, error: errorType });
+      });
+    });
+  });
+});
+
+// Get available printers
+ipcMain.handle('get-printers', async () => {
+  const printers = await mainWindow.webContents.getPrintersAsync();
+  return printers.map(p => ({ name: p.name, isDefault: p.isDefault }));
+});
+
 // Handle certificate errors
 app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
   // In development, ignore certificate errors

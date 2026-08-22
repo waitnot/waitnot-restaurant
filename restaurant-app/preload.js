@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVersion: () => ipcRenderer.invoke('app-version'),
   showMessageBox: (options) => ipcRenderer.invoke('show-message-box', options),
   
+  // Silent direct printing — no dialog
+  silentPrint: (html, printerName) => ipcRenderer.invoke('silent-print', { html, printerName }),
+  getPrinters: () => ipcRenderer.invoke('get-printers'),
+  isElectron: true,
+  
   // Restaurant app specific APIs
   openExternal: (url) => {
     // This will be handled by the main process

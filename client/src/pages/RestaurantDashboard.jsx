@@ -9,6 +9,7 @@ import { trackRestaurantEvent } from '../utils/analytics';
 import notificationSound from '../utils/notificationSound';
 import { getWebSocketUrl, getEnvironmentInfo, getFrontendUrl } from '../config/environment.js';
 import { printCustomBill, getPrinterSettings, loadPrinterSettingsFromAPI } from '../utils/customBillGenerator.js';
+import { smartPrint } from '../utils/qzPrint.js';
 import DiscountManager from '../components/DiscountManager';
 import StaffManagement from '../components/StaffManagement';
 
@@ -172,6 +173,19 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
+
+  // Smart print helper: uses Electron silent print or QZ Tray, falls back to browser dialog
+  const openPrintWindow = (html, type = 'bill') => {
+    smartPrint(html, type).then(r => {
+      if (r.method !== 'browser') console.log(`Printed via ${r.method}`);
+    });
+  };
+
+  // Legacy browser print window (used directly in some print functions)
+  // Wraps smartPrint for consistency
+  const doPrint = (fullHtml, type = 'bill') => {
+    smartPrint(fullHtml, type);
+  };
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
   const [feedback, setFeedback] = useState([]);

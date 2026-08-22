@@ -340,6 +340,14 @@ export default function PrinterSettings() {
   };
 
   const connectToQZ = async () => {
+    // If running in Electron desktop app, use built-in printer list
+    if (window.electronAPI?.getPrinters) {
+      setQzStatus('connected');
+      const list = await window.electronAPI.getPrinters();
+      setQzPrinters(list.map(p => p.name));
+      return;
+    }
+    // Otherwise try QZ Tray
     setQzStatus('connecting');
     const ok = await connectQZ();
     if (ok) {
@@ -458,6 +466,7 @@ export default function PrinterSettings() {
           </div>
 
           {/* Step 1 — Install QZ Tray */}
+          {!window.electronAPI && (
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4 text-sm text-blue-800">
             <p className="font-semibold mb-1">Step 1 — Install QZ Tray on the computer connected to your printer</p>
             <p className="mb-2 text-blue-700">QZ Tray is a free background service that bridges your browser to the printer.</p>
@@ -466,6 +475,12 @@ export default function PrinterSettings() {
               Download QZ Tray →
             </a>
           </div>
+          )}
+          {window.electronAPI && (
+            <div className="bg-green-50 border border-green-100 rounded-lg p-3 mb-4 text-sm text-green-800">
+              ✅ Running in Desktop App — printers are detected automatically, no extra software needed.
+            </div>
+          )}
 
           {/* Step 2 — Connect */}
           <div className="mb-4">

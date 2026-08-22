@@ -90,13 +90,27 @@ export async function printHTML(printerName, html) {
 }
 
 /**
- * Print via QZ Tray if available, otherwise fall back to window.print()
- * Reads saved printer settings from localStorage automatically.
+ * Print via Electron silent print (desktop app) or QZ Tray,
+ * falling back to browser dialog if neither is available.
  * @param {string} html - receipt HTML
  * @param {'kitchen'|'bill'} type - which printer to use
  */
 export async function smartPrint(html, type = 'bill') {
-  // Load saved settings
+  // 1. Try Electron silent print (desktop app — no third party needed)
+  if (window.electronAPI?.silentPrint) {
+    const restaurantId = localStorage.getItem('restaurantId');
+    const savedKey = `printer_settings_${restaurantId}`;
+    let printerName = '';
+    try {
+      const saved = JSON.parse(localStorage.getItem(savedKey) || '{}');
+      printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
+    } catch {}
+    const result = await window.electronAPI.silentPrint(html, printerName || '');
+    if (result.success) return { method: 'electron' };
+    console.warn('Electron silent print failed:', result.error);
+  }
+
+  // 2. Try QZ Tray (browser + QZ Tray installed)
   const restaurantId = localStorage.getItem('restaurantId');
   const savedKey = `printer_settings_${restaurantId}`;
   let printerName = '';
@@ -113,7 +127,7 @@ export async function smartPrint(html, type = 'bill') {
     console.warn('QZ print failed, falling back to browser dialog');
   }
 
-  // Fallback: browser print dialog
+  // 3. Fallback: browser print dialog
   const w = window.open('', '_blank', 'width=400,height=600');
   if (w) {
     w.document.write(html);
