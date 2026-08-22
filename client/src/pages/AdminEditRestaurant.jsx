@@ -30,22 +30,25 @@ const AdminEditRestaurant = () => {
     setCredMessage({ text: '', type: '' });
     try {
       const token = localStorage.getItem('adminToken');
-      // Update email
-      const emailRes = await fetch(`/api/admin/restaurants/${id}`, {
-        method: 'PUT',
+
+      // Update email via dedicated endpoint
+      const emailRes = await fetch(`/api/admin/restaurants/${id}/reset-email`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ email: credForm.email })
       });
       if (!emailRes.ok) { const d = await emailRes.json(); throw new Error(d.error || 'Failed to update email'); }
-      const updated = await emailRes.json();
-      // Update password
+      const emailData = await emailRes.json();
+
+      // Update password via dedicated endpoint
       const passRes = await fetch(`/api/admin/restaurants/${id}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ password: credForm.password })
       });
       if (!passRes.ok) { const d = await passRes.json(); throw new Error(d.error || 'Failed to update password'); }
-      setRestaurant(prev => ({ ...prev, email: updated.email }));
+
+      setRestaurant(prev => ({ ...prev, email: emailData.email }));
       setCredMessage({ text: 'Email and password updated successfully', type: 'success' });
       setCredForm({ email: '', password: '', confirmPassword: '' });
       setTimeout(() => { setShowCredEdit(false); setCredMessage({ text: '', type: '' }); }, 1500);

@@ -140,11 +140,53 @@ router.post('/restaurants/:id/reset-password', async (req, res) => {
     if (!password) return res.status(400).json({ error: 'Password required' });
 
     const hashed = await bcrypt.hash(password, 10);
-    const restaurant = await restaurantDB.update(req.params.id, { password: hashed });
-    if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
 
-    res.json({ success: true, message: 'Password reset successfully' });
+    // Write directly to DB to avoid any intermediate logic
+    const result = await query(
+      `UPDATE restaurants SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, name, email`,
+      [hashed, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Restaurant not found' });
+
+    console.log(`✅ Password reset for restaurant: ${result.rows[0].name}`);
+    res.json({ success: true, message: `Password reset successfully for ${result.rows[0].name}` });
   } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reset restaurant email (admin only)
+router.post('/restaurants/:id/reset-email', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Admin authentication required' });
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'admin_secret');
+    } catch { return res.status(401).json({ error: 'Invalid admin token' }); }
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    // Check email not taken by another restaurant
+    const existing = await query(
+      `SELECT id FROM restaurants WHERE email = $1 AND id != $2`,
+      [email, req.params.id]
+    );
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Email already in use by another restaurant' });
+
+    const result = await query(
+      `UPDATE restaurants SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, name, email`,
+      [email, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Restaurant not found' });
+
+    console.log(`✅ Email updated for restaurant: ${result.rows[0].name} → ${email}`);
+    res.json({ success: true, message: `Email updated to ${email}`, email });
+  } catch (error) {
+    console.error('Reset email error:', error);
     res.status(500).json({ error: error.message });
   }
 });
