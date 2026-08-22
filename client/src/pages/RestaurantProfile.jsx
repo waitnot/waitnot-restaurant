@@ -141,34 +141,35 @@ const RestaurantProfile = () => {
         return;
       }
 
+      // Only include image if it changed (avoid sending unchanged large base64)
+      const payload = { ...formData };
+      if (payload.image === restaurantData.image) {
+        delete payload.image;
+      }
+
       const response = await fetch(`/api/restaurants/${restaurantData._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
         const updatedRestaurant = await response.json();
-        
-        // Update local storage
         localStorage.setItem('restaurantData', JSON.stringify(updatedRestaurant));
-        
         setMessage('Profile updated successfully!');
-        
-        // Redirect back to dashboard after a short delay
         setTimeout(() => {
           navigate('/restaurant-dashboard');
         }, 2000);
       } else {
         const error = await response.json();
-        setMessage(error.error || 'Failed to update profile');
+        setMessage(error.error || `Failed to update profile (${response.status})`);
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      setMessage('Error updating profile. Please try again.');
+      setMessage(`Error: ${error.message || 'Profile update failed. Please try again.'}`);
     } finally {
       setSaving(false);
     }
