@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Printer, Save, ArrowLeft } from 'lucide-react';
+import { Settings, Printer, Save, ArrowLeft, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import axios from 'axios';
+import { connectQZ, getPrinters, isQZAvailable } from '../utils/qzPrint.js';
 
 // Function to generate custom bill preview
 const generateCustomBillPreview = (customization) => {
@@ -191,6 +192,10 @@ export default function PrinterSettings() {
     autoPrintFinalBill: false,
     kitchenPrinterName: 'Kitchen Printer',
     cashCounterPrinterName: 'Cash Counter Printer',
+    // QZ Tray direct printing
+    useQZTray: false,
+    qzKitchenPrinter: '',
+    qzBillPrinter: '',
     // UPI Payment Settings
     enableUpiPayments: true,
     upiBaseUrl: 'upi://pay?pa=Q582735754@ybl&pn=PhonePeMerchant&mc=0000&mode=02&purpose=00',
@@ -228,6 +233,8 @@ export default function PrinterSettings() {
   
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [qzStatus, setQzStatus] = useState('unknown'); // 'unknown' | 'connected' | 'disconnected'
+  const [qzPrinters, setQzPrinters] = useState([]);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -332,6 +339,18 @@ export default function PrinterSettings() {
     }));
   };
 
+  const connectToQZ = async () => {
+    setQzStatus('connecting');
+    const ok = await connectQZ();
+    if (ok) {
+      setQzStatus('connected');
+      const list = await getPrinters();
+      setQzPrinters(list || []);
+    } else {
+      setQzStatus('disconnected');
+    }
+  };
+
   // Handle logo file upload
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
@@ -425,6 +444,92 @@ export default function PrinterSettings() {
       </nav>
 
       <div className="max-w-4xl mx-auto p-6">
+
+        {/* QZ Tray Direct Printing */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-blue-500">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-blue-100 p-2 rounded-lg">
+              <Printer size={24} className="text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Direct Printing (No Dialog)</h2>
+              <p className="text-gray-500 text-sm">Connect via QZ Tray for instant silent printing — works with USB, WiFi & Bluetooth printers</p>
+            </div>
+          </div>
+
+          {/* Step 1 — Install QZ Tray */}
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4 text-sm text-blue-800">
+            <p className="font-semibold mb-1">Step 1 — Install QZ Tray on the computer connected to your printer</p>
+            <p className="mb-2 text-blue-700">QZ Tray is a free background service that bridges your browser to the printer.</p>
+            <a href="https://qz.io/download" target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+              Download QZ Tray →
+            </a>
+          </div>
+
+          {/* Step 2 — Connect */}
+          <div className="mb-4">
+            <p className="font-semibold text-gray-700 text-sm mb-2">Step 2 — Connect and select printers</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button onClick={connectToQZ}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  qzStatus === 'connected' ? 'bg-green-100 text-green-700 border border-green-300' :
+                  qzStatus === 'connecting' ? 'bg-yellow-100 text-yellow-700' :
+                  qzStatus === 'disconnected' ? 'bg-red-100 text-red-700 border border-red-300' :
+                  'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                }`}>
+                {qzStatus === 'connected' ? <><Wifi size={15} /> Connected</> :
+                 qzStatus === 'connecting' ? <><RefreshCw size={15} className="animate-spin" /> Connecting...</> :
+                 qzStatus === 'disconnected' ? <><WifiOff size={15} /> Retry Connection</> :
+                 <><Wifi size={15} /> Connect to QZ Tray</>}
+              </button>
+              {qzStatus === 'connected' && (
+                <span className="text-green-600 text-sm">{qzPrinters.length} printer(s) found</span>
+              )}
+            </div>
+          </div>
+
+          {/* Printer selection — only when connected */}
+          {qzStatus === 'connected' && qzPrinters.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kitchen Printer</label>
+                <select value={settings.qzKitchenPrinter}
+                  onChange={e => handleSettingChange('qzKitchenPrinter', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+                  <option value="">— Select printer —</option>
+                  {qzPrinters.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bill Printer</label>
+                <select value={settings.qzBillPrinter}
+                  onChange={e => handleSettingChange('qzBillPrinter', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+                  <option value="">— Select printer —</option>
+                  {qzPrinters.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Enable toggle */}
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div className={`w-10 h-5 rounded-full transition-colors ${settings.useQZTray ? 'bg-blue-500' : 'bg-gray-300'}`}
+                onClick={() => handleSettingChange('useQZTray', !settings.useQZTray)}>
+                <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.useQZTray ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+              <span className="text-sm font-medium text-gray-700">
+                {settings.useQZTray ? 'Direct printing enabled — no dialog' : 'Enable direct printing'}
+              </span>
+            </label>
+          </div>
+          {settings.useQZTray && (!settings.qzKitchenPrinter && !settings.qzBillPrinter) && (
+            <p className="text-yellow-600 text-xs mt-2">⚠️ Connect to QZ Tray and select at least one printer above.</p>
+          )}
+        </div>
+
         {/* Kitchen Printer Settings */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex items-center gap-3 mb-6">

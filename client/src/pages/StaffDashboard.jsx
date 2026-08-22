@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2 } from 'lucide-react';
+import { smartPrint } from '../utils/qzPrint.js';
 import axios from 'axios';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
@@ -132,8 +133,7 @@ export default function StaffDashboard() {
   const printKOT = (order) => {
     const d = new Date().toLocaleDateString('en-IN'), t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const html = `<!DOCTYPE html><html><head><style>body{font-family:'Courier New',monospace;font-size:12px;margin:0;padding:10px;max-width:300px}.c{text-align:center}.b{font-weight:bold}.r{display:flex;justify-content:space-between;margin-bottom:3px}.d{border-top:1px dashed #000;margin:8px 0}</style></head><body><div class="c b" style="font-size:15px">${restaurant?.name?.toUpperCase()}</div><div class="c b">KOT</div><div class="d"></div><div class="r"><span>Order:</span><span>${order._id.slice(-6).toUpperCase()}</span></div>${order.tableNumber ? `<div class="r"><span>Table:</span><span><b>${order.tableNumber}</b></span></div>` : ''}<div class="r"><span>Time:</span><span>${d} ${t}</span></div><div class="d"></div>${order.items.map(i => `<div class="r"><span>${i.name}</span><span>x${i.quantity}</span></div>`).join('')}<div class="d"></div><div class="c" style="font-size:10px">PREPARE WITH CARE</div></body></html>`;
-    const w = window.open('', '_blank', 'width=400,height=500');
-    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.print(); setTimeout(() => w.close(), 250); }, 400); }
+    smartPrint(html, 'kitchen');
   };
 
   const printBill = (tableOrders, tableNum, total) => {
@@ -144,8 +144,7 @@ export default function StaffDashboard() {
       else items[i.name] = { qty: i.quantity, total: i.price * i.quantity };
     }));
     const html = `<!DOCTYPE html><html><head><style>body{font-family:'Courier New',monospace;font-size:12px;margin:0;padding:10px;max-width:300px}.c{text-align:center}.b{font-weight:bold}.r{display:flex;justify-content:space-between;margin-bottom:3px}.d{border-top:1px dashed #000;margin:8px 0}</style></head><body><div class="c b" style="font-size:15px">${restaurant?.name?.toUpperCase()}</div><div class="c">TABLE BILL</div><div class="d"></div><div class="r"><span>Table:</span><span><b>${tableNum}</b></span></div><div class="r"><span>Date:</span><span>${d} ${t}</span></div><div class="d"></div>${Object.entries(items).map(([n, d]) => `<div class="r"><span>${n} x${d.qty}</span><span>₹${d.total}</span></div>`).join('')}<div class="d"></div><div class="r b"><span>TOTAL</span><span>₹${total}</span></div><div class="d"></div><div class="c" style="font-size:10px;margin-top:8px">Thank you!</div></body></html>`;
-    const w = window.open('', '_blank', 'width=400,height=500');
-    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.print(); setTimeout(() => w.close(), 250); }, 400); }
+    smartPrint(html, 'bill');
   };
 
   const clearTable = (tableOrders, tableNum) => {
