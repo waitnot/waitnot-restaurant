@@ -139,7 +139,19 @@ export async function initDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_restaurant_id ON orders(restaurant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)');
-    
+
+    // Migration: ensure all restaurants have staffManagement, staffOrders, deliveryOrders in features
+    await client.query(`
+      UPDATE restaurants
+      SET features = features
+        || '{"staffManagement": true}'::jsonb
+        || '{"staffOrders": true}'::jsonb
+        || '{"deliveryOrders": true}'::jsonb
+      WHERE NOT (features ? 'staffManagement')
+         OR NOT (features ? 'staffOrders')
+         OR NOT (features ? 'deliveryOrders')
+    `);
+
     client.release();
     console.log('✅ Database tables created successfully');
     

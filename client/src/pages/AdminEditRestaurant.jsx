@@ -119,8 +119,18 @@ const AdminEditRestaurant = () => {
       category: 'Operations'
     },
     deliveryOrders: {
-      name: 'Delivery Orders Management',
-      description: 'View and manage delivery orders',
+      name: 'Delivery Orders',
+      description: 'Manage delivery orders tab',
+      category: 'Operations'
+    },
+    staffOrders: {
+      name: 'Staff Orders',
+      description: 'Allow staff to place orders for customers',
+      category: 'Operations'
+    },
+    staffManagement: {
+      name: 'Staff Management',
+      description: 'Add and manage staff/waiters',
       category: 'Operations'
     },
     realTimeOrders: {
@@ -131,11 +141,6 @@ const AdminEditRestaurant = () => {
     notifications: {
       name: 'Notifications',
       description: 'Push notifications for orders',
-      category: 'Operations'
-    },
-    staffOrders: {
-      name: 'Staff Orders',
-      description: 'Allow staff to place orders for customers',
       category: 'Operations'
     },
     

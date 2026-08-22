@@ -53,7 +53,10 @@ CREATE TABLE IF NOT EXISTS restaurants (
         "bulkOperations": true,
         "exportData": true,
         "notifications": true,
-        "multiLanguage": true
+        "multiLanguage": true,
+        "staffManagement": true,
+        "staffOrders": true,
+        "deliveryOrders": true
     }'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
