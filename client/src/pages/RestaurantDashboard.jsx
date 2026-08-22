@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Search, GripVertical, ShoppingCart } from 'lucide-react';
+import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Search, GripVertical, ShoppingCart, Upload } from 'lucide-react';
 import axios from 'axios';
 import io from 'socket.io-client';
 import FeatureGuard from '../components/FeatureGuard';
@@ -215,6 +215,7 @@ export default function RestaurantDashboard() {
     }
   }, [activeTab, isFeatureEnabled]);
   const [showMenuForm, setShowMenuForm] = useState(false);
+  const [importingMenu, setImportingMenu] = useState(false);
   const [clearTableModal, setClearTableModal] = useState(null); // { tableNumber, tableOrders, totalAmount }
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
   const [toast, setToast] = useState(null); // { message, type: 'success'|'error' }
@@ -518,6 +519,41 @@ export default function RestaurantDashboard() {
       setMenuForm({ name: '', price: '', category: '', description: '', isVeg: true });
     } catch (error) {
       console.error('Error saving menu item:', error);
+    }
+  };
+
+  const handleImportMenu = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = ''; // reset so same file can be re-imported
+    try {
+      setImportingMenu(true);
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const items = data.menuItems || data.menu || [];
+      if (!items.length) { alert('No menu items found in file.'); return; }
+      const restaurantId = localStorage.getItem('restaurantId');
+      let imported = 0;
+      for (const item of items) {
+        await axios.post(`/api/restaurants/${restaurantId}/menu`, {
+          name: item.name,
+          price: item.price,
+          category: item.category || '',
+          description: item.description || '',
+          isVeg: item.isVeg !== undefined ? item.isVeg : true,
+          image: item.image || null,
+          available: item.available !== undefined ? item.available : true,
+          displayOrder: item.displayOrder || null
+        });
+        imported++;
+      }
+      await fetchRestaurant(restaurantId);
+      alert(`✅ Imported ${imported} menu items successfully!`);
+    } catch (err) {
+      console.error('Import error:', err);
+      alert('Failed to import menu. Please check the file format.');
+    } finally {
+      setImportingMenu(false);
     }
   };
 
@@ -2624,6 +2660,13 @@ export default function RestaurantDashboard() {
                     <Plus size={18} />
                     Add Menu Item
                   </button>
+                </FeatureGuard>
+                <FeatureGuard feature="menuManagement">
+                  <label className={`px-4 py-2 sm:py-3 rounded-lg text-sm font-medium flex items-center gap-2 border transition-colors cursor-pointer ${importingMenu ? 'bg-gray-100 text-gray-400' : 'bg-white text-green-600 border-green-400 hover:bg-green-50'}`}>
+                    <Upload size={16} />
+                    {importingMenu ? 'Importing...' : 'Import Menu'}
+                    <input type="file" accept=".json" className="hidden" onChange={handleImportMenu} disabled={importingMenu} />
+                  </label>
                 </FeatureGuard>
                 <button
                   onClick={async () => {
