@@ -229,34 +229,6 @@ const AdminEditRestaurant = () => {
     link.click();
     URL.revokeObjectURL(url);
   };
-    try {
-      const token = localStorage.getItem('adminToken');
-      const response = await fetch(`/api/admin/restaurants`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const restaurants = await response.json();
-        const foundRestaurant = restaurants.find(r => r._id === id);
-        
-        if (foundRestaurant) {
-          setRestaurant(foundRestaurant);
-          setFeatures(foundRestaurant.features || {});
-        } else {
-          setMessage('Restaurant not found');
-        }
-      } else {
-        setMessage('Failed to load restaurant');
-      }
-    } catch (error) {
-      console.error('Error loading restaurant:', error);
-      setMessage('Error loading restaurant');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFeatureToggle = (featureKey) => {
     setFeatures(prev => ({
