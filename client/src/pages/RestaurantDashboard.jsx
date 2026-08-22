@@ -898,7 +898,9 @@ export default function RestaurantDashboard() {
     });
 
     const firstOrder = tableOrders[0];
-    const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+    const orderId = firstOrder.orderNumber
+      ? `#${String(firstOrder.orderNumber).padStart(3, '0')}`
+      : `ORD-${Date.now().toString().slice(-6)}`;
     const currentDate = new Date();
     const dateStr = currentDate.toLocaleDateString('en-IN');
     const timeStr = currentDate.toLocaleTimeString('en-IN', { 
@@ -1080,7 +1082,9 @@ export default function RestaurantDashboard() {
     }
     
     // Enhanced thermal printer optimized bill format
-    const orderId = `ORD-${order._id.slice(-6).toUpperCase()}`;
+    const orderId = order.orderNumber
+      ? `#${String(order.orderNumber).padStart(3, '0')}`
+      : `ORD-${order._id.slice(-6).toUpperCase()}`;
     const currentDate = new Date(order.createdAt);
     const dateStr = currentDate.toLocaleDateString('en-IN');
     const timeStr = currentDate.toLocaleTimeString('en-IN', { 
@@ -3334,8 +3338,7 @@ export default function RestaurantDashboard() {
                       <div key={idx} className={`grid grid-cols-12 gap-2 px-4 py-3 items-start border-b border-gray-50 hover:bg-gray-50 transition-colors text-sm ${idx % 2 === 0 ? '' : 'bg-gray-50/30'}`}>
                         {/* # */}
                         <div className="col-span-1">
-                          <p className="font-bold text-gray-400 text-xs">#{orderNum}</p>
-                          <p className="text-gray-300 text-xs font-mono hidden sm:block" title={first._id}>{first._id?.slice(-6)}</p>
+                          <p className="font-bold text-gray-700 text-sm">#{String(first.orderNumber || orderNum).padStart(3, '0')}</p>
                         </div>
                         {/* Order */}
                         <div className="col-span-2">

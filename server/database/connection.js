@@ -97,6 +97,7 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS orders (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         restaurant_id UUID REFERENCES restaurants(id) ON DELETE CASCADE,
+        order_number INTEGER,
         table_number INTEGER,
         customer_name VARCHAR(255),
         customer_phone VARCHAR(20),
@@ -109,6 +110,11 @@ export async function initDatabase() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Add order_number column if it doesn't exist (migration for existing DBs)
+    await client.query(`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_number INTEGER
     `);
     
     // Create order_items table

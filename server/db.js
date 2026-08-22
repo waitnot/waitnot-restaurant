@@ -671,6 +671,7 @@ export const orderDB = {
     return result.rows.map(row => ({
       _id: row.id,
       restaurantId: row.restaurant_id,
+      orderNumber: row.order_number || null,
       tableNumber: row.table_number,
       customerName: row.customer_name,
       customerPhone: row.customer_phone,
@@ -722,6 +723,7 @@ export const orderDB = {
     return {
       _id: row.id,
       restaurantId: row.restaurant_id,
+      orderNumber: row.order_number || null,
       tableNumber: row.table_number,
       customerName: row.customer_name,
       customerPhone: row.customer_phone,
@@ -771,6 +773,7 @@ export const orderDB = {
     return result.rows.map(row => ({
       _id: row.id,
       restaurantId: row.restaurant_id,
+      orderNumber: row.order_number || null,
       tableNumber: row.table_number,
       customerName: row.customer_name,
       customerPhone: row.customer_phone,
@@ -809,16 +812,25 @@ export const orderDB = {
       return await withTransaction(async (client) => {
         // Insert order
         console.log('📝 Inserting order record...');
+
+        // Get next order number for this restaurant
+        const numResult = await client.query(`
+          SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num
+          FROM orders WHERE restaurant_id = $1
+        `, [data.restaurantId]);
+        const orderNumber = numResult.rows[0].next_num;
+
         const orderResult = await client.query(`
           INSERT INTO orders (
-            restaurant_id, table_number, customer_name, customer_phone, 
+            restaurant_id, order_number, table_number, customer_name, customer_phone, 
             delivery_address, order_type, status, payment_method, 
             payment_status, total_amount, source, platform_order_id,
             platform_fee, commission, commission_rate, net_amount, estimated_delivery_time
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
           RETURNING *
         `, [
           data.restaurantId,
+          orderNumber,
           data.tableNumber,
           data.customerName,
           data.customerPhone,
@@ -864,6 +876,7 @@ export const orderDB = {
         const completeOrder = {
           _id: order.id,
           restaurantId: order.restaurant_id,
+          orderNumber: order.order_number || null,
           tableNumber: order.table_number,
           customerName: order.customer_name,
           customerPhone: order.customer_phone,
