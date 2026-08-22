@@ -774,8 +774,31 @@ export default function RestaurantDashboard() {
   };
 
   const confirmClearTable = (paymentMethod, paymentSubType, utr) => {
-    const { tableNumber, tableOrders } = clearTableModal;
+    const { tableNumber, tableOrders, isIndividual, individualOrder } = clearTableModal;
     setClearTableModal(null);
+
+    // Individual delivery/takeaway order
+    if (isIndividual && individualOrder) {
+      (async () => {
+        try {
+          await axios.patch(`/api/orders/${individualOrder._id}/payment`, {
+            paymentMethod,
+            paymentSubType: paymentSubType || null,
+            utr: utr || null,
+            paymentStatus: 'paid'
+          });
+          if (individualOrder.status !== 'completed') {
+            await updateOrderStatus(individualOrder._id, 'completed');
+          }
+          showToast('Order cleared and saved to history');
+          const restaurantId = localStorage.getItem('restaurantId');
+          await fetchOrders(restaurantId);
+        } catch (error) {
+          showToast(`Failed to clear order: ${error.response?.data?.error || error.message}`, 'error');
+        }
+      })();
+      return;
+    }
     setOnlinePayStep(false);
     setUtrNumber('');
     setConfirmModal({
@@ -807,13 +830,20 @@ export default function RestaurantDashboard() {
 
   const clearIndividualOrder = async (order) => {
     console.log('Clear Individual Order clicked:', { orderId: order._id, customer: order.customerName, total: order.totalAmount });
-    
-    const billSummary = order.items
-      .map(item => `${item.name} x ${item.quantity} = ₹${item.price * item.quantity}`)
-      .join('\n');
 
-    const orderTypeText = order.orderType === 'delivery' ? 'Delivery' :
-                         order.orderType === 'takeaway' ? 'Takeaway' : 'Order';
+    // For delivery/takeaway orders, show payment modal
+    if (order.orderType === 'delivery' || order.orderType === 'takeaway') {
+      setClearTableModal({
+        tableNumber: order.orderType === 'delivery' ? `Delivery - ${order.customerName || ''}` : `Takeaway - ${order.customerName || ''}`,
+        tableOrders: [order],
+        totalAmount: order.totalAmount,
+        isIndividual: true,
+        individualOrder: order
+      });
+      return;
+    }
+
+    const orderTypeText = order.orderType === 'takeaway' ? 'Takeaway' : 'Order';
 
     setConfirmModal({
       message: `Clear ${orderTypeText} for ${order.customerName} (₹${order.totalAmount})? This will save it to order history and mark it as completed.`,
