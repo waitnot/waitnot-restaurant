@@ -110,7 +110,7 @@ router.post('/debug-login', async (req, res) => {
   }
 });
 
-// Restaurant login
+// Restaurant login - v2
 router.post('/login', async (req, res) => {
   try {
     console.log('Login attempt for email:', req.body.email);
