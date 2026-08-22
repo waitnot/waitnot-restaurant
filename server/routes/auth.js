@@ -83,6 +83,33 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint - check password hash state for a restaurant
+router.post('/debug-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+
+    const restaurant = await restaurantDB.findOne({ email });
+    if (!restaurant) return res.json({ found: false, email });
+
+    const isValid = await bcrypt.compare(password, restaurant.password);
+    const passwordHash = restaurant.password ? restaurant.password.substring(0, 7) : null;
+    const isHashed = restaurant.password ? restaurant.password.startsWith('$2') : false;
+
+    res.json({
+      found: true,
+      name: restaurant.name,
+      email: restaurant.email,
+      isHashed,
+      passwordHashPrefix: passwordHash,
+      passwordLength: restaurant.password ? restaurant.password.length : 0,
+      bcryptMatch: isValid
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Restaurant login
 router.post('/login', async (req, res) => {
   try {
