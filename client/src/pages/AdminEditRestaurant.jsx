@@ -243,6 +243,7 @@ const AdminEditRestaurant = () => {
         category: item.category,
         isVeg: item.isVeg,
         description: item.description,
+        image: item.image || null,
         available: item.available,
         displayOrder: item.displayOrder
       }))
