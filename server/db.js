@@ -329,27 +329,53 @@ export const restaurantDB = {
     const hashedPassword = data.password
       ? (isAlreadyHashed ? data.password : await bcrypt.hash(data.password, 10))
       : null;
-    
-    const result = await query(`
-      INSERT INTO restaurants (
-        name, description, image, rating, delivery_time, cuisine, 
-        address, phone, email, password, is_delivery_available, tables
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING *
-    `, [
-      data.name,
-      data.description,
-      data.image,
-      data.rating || 0,
-      data.deliveryTime,
-      data.cuisine || [],
-      data.address,
-      data.phone,
-      data.email,
-      hashedPassword,
-      data.isDeliveryAvailable !== false,
-      data.tables || 0
-    ]);
+
+    // Support custom ID for preserving existing QR codes
+    let result;
+    if (data.customId) {
+      result = await query(`
+        INSERT INTO restaurants (
+          id, name, description, image, rating, delivery_time, cuisine,
+          address, phone, email, password, is_delivery_available, tables
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING *
+      `, [
+        data.customId,
+        data.name,
+        data.description,
+        data.image,
+        data.rating || 0,
+        data.deliveryTime,
+        data.cuisine || [],
+        data.address,
+        data.phone,
+        data.email,
+        hashedPassword,
+        data.isDeliveryAvailable !== false,
+        data.tables || 0
+      ]);
+    } else {
+      result = await query(`
+        INSERT INTO restaurants (
+          name, description, image, rating, delivery_time, cuisine, 
+          address, phone, email, password, is_delivery_available, tables
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *
+      `, [
+        data.name,
+        data.description,
+        data.image,
+        data.rating || 0,
+        data.deliveryTime,
+        data.cuisine || [],
+        data.address,
+        data.phone,
+        data.email,
+        hashedPassword,
+        data.isDeliveryAvailable !== false,
+        data.tables || 0
+      ]);
+    }
     
     const row = result.rows[0];
     return {

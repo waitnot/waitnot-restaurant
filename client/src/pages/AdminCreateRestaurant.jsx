@@ -16,7 +16,8 @@ const AdminCreateRestaurant = () => {
     deliveryTime: '',
     cuisine: [],
     isDeliveryAvailable: true,
-    tables: 0
+    tables: 0,
+    customId: ''
   });
   const [newCuisine, setNewCuisine] = useState('');
 
@@ -53,13 +54,18 @@ const AdminCreateRestaurant = () => {
     try {
       const token = localStorage.getItem('adminToken');
       
+      // Strip empty customId so server uses auto-generated UUID
+      const payload = { ...formData };
+      if (!payload.customId || !payload.customId.trim()) delete payload.customId;
+      else payload.customId = payload.customId.trim();
+
       const response = await fetch('/api/admin/restaurants', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
@@ -181,6 +187,21 @@ const AdminCreateRestaurant = () => {
                     placeholder="Enter login password"
                   />
                   <p className="text-sm text-gray-500 mt-1">Minimum 6 characters</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Custom Restaurant ID <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="customId"
+                    value={formData.customId}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                    placeholder="e.g. 55728b1d-c26d-4a08-8f53-ee28a131e5ae"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">Use this to preserve existing QR code links from a previous restaurant</p>
                 </div>
 
                 <div>
