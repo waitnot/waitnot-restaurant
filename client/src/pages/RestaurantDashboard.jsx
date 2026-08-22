@@ -217,6 +217,7 @@ export default function RestaurantDashboard() {
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [importingMenu, setImportingMenu] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [historySearch, setHistorySearch] = useState('');
   const [clearTableModal, setClearTableModal] = useState(null); // { tableNumber, tableOrders, totalAmount }
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
   const [toast, setToast] = useState(null); // { message, type: 'success'|'error' }
@@ -3241,10 +3242,21 @@ export default function RestaurantDashboard() {
         {activeTab === 'history' && (
           <div>
             {/* Header row */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-800">Order History</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Completed orders: {orders.filter(o => o.status === 'completed').length}</p>
+              </div>
+              {/* Search bar */}
+              <div className="relative w-full sm:w-72">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by table, customer, item..."
+                  value={historySearch || ''}
+                  onChange={e => setHistorySearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
               </div>
             </div>
 
@@ -3256,7 +3268,8 @@ export default function RestaurantDashboard() {
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 {/* Table header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <div className="col-span-3">Order</div>
+                  <div className="col-span-1">#</div>
+                  <div className="col-span-2">Order</div>
                   <div className="col-span-2">Customer</div>
                   <div className="col-span-3">Items</div>
                   <div className="col-span-2 text-right">Amount</div>
@@ -3305,10 +3318,27 @@ export default function RestaurantDashboard() {
                       : first.orderType === 'delivery' ? 'Delivery'
                       : 'Order';
 
+                    // Filter by search
+                    if (historySearch) {
+                      const q = historySearch.toLowerCase();
+                      const matchesLabel = label.toLowerCase().includes(q);
+                      const matchesCustomer = (first.customerName || '').toLowerCase().includes(q);
+                      const matchesItem = Object.keys(combinedItems).some(n => n.toLowerCase().includes(q));
+                      const matchesId = first._id?.toLowerCase().includes(q);
+                      if (!matchesLabel && !matchesCustomer && !matchesItem && !matchesId) return null;
+                    }
+
+                    const orderNum = idx + 1;
+
                     return (
                       <div key={idx} className={`grid grid-cols-12 gap-2 px-4 py-3 items-start border-b border-gray-50 hover:bg-gray-50 transition-colors text-sm ${idx % 2 === 0 ? '' : 'bg-gray-50/30'}`}>
+                        {/* # */}
+                        <div className="col-span-1">
+                          <p className="font-bold text-gray-400 text-xs">#{orderNum}</p>
+                          <p className="text-gray-300 text-xs font-mono hidden sm:block" title={first._id}>{first._id?.slice(-6)}</p>
+                        </div>
                         {/* Order */}
-                        <div className="col-span-3">
+                        <div className="col-span-2">
                           <p className="font-semibold text-gray-800">{label}</p>
                           <p className="text-xs text-gray-400">{new Date(first.updatedAt).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</p>
                           {first.paymentMethod && (
