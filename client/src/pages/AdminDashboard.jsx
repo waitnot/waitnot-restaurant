@@ -14,7 +14,8 @@ import {
   Search,
   Filter,
   Bell,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { trackAdminEvent, trackAuthEvent } from '../utils/analytics';
 import { getWebSocketUrl } from '../config/environment.js';
@@ -33,6 +34,10 @@ const AdminDashboard = () => {
   const [credForm, setCredForm] = useState({ email: '', password: '', confirmPassword: '' });
   const [credLoading, setCredLoading] = useState(false);
   const [credMessage, setCredMessage] = useState(null);
+
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   // Real-time orders state
   const [recentOrders, setRecentOrders] = useState([]);
@@ -258,6 +263,29 @@ const AdminDashboard = () => {
       setCredMessage({ type: 'error', text: 'Network error. Please try again.' });
     } finally {
       setCredLoading(false);
+    }
+  };
+
+  const deleteRestaurant = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`/api/admin/restaurants/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRestaurants(prev => prev.filter(r => r._id !== deleteTarget.id));
+        setDeleteTarget(null);
+      } else {
+        alert(data.error || 'Failed to delete restaurant');
+      }
+    } catch {
+      alert('Network error. Please try again.');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -617,6 +645,13 @@ const AdminDashboard = () => {
                           >
                             <Edit className="w-4 h-4" />
                           </button>
+                          <button
+                            onClick={() => setDeleteTarget({ id: restaurant._id, name: restaurant.name })}
+                            className="text-red-500 hover:text-red-700"
+                            title="Delete Restaurant"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -626,7 +661,44 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
-        {/* Settings Tab */}
+        {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="p-2 bg-red-100 rounded-full mr-3">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Restaurant</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This will permanently remove all menu items and orders. This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteLoading}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteRestaurant}
+                disabled={deleteLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center"
+              >
+                {deleteLoading ? (
+                  <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Deleting...</>
+                ) : (
+                  <><Trash2 className="w-4 h-4 mr-2" />Delete</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="max-w-lg">
             <div className="bg-white rounded-lg shadow p-6">

@@ -125,6 +125,31 @@ router.get('/restaurants', async (req, res) => {
   }
 });
 
+// Delete restaurant (admin only)
+router.delete('/restaurants/:id', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Admin authentication required' });
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'admin_secret');
+    } catch { return res.status(401).json({ error: 'Invalid admin token' }); }
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+    const result = await query(
+      `DELETE FROM restaurants WHERE id = $1 RETURNING id, name`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Restaurant not found' });
+
+    console.log(`✅ Restaurant deleted: ${result.rows[0].name}`);
+    res.json({ success: true, message: `${result.rows[0].name} deleted successfully` });
+  } catch (error) {
+    console.error('Delete restaurant error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Reset restaurant password (admin only)
 router.post('/restaurants/:id/reset-password', async (req, res) => {
   try {
