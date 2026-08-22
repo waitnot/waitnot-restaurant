@@ -771,6 +771,7 @@ export default function RestaurantDashboard() {
 
   const clearTableAndSaveToHistory = async (tableNumber, tableOrders, totalAmount) => {
     setClearTableModal({ tableNumber, tableOrders, totalAmount });
+    setOnlinePayStep(false);
   };
 
   const confirmClearTable = (paymentMethod, paymentSubType, utr) => {
@@ -840,6 +841,7 @@ export default function RestaurantDashboard() {
         isIndividual: true,
         individualOrder: order
       });
+      setOnlinePayStep(false);
       return;
     }
 
@@ -4185,7 +4187,7 @@ export default function RestaurantDashboard() {
                 </div>
 
                 <button
-                  onClick={() => setClearTableModal(null)}
+                  onClick={() => { setClearTableModal(null); setOnlinePayStep(false); }}
                   className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   Cancel
