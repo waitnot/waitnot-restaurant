@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Settings, ToggleLeft, ToggleRight, Edit, X, Check } from 'lucide-react';
+import { ArrowLeft, Save, Settings, ToggleLeft, ToggleRight, Edit, X, Check, Download } from 'lucide-react';
 
 const AdminEditRestaurant = () => {
   const navigate = useNavigate();
@@ -199,7 +199,36 @@ const AdminEditRestaurant = () => {
     loadRestaurant();
   }, [id]);
 
-  const loadRestaurant = async () => {
+  const exportMenu = () => {
+    if (!restaurant) return;
+    const data = {
+      restaurant: {
+        id: restaurant._id,
+        name: restaurant.name,
+        email: restaurant.email,
+        phone: restaurant.phone,
+        address: restaurant.address,
+        tables: restaurant.tables
+      },
+      menuItems: (restaurant.menu || []).map(item => ({
+        id: item._id,
+        name: item.name,
+        price: item.price,
+        category: item.category,
+        isVeg: item.isVeg,
+        description: item.description,
+        available: item.available,
+        displayOrder: item.displayOrder
+      }))
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${restaurant.name.replace(/\s+/g, '-')}-menu.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
     try {
       const token = localStorage.getItem('adminToken');
       const response = await fetch(`/api/admin/restaurants`, {
@@ -335,13 +364,22 @@ const AdminEditRestaurant = () => {
                 <p className="text-sm text-gray-500">{restaurant.address}</p>
               </div>
             </div>
-            <button
-              onClick={() => { setShowCredEdit(!showCredEdit); setCredMessage({ text: '', type: '' }); setCredForm({ email: '', password: '', confirmPassword: '' }); }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              {showCredEdit ? <X size={15} /> : <Edit size={15} />}
-              {showCredEdit ? 'Cancel' : 'Edit Credentials'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportMenu}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 border border-green-300 rounded-lg hover:bg-green-50 transition-colors"
+              >
+                <Download size={15} />
+                Export Menu
+              </button>
+              <button
+                onClick={() => { setShowCredEdit(!showCredEdit); setCredMessage({ text: '', type: '' }); setCredForm({ email: '', password: '', confirmPassword: '' }); }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {showCredEdit ? <X size={15} /> : <Edit size={15} />}
+                {showCredEdit ? 'Cancel' : 'Edit Credentials'}
+              </button>
+            </div>
           </div>
 
           {showCredEdit && (
