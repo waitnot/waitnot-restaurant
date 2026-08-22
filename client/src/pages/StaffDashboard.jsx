@@ -347,12 +347,20 @@ export default function StaffDashboard() {
                 ))}
               </div>
 
-              {/* Search */}
+              {/* Search + Place Order on same row */}
               <div className="bg-white px-3 py-2 border-b border-gray-100">
-                <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
-                  <Search size={14} className="text-gray-400 shrink-0" />
-                  <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Search menu..." className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
-                  {menuSearch && <button onClick={() => setMenuSearch('')}><X size={14} className="text-gray-400" /></button>}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1">
+                    <Search size={14} className="text-gray-400 shrink-0" />
+                    <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Search menu..." className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
+                    {menuSearch && <button onClick={() => setMenuSearch('')}><X size={14} className="text-gray-400" /></button>}
+                  </div>
+                  {orderCart.length > 0 && (
+                    <button onClick={placeOrder} disabled={orderPlacing}
+                      className="bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-600 disabled:opacity-50 transition-colors whitespace-nowrap shrink-0">
+                      {orderPlacing ? '...' : `Place Order · ₹${cartTotal}`}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -384,16 +392,13 @@ export default function StaffDashboard() {
                 })}
               </div>
 
-              {/* Place Order bar */}
+              {/* Place Order bar - sticky bottom summary */}
               {orderCart.length > 0 && (
-                <div className="sticky bottom-0 md:relative px-4 py-3 bg-white border-t border-gray-200 z-20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">{orderCart.reduce((s, i) => s + i.quantity, 0)} item(s)</span>
-                    <span className="font-bold text-gray-900">₹{cartTotal}</span>
-                  </div>
+                <div className="sticky bottom-0 md:relative px-4 py-2 bg-white border-t border-gray-200 z-20 flex items-center justify-between gap-3">
+                  <span className="text-sm text-gray-600">{orderCart.reduce((s, i) => s + i.quantity, 0)} item(s) · <span className="font-bold text-gray-900">₹{cartTotal}</span></span>
                   <button onClick={placeOrder} disabled={orderPlacing}
-                    className="w-full bg-red-500 text-white py-3 rounded-xl font-bold text-base hover:bg-red-600 disabled:opacity-50 transition-colors">
-                    {orderPlacing ? 'Placing Order...' : `Place Order · ₹${cartTotal}`}
+                    className="bg-red-500 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-red-600 disabled:opacity-50 transition-colors whitespace-nowrap">
+                    {orderPlacing ? 'Placing...' : 'Place Order'}
                   </button>
                 </div>
               )}
