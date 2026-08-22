@@ -1812,14 +1812,28 @@ export default function RestaurantDashboard() {
           totalAmount
         });
 
-        // Show success message at the top
-        setSuccessMessage(`✅ Order saved successfully! Order ID: ${createdOrder._id?.slice(-6).toUpperCase()} • Total: ₹${totalAmount}`);
+        // Show success immediately
+        setSuccessMessage(`✅ Order #${createdOrder.orderNumber ? String(createdOrder.orderNumber).padStart(3,'0') : createdOrder._id?.slice(-6).toUpperCase()} saved! Total: ₹${totalAmount}`);
         setTimeout(() => setSuccessMessage(''), 5000);
-        
-        // Refresh orders to show in delivery/dine-in tabs and history
-        console.log('🔄 Refreshing orders...');
-        await fetchOrders(restaurantId);
-        console.log('✅ Orders refreshed');
+
+        // Clear form instantly — don't wait for refresh
+        setReceptionistOrder({
+          customerName: '',
+          customerPhone: '',
+          orderType: 'takeaway',
+          deliveryAddress: '',
+          tableNumber: '',
+          items: [],
+          specialInstructions: '',
+          waiterId: '',
+          waiterNumber: ''
+        });
+        setSelectedCategory('all');
+        setStaffSearchQuery('');
+
+        // Refresh orders in background (non-blocking)
+        fetchOrders(restaurantId);
+        return; // skip the form clear at the bottom — already done above
 
         } catch (error) {
           console.error('❌ Error saving Staff order:', error);
