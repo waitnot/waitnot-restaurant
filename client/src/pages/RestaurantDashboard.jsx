@@ -216,6 +216,7 @@ export default function RestaurantDashboard() {
   }, [activeTab, isFeatureEnabled]);
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [importingMenu, setImportingMenu] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [clearTableModal, setClearTableModal] = useState(null); // { tableNumber, tableOrders, totalAmount }
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
   const [toast, setToast] = useState(null); // { message, type: 'success'|'error' }
@@ -525,7 +526,7 @@ export default function RestaurantDashboard() {
   const handleImportMenu = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    e.target.value = ''; // reset so same file can be re-imported
+    e.target.value = '';
     try {
       setImportingMenu(true);
       const text = await file.text();
@@ -533,8 +534,9 @@ export default function RestaurantDashboard() {
       const items = data.menuItems || data.menu || [];
       if (!items.length) { alert('No menu items found in file.'); return; }
       const restaurantId = localStorage.getItem('restaurantId');
-      let imported = 0;
-      for (const item of items) {
+      setImportProgress({ current: 0, total: items.length });
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         await axios.post(`/api/restaurants/${restaurantId}/menu`, {
           name: item.name,
           price: item.price,
@@ -545,15 +547,16 @@ export default function RestaurantDashboard() {
           available: item.available !== undefined ? item.available : true,
           displayOrder: item.displayOrder || null
         });
-        imported++;
+        setImportProgress({ current: i + 1, total: items.length });
       }
       await fetchRestaurant(restaurantId);
-      alert(`✅ Imported ${imported} menu items successfully!`);
+      alert(`✅ Imported ${items.length} menu items successfully!`);
     } catch (err) {
       console.error('Import error:', err);
       alert('Failed to import menu. Please check the file format.');
     } finally {
       setImportingMenu(false);
+      setImportProgress({ current: 0, total: 0 });
     }
   };
 
@@ -2662,11 +2665,26 @@ export default function RestaurantDashboard() {
                   </button>
                 </FeatureGuard>
                 <FeatureGuard feature="menuManagement">
-                  <label className={`px-4 py-2 sm:py-3 rounded-lg text-sm font-medium flex items-center gap-2 border transition-colors cursor-pointer ${importingMenu ? 'bg-gray-100 text-gray-400' : 'bg-white text-green-600 border-green-400 hover:bg-green-50'}`}>
+                  <label className={`px-4 py-2 sm:py-3 rounded-lg text-sm font-medium flex items-center gap-2 border transition-colors cursor-pointer ${importingMenu ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-green-600 border-green-400 hover:bg-green-50'}`}>
                     <Upload size={16} />
-                    {importingMenu ? 'Importing...' : 'Import Menu'}
+                    {importingMenu
+                      ? `Importing ${importProgress.current}/${importProgress.total}...`
+                      : 'Import Menu'}
                     <input type="file" accept=".json" className="hidden" onChange={handleImportMenu} disabled={importingMenu} />
                   </label>
+                  {importingMenu && importProgress.total > 0 && (
+                    <div className="w-full mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 text-center">
+                        {Math.round((importProgress.current / importProgress.total) * 100)}% — {importProgress.current} of {importProgress.total} items
+                      </p>
+                    </div>
+                  )}
                 </FeatureGuard>
                 <button
                   onClick={async () => {
