@@ -424,4 +424,54 @@ router.post('/restaurants/:id/reset-password', async (req, res) => {
   }
 });
 
+// Update admin credentials (self)
+router.put('/credentials', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
+    let decoded;
+    try { decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret'); } 
+    catch { return res.status(401).json({ error: 'Invalid token' }); }
+
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+    const hashed = await bcrypt.hash(password, 10);
+    const result = await query(
+      `UPDATE admins SET email = $1, password = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, username, email, full_name`,
+      [email, hashed, decoded.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
+    res.json({ success: true, admin: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update admin credentials (self)
+router.put('/update-credentials', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
+    let decoded;
+    try { decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret'); } 
+    catch { return res.status(401).json({ error: 'Invalid token' }); }
+
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+    const updates = { email };
+    updates.password = await bcrypt.hash(password, 10);
+
+    await query(
+      'UPDATE admins SET email = $1, password = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+      [email, updates.password, decoded.id]
+    );
+
+    res.json({ success: true, message: 'Credentials updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
