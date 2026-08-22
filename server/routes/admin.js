@@ -136,14 +136,27 @@ router.delete('/restaurants/:id', async (req, res) => {
     } catch { return res.status(401).json({ error: 'Invalid admin token' }); }
     if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-    const result = await query(
-      `DELETE FROM restaurants WHERE id = $1 RETURNING id, name`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Restaurant not found' });
+    const restaurantId = req.params.id;
 
-    console.log(`✅ Restaurant deleted: ${result.rows[0].name}`);
-    res.json({ success: true, message: `${result.rows[0].name} deleted successfully` });
+    // Verify restaurant exists
+    const check = await query(`SELECT id, name FROM restaurants WHERE id = $1`, [restaurantId]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Restaurant not found' });
+    const restaurantName = check.rows[0].name;
+
+    // Null out order_items.menu_item_id for this restaurant's menu items
+    // (order_items -> menu_items has NO ACTION, so we must clear it first)
+    await query(`
+      UPDATE order_items SET menu_item_id = NULL
+      WHERE menu_item_id IN (
+        SELECT id FROM menu_items WHERE restaurant_id = $1
+      )
+    `, [restaurantId]);
+
+    // Now delete the restaurant — cascade handles the rest
+    await query(`DELETE FROM restaurants WHERE id = $1`, [restaurantId]);
+
+    console.log(`✅ Restaurant deleted: ${restaurantName}`);
+    res.json({ success: true, message: `${restaurantName} deleted successfully` });
   } catch (error) {
     console.error('Delete restaurant error:', error);
     res.status(500).json({ error: error.message });
