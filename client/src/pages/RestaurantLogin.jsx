@@ -17,7 +17,9 @@ export default function RestaurantLogin() {
       const { data } = await axios.post('/api/auth/login', formData);
       localStorage.setItem('restaurantToken', data.token);
       localStorage.setItem('restaurantId', data.restaurant._id);
-      localStorage.setItem('restaurantData', JSON.stringify(data.restaurant));
+      // Strip menu (has large base64 images) before saving to localStorage
+      const { menu: _, ...restaurantMeta } = data.restaurant;
+      localStorage.setItem('restaurantData', JSON.stringify(restaurantMeta));
       navigate('/restaurant-dashboard');
     } catch (error) {
       setError(error.response?.data?.error || 'Login failed. Please check your credentials.');

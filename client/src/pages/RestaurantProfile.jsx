@@ -159,7 +159,9 @@ const RestaurantProfile = () => {
 
       if (response.ok) {
         const updatedRestaurant = await response.json();
-        localStorage.setItem('restaurantData', JSON.stringify(updatedRestaurant));
+        // Strip menu before saving to localStorage to avoid quota exceeded
+        const { menu: _, ...restaurantMeta } = updatedRestaurant;
+        localStorage.setItem('restaurantData', JSON.stringify(restaurantMeta));
         setMessage('Profile updated successfully!');
         setTimeout(() => {
           navigate('/restaurant-dashboard');

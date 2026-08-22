@@ -35,7 +35,8 @@ export const FeatureProvider = ({ children }) => {
           if (response.ok) {
             const restaurant = await response.json();
             setFeatures(restaurant.features || {});
-            localStorage.setItem('restaurantData', JSON.stringify(restaurant));
+            const { menu: _, ...restaurantMeta } = restaurant;
+            localStorage.setItem('restaurantData', JSON.stringify(restaurantMeta));
             return;
           }
         } catch (apiError) {
@@ -160,7 +161,8 @@ export const FeatureProvider = ({ children }) => {
       if (response.ok) {
         const restaurant = await response.json();
         setFeatures(restaurant.features || {});
-        localStorage.setItem('restaurantData', JSON.stringify(restaurant));
+        const { menu: _, ...restaurantMeta } = restaurant;
+        localStorage.setItem('restaurantData', JSON.stringify(restaurantMeta));
       }
     } catch (error) {
       console.error('Error refreshing features:', error);
