@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Settings, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ArrowLeft, Save, Settings, ToggleLeft, ToggleRight, Edit, X, Check } from 'lucide-react';
 
 const AdminEditRestaurant = () => {
   const navigate = useNavigate();
@@ -10,6 +10,51 @@ const AdminEditRestaurant = () => {
   const [message, setMessage] = useState('');
   const [restaurant, setRestaurant] = useState(null);
   const [features, setFeatures] = useState({});
+
+  // Credential edit state
+  const [showCredEdit, setShowCredEdit] = useState(false);
+  const [credForm, setCredForm] = useState({ email: '', password: '', confirmPassword: '' });
+  const [credSaving, setCredSaving] = useState(false);
+  const [credMessage, setCredMessage] = useState({ text: '', type: '' });
+
+  const handleCredSave = async () => {
+    if (!credForm.email || !credForm.password) {
+      setCredMessage({ text: 'Both email and password are required', type: 'error' });
+      return;
+    }
+    if (credForm.password !== credForm.confirmPassword) {
+      setCredMessage({ text: 'Passwords do not match', type: 'error' });
+      return;
+    }
+    setCredSaving(true);
+    setCredMessage({ text: '', type: '' });
+    try {
+      const token = localStorage.getItem('adminToken');
+      // Update email
+      const emailRes = await fetch(`/api/admin/restaurants/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email: credForm.email })
+      });
+      if (!emailRes.ok) { const d = await emailRes.json(); throw new Error(d.error || 'Failed to update email'); }
+      const updated = await emailRes.json();
+      // Update password
+      const passRes = await fetch(`/api/admin/restaurants/${id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ password: credForm.password })
+      });
+      if (!passRes.ok) { const d = await passRes.json(); throw new Error(d.error || 'Failed to update password'); }
+      setRestaurant(prev => ({ ...prev, email: updated.email }));
+      setCredMessage({ text: 'Email and password updated successfully', type: 'success' });
+      setCredForm({ email: '', password: '', confirmPassword: '' });
+      setTimeout(() => { setShowCredEdit(false); setCredMessage({ text: '', type: '' }); }, 1500);
+    } catch (err) {
+      setCredMessage({ text: err.message, type: 'error' });
+    } finally {
+      setCredSaving(false);
+    }
+  };
 
   // Feature definitions with descriptions
   const featureDefinitions = {
@@ -276,16 +321,78 @@ const AdminEditRestaurant = () => {
 
         {/* Restaurant Info Card */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="flex items-center">
-            <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
-              <Settings className="w-8 h-8 text-gray-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                <Settings className="w-8 h-8 text-gray-600" />
+              </div>
+              <div className="ml-4">
+                <h2 className="text-xl font-semibold text-gray-900">{restaurant.name}</h2>
+                <p className="text-gray-600">{restaurant.email}</p>
+                <p className="text-sm text-gray-500">{restaurant.address}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <h2 className="text-xl font-semibold text-gray-900">{restaurant.name}</h2>
-              <p className="text-gray-600">{restaurant.email}</p>
-              <p className="text-sm text-gray-500">{restaurant.address}</p>
-            </div>
+            <button
+              onClick={() => { setShowCredEdit(!showCredEdit); setCredMessage({ text: '', type: '' }); setCredForm({ email: '', password: '', confirmPassword: '' }); }}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              {showCredEdit ? <X size={15} /> : <Edit size={15} />}
+              {showCredEdit ? 'Cancel' : 'Edit Credentials'}
+            </button>
           </div>
+
+          {showCredEdit && (
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Update Email / Password</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">New Email</label>
+                  <input
+                    type="email"
+                    value={credForm.email}
+                    onChange={e => setCredForm({ ...credForm, email: e.target.value })}
+                    placeholder={restaurant.email}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">New Password</label>
+                  <input
+                    type="password"
+                    value={credForm.password}
+                    onChange={e => setCredForm({ ...credForm, password: e.target.value })}
+                    placeholder="Enter new password"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={credForm.confirmPassword}
+                    onChange={e => setCredForm({ ...credForm, confirmPassword: e.target.value })}
+                    placeholder="Confirm new password"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              {credMessage.text && (
+                <p className={`mt-3 text-sm font-medium ${credMessage.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                  {credMessage.text}
+                </p>
+              )}
+              <div className="mt-4">
+                <button
+                  onClick={handleCredSave}
+                  disabled={credSaving || (!credForm.email || !credForm.password || !credForm.confirmPassword)}
+                  className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Check size={15} />
+                  {credSaving ? 'Saving...' : 'Save Credentials'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Message */}
