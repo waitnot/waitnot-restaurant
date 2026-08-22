@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Save, User, MapPin, Phone, Mail, Clock, Star, Utensils, Lock, Eye, EyeOff } from 'lucide-react';
+import { Camera, Save, User, MapPin, Phone, Mail, Clock, Star, Utensils, Lock, Eye, EyeOff, Link } from 'lucide-react';
 import { compressImage, validateImageFile } from '../utils/imageUtils.jsx';
 import FeatureGuard from '../components/FeatureGuard';
 
@@ -10,6 +10,7 @@ const RestaurantProfile = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  const [imageMethod, setImageMethod] = useState('url'); // 'url' or 'upload'
   
   // Password change states
   const [showPasswordSection, setShowPasswordSection] = useState(false);
@@ -284,33 +285,61 @@ const RestaurantProfile = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Restaurant Image
                     </label>
-                    <div className="flex flex-col items-center">
-                      <div className="relative w-48 h-48 bg-gray-200 rounded-lg overflow-hidden mb-4">
-                        {imagePreview ? (
-                          <img 
-                            src={imagePreview} 
-                            alt="Restaurant" 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            <Camera size={48} />
-                          </div>
-                        )}
-                        <label className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                          <Camera className="text-white" size={24} />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                      <p className="text-sm text-gray-500 text-center">
-                        Click to upload image (Max 5MB)
-                      </p>
+                    {/* Toggle */}
+                    <div className="flex gap-2 mb-3">
+                      <button type="button"
+                        onClick={() => setImageMethod('url')}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border transition-colors ${imageMethod === 'url' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                        <Link size={14} /> URL
+                      </button>
+                      <button type="button"
+                        onClick={() => setImageMethod('upload')}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border transition-colors ${imageMethod === 'upload' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                        <Camera size={14} /> Upload
+                      </button>
                     </div>
+
+                    {imageMethod === 'url' && (
+                      <div>
+                        <input
+                          type="url"
+                          value={formData.image && !formData.image.startsWith('data:') ? formData.image : ''}
+                          onChange={(e) => {
+                            const url = e.target.value;
+                            setFormData(prev => ({ ...prev, image: url }));
+                            setImagePreview(url);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          placeholder="https://example.com/image.jpg"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Paste a direct image URL (jpg, png, etc.)</p>
+                      </div>
+                    )}
+
+                    {imageMethod === 'upload' && (
+                      <div className="flex flex-col items-center">
+                        <div className="relative w-48 h-48 bg-gray-200 rounded-lg overflow-hidden mb-2">
+                          {imagePreview ? (
+                            <img src={imagePreview} alt="Restaurant" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              <Camera size={48} />
+                            </div>
+                          )}
+                          <label className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+                            <Camera className="text-white" size={24} />
+                            <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                          </label>
+                        </div>
+                        <p className="text-sm text-gray-500 text-center">Click to upload (Max 5MB)</p>
+                      </div>
+                    )}
+
+                    {imagePreview && (
+                      <div className="mt-3">
+                        <img src={imagePreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg border" onError={() => setImagePreview('')} />
+                      </div>
+                    )}
                   </div>
                 </FeatureGuard>
 
