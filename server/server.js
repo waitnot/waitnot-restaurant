@@ -35,12 +35,16 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   ? [
       'https://waitnot-restaurant.onrender.com',
       'https://waitnot-restaurant-app.vercel.app',
-      'https://your-domain.com'
+      'https://your-domain.com',
+      'https://localhost',
+      'http://localhost'
     ] 
   : [
       'http://localhost:3000', 
       'http://localhost:3001', 
-      'http://localhost:3002'
+      'http://localhost:3002',
+      'https://localhost',
+      'http://localhost'
     ];
 
 app.use(cors({
