@@ -47,3 +47,6 @@ server/data/*.json
 # Temporary files
 *.tmp
 *.temp
+client/android/app/build/
+client/android/.gradle/
+client/dist-captain/
