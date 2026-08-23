@@ -6,7 +6,7 @@ import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
 
-const API = 'https://waitnot-restaurant.onrender.com';
+const API = '';
 
 export default function StaffDashboard() {
   const navigate = useNavigate();

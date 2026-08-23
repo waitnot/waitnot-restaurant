@@ -152,6 +152,51 @@ export async function initDatabase() {
          OR NOT (features ? 'deliveryOrders')
     `);
 
+    // Create staff tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS staff (
+        id SERIAL PRIMARY KEY,
+        restaurant_id VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(20),
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'waiter',
+        permissions JSONB DEFAULT '{}',
+        waiter_number VARCHAR(10),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS waiter_number VARCHAR(10)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS staff_sessions (
+        id SERIAL PRIMARY KEY,
+        staff_id INTEGER NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+        session_token VARCHAR(512) NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS staff_activity_logs (
+        id SERIAL PRIMARY KEY,
+        staff_id INTEGER NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+        restaurant_id VARCHAR(255) NOT NULL,
+        action VARCHAR(255) NOT NULL,
+        details JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_staff_restaurant_id ON staff(restaurant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_staff_sessions_token ON staff_sessions(session_token)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_staff_activity_restaurant ON staff_activity_logs(restaurant_id)');
+
     client.release();
     console.log('✅ Database tables created successfully');
     
