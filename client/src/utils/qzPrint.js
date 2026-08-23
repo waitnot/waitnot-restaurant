@@ -12,9 +12,14 @@
 let qz = null;
 let connected = false;
 
-// Inject qz-tray.js script once
+// Inject qz-tray.js script once (browser only, not in Capacitor/Android)
 function loadQZScript() {
   return new Promise((resolve, reject) => {
+    // Skip in Capacitor/Android environment
+    if (typeof window === 'undefined' || window.Capacitor?.isNativePlatform?.()) {
+      reject(new Error('QZ Tray not available in native app'));
+      return;
+    }
     if (window.qz) { resolve(window.qz); return; }
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
