@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2 } from 'lucide-react';
 import { smartPrint } from '../utils/qzPrint.js';
-import axios from 'axios';
+import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
 

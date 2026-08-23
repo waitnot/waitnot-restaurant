@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Lock, Mail, Eye, EyeOff } from 'lucide-react';
-import axios from 'axios';
+import axios from '../config/axios.js';
 import SEO from '../components/SEO';
 
 export default function StaffLogin() {

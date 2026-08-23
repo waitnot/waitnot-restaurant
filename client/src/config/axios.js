@@ -2,13 +2,14 @@ import axios from 'axios';
 
 // Use localhost for development, production server for desktop app
 const isDesktopApp = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron');
+const isCapacitorApp = typeof window !== 'undefined' && (window.Capacitor?.isNativePlatform?.() || window.location.protocol === 'capacitor:');
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-const baseURL = isDesktopApp 
-  ? 'https://waitnot-restaurant.onrender.com'  // Desktop app always uses production
-  : isDevelopment 
-    ? 'http://localhost:5001'  // Development uses local server
-    : 'https://waitnot-restaurant.onrender.com';  // Production uses production server
+const baseURL = (isDesktopApp || isCapacitorApp)
+  ? 'https://waitnot-restaurant.onrender.com'
+  : isDevelopment
+    ? 'http://localhost:5001'
+    : 'https://waitnot-restaurant.onrender.com';
 
 console.log('🔧 Axios Configuration:', {
   isDesktopApp,

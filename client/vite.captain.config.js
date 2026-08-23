@@ -19,6 +19,8 @@ export default defineConfig({
       }
     }
   ],
+  // Must be '/' for Capacitor to resolve assets correctly
+  base: '/',
   build: {
     outDir: 'dist-captain',
     emptyOutDir: true,

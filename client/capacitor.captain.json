@@ -4,7 +4,9 @@
   "webDir": "dist-captain",
   "bundledWebRuntime": false,
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": ["waitnot-restaurant.onrender.com"]
   },
   "plugins": {
     "SplashScreen": {
