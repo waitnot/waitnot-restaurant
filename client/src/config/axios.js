@@ -1,15 +1,23 @@
 import axios from 'axios';
 
-// Use localhost for development, production server for desktop app
-const isDesktopApp = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron');
-const isCapacitorApp = typeof window !== 'undefined' && (window.Capacitor?.isNativePlatform?.() || window.location.protocol === 'capacitor:');
-const isDevelopment = process.env.NODE_ENV === 'development';
+// Always use production server for the captain/staff app
+// This ensures it works on Android APK, browser, and Electron
+const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
 
+const isDesktopApp = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+const isCapacitorApp = typeof window !== 'undefined' && (
+  window.Capacitor?.isNativePlatform?.() ||
+  window.location?.protocol === 'capacitor:' ||
+  window.location?.hostname === 'localhost' && typeof window.Capacitor !== 'undefined'
+);
+const isDevelopment = typeof process !== 'undefined' && process.env?.NODE_ENV === 'development' && !isCapacitorApp;
+
+// Force production for native apps, use relative for web production
 const baseURL = (isDesktopApp || isCapacitorApp)
-  ? 'https://waitnot-restaurant.onrender.com'
+  ? PRODUCTION_URL
   : isDevelopment
     ? 'http://localhost:5001'
-    : 'https://waitnot-restaurant.onrender.com';
+    : PRODUCTION_URL;
 
 console.log('🔧 Axios Configuration:', {
   isDesktopApp,

@@ -3,6 +3,11 @@ import ReactDOM from 'react-dom/client';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import './index.css';
+
+// Force production API for APK - must be set before any imports that use axios
+import axios from 'axios';
+axios.defaults.baseURL = 'https://waitnot-restaurant.onrender.com';
+
 import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
 
