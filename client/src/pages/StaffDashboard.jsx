@@ -6,6 +6,8 @@ import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
 
+const API = 'https://waitnot-restaurant.onrender.com';
+
 export default function StaffDashboard() {
   const navigate = useNavigate();
   const [staff, setStaff] = useState(null);
@@ -44,7 +46,7 @@ export default function StaffDashboard() {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     fetchRestaurantData(s.restaurant_id);
     fetchOrders(s.restaurant_id);
-    const newSocket = io(axios.defaults.baseURL || 'http://localhost:5001', { transports: ['websocket', 'polling'] });
+    const newSocket = io(API, { transports: ['websocket', 'polling'] });
     setSocket(newSocket);
     newSocket.emit('join-restaurant', s.restaurant_id);
     newSocket.on('order-updated', (o) => setOrders(prev => {
@@ -57,12 +59,12 @@ export default function StaffDashboard() {
   }, [navigate]);
 
   const fetchRestaurantData = async (id) => {
-    const { data } = await axios.get(`/api/restaurants/${id}`);
+    const { data } = await axios.get(`${API}/api/restaurants/${id}`);
     setRestaurant(data);
   };
 
   const fetchOrders = async (id) => {
-    const { data } = await axios.get(`/api/orders/restaurant/${id}`);
+    const { data } = await axios.get(`${API}/api/orders/restaurant/${id}`);
     setOrders(data.filter(o => o.status !== 'completed'));
     setLoading(false);
   };
@@ -103,7 +105,7 @@ export default function StaffDashboard() {
     if (!selectedTable || orderCart.length === 0) return;
     setOrderPlacing(true);
     try {
-      await axios.post('/api/orders', {
+      await axios.post(`${API}/api/orders`, {
         restaurantId: staff.restaurant_id,
         tableNumber: selectedTable.num,
         items: orderCart.map(i => ({ menuItemId: i._id, name: i.name, price: i.price, quantity: i.quantity })),
@@ -125,7 +127,7 @@ export default function StaffDashboard() {
   };
 
   const updateOrderStatus = async (id, status) => {
-    await axios.patch(`/api/orders/${id}/status`, { status });
+    await axios.patch(`${API}/api/orders/${id}/status`, { status });
     fetchOrders(staff.restaurant_id);
   };
 
@@ -164,7 +166,7 @@ export default function StaffDashboard() {
         setConfirmModal(null);
         try {
           for (const o of tableOrders) {
-            await axios.patch(`/api/orders/${o._id}/payment`, { paymentMethod, paymentSubType: subType || null, utrNumber: utr || null });
+            await axios.patch(`${API}/api/orders/${o._id}/payment`, { paymentMethod, paymentSubType: subType || null, utrNumber: utr || null });
             if (o.status !== 'completed') await updateOrderStatus(o._id, 'completed');
           }
           setSelectedTable(null);

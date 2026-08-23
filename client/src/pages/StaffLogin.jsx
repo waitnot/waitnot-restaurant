@@ -20,7 +20,7 @@ export default function StaffLogin() {
     setError('');
 
     try {
-      const { data } = await axios.post('/api/staff/login', formData);
+      const { data } = await axios.post('https://waitnot-restaurant.onrender.com/api/staff/login', formData);
       
       // Store staff data and token
       localStorage.setItem('staffToken', data.token);
