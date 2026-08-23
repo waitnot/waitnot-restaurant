@@ -96,7 +96,10 @@ export async function smartPrint(html, type = 'bill') {
   if (window.Capacitor?.isNativePlatform?.()) {
     const res = await nativeCapacitorPrint(html, type);
     if (res.success) return { method: 'bluetooth' };
-    console.warn('Bluetooth print failed or not configured, falling back to browser dialog');
+
+    // CUSTOM MOBILE FALLBACK: Show alert instead of redirecting to Chrome
+    alert('⚠️ Bluetooth printer not configured. Please go to "Settings" tab in this app to pair and select your printer.');
+    return { method: 'none', error: 'No printer' };
   }
 
   // 2. Desktop App Silent Print
