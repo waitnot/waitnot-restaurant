@@ -373,7 +373,7 @@ export default function RestaurantDashboard() {
 
   const fetchOrders = async (id) => {
     try {
-      const { data } = await axios.get(`/api/orders/restaurant/${id}`);
+      const { data } = await axios.get(`/api/orders/restaurant/${id}?status=active`);
       setOrders(data);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -821,20 +821,22 @@ export default function RestaurantDashboard() {
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          for (const order of tableOrders) {
-            await axios.patch(`/api/orders/${order._id}/payment`, {
-              paymentMethod,
-              paymentSubType: paymentSubType || null,
-              utrNumber: utr || null
-            });
-            if (order.status !== 'completed') {
-              await updateOrderStatus(order._id, 'completed');
-            }
-          }
+          // Use batch update for better performance
+          const orderIds = tableOrders.map(o => o._id);
+          await axios.post('/api/orders/batch-update', {
+            orderIds,
+            status: 'completed',
+            paymentMethod,
+            paymentSubType: paymentSubType || null,
+            utrNumber: utr || null,
+            paymentStatus: 'paid'
+          });
+
           const sessionKey = `table_session_${restaurant._id}_${tableNumber}`;
           localStorage.removeItem(sessionKey);
           const restaurantId = localStorage.getItem('restaurantId');
           await fetchOrders(restaurantId);
+          showToast(`Table ${tableNumber} cleared successfully`);
         } catch (error) {
           console.error('❌ Error clearing table:', error);
           showToast(`Failed to clear table: ${error.response?.data?.error || error.message}`, 'error');

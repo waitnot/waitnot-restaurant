@@ -11,6 +11,7 @@
     "cap:captain": "npx cap sync --capacitorconfig capacitor.captain.json"
   },
   "dependencies": {
+    "@ascentio-it/capacitor-bluetooth-serial": "^8.0.1",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",

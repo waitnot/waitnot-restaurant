@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Settings, Printer, Save, ArrowLeft, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { connectQZ, getPrinters, isQZAvailable } from '../utils/qzPrint.js';
+import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
 
 // Function to generate custom bill preview
 const generateCustomBillPreview = (customization) => {
@@ -196,6 +197,9 @@ export default function PrinterSettings() {
     useQZTray: false,
     qzKitchenPrinter: '',
     qzBillPrinter: '',
+    // Bluetooth direct printing (mobile)
+    btKitchenPrinter: '',
+    btBillPrinter: '',
     // UPI Payment Settings
     enableUpiPayments: true,
     upiBaseUrl: 'upi://pay?pa=Q582735754@ybl&pn=PhonePeMerchant&mc=0000&mode=02&purpose=00',
@@ -235,8 +239,13 @@ export default function PrinterSettings() {
   const [saved, setSaved] = useState(false);
   const [qzStatus, setQzStatus] = useState('unknown'); // 'unknown' | 'connected' | 'disconnected'
   const [qzPrinters, setQzPrinters] = useState([]);
+  const [btPrinters, setBtPrinters] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    // Check if running in Capacitor
+    setIsMobile(window.Capacitor?.isNativePlatform?.());
+
     // Check if user is authenticated
     const restaurantId = localStorage.getItem('restaurantId');
     if (!restaurantId) {
@@ -358,6 +367,26 @@ export default function PrinterSettings() {
       setQzStatus('disconnected');
     }
   };
+
+  const loadBluetoothPrinters = async () => {
+    if (!window.Capacitor?.isNativePlatform?.()) return;
+    try {
+      const state = await BluetoothSerial.isEnabled();
+      if (!state.enabled) {
+        await BluetoothSerial.enable();
+      }
+      const result = await BluetoothSerial.getPairedDevices();
+      setBtPrinters(result.devices || []);
+    } catch (error) {
+      console.error('Failed to load Bluetooth printers:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (window.Capacitor?.isNativePlatform?.()) {
+      loadBluetoothPrinters();
+    }
+  }, []);
 
   // Handle logo file upload
   const handleLogoUpload = (e) => {
@@ -544,6 +573,55 @@ export default function PrinterSettings() {
             <p className="text-yellow-600 text-xs mt-2">⚠️ Connect to QZ Tray and select at least one printer above.</p>
           )}
         </div>
+
+        {/* Mobile Bluetooth Printer Settings */}
+        {isMobile && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <Printer size={24} className="text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-800">Bluetooth Thermal Printer (Mobile)</h2>
+                  <p className="text-gray-500 text-sm">Direct printing from Android Captain App</p>
+                </div>
+              </div>
+              <button
+                onClick={loadBluetoothPrinters}
+                className="flex items-center gap-2 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+              >
+                <RefreshCw size={16} /> Scan Devices
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kitchen Bluetooth Printer</label>
+                <select
+                  value={settings.btKitchenPrinter || ''}
+                  onChange={e => handleSettingChange('btKitchenPrinter', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">— Select device —</option>
+                  {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Make sure the printer is paired in Android Settings</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Bill Bluetooth Printer</label>
+                <select
+                  value={settings.btBillPrinter || ''}
+                  onChange={e => handleSettingChange('btBillPrinter', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">— Select device —</option>
+                  {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Kitchen Printer Settings */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">

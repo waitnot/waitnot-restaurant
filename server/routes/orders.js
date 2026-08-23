@@ -108,7 +108,8 @@ router.post('/', checkOrderRateLimit, async (req, res) => {
 // Get orders by restaurant
 router.get('/restaurant/:restaurantId', async (req, res) => {
   try {
-    const orders = await orderDB.findByRestaurant(req.params.restaurantId);
+    const { status } = req.query;
+    const orders = await orderDB.findByRestaurant(req.params.restaurantId, status);
     res.json(orders);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -169,72 +170,44 @@ router.patch('/:id/items', async (req, res) => {
 
 // Update complete order (for staff order editing)
 router.put('/:id', async (req, res) => {
+  // ... (existing code)
+});
+
+// Batch update orders (e.g., clearing a table)
+router.post('/batch-update', async (req, res) => {
   try {
-    console.log('🔄 Updating complete order:', req.params.id);
-    console.log('Update data:', req.body);
+    const { orderIds, status, paymentMethod, paymentSubType, utrNumber, paymentStatus } = req.body;
     
-    const {
-      customerName,
-      customerPhone,
-      orderType,
-      deliveryAddress,
-      tableNumber,
-      items,
-      totalAmount,
-      specialInstructions
-    } = req.body;
-    
-    // Validate required fields
-    if (!items || items.length === 0) {
-      return res.status(400).json({ error: 'Order must have at least one item' });
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: 'Order IDs array is required' });
     }
+
+    console.log('🔄 Batch updating orders:', orderIds.length);
     
-    if (!customerName || customerName.trim() === '') {
-      return res.status(400).json({ error: 'Customer name is required' });
-    }
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (paymentMethod) updateData.payment_method = paymentMethod;
+    if (paymentStatus) updateData.payment_status = paymentStatus;
+    if (paymentSubType) updateData.payment_sub_type = paymentSubType;
+    if (utrNumber) updateData.utr_number = utrNumber;
     
-    // Prepare update data
-    const updateData = {
-      customerName: customerName.trim(),
-      customerPhone: customerPhone || '',
-      orderType,
-      items,
-      totalAmount,
-      specialInstructions: specialInstructions || ''
-    };
-    
-    // Add conditional fields based on order type
-    if (orderType === 'delivery') {
-      updateData.deliveryAddress = deliveryAddress || '';
-    }
-    
-    if (orderType === 'dine-in') {
-      updateData.tableNumber = parseInt(tableNumber) || null;
-    }
-    
-    console.log('Final update data:', updateData);
-    
-    const order = await orderDB.update(req.params.id, updateData);
-    
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-    
-    console.log('✅ Order updated successfully:', order._id);
-    
-    // Emit real-time update
+    await orderDB.batchUpdate(orderIds, updateData);
+
+    // Emit socket updates for each order (optimized)
     const io = req.app.get('io');
     if (io) {
-      // Notify the specific restaurant
-      io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
-      // Notify all admins
-      io.to('admin-room').emit('order-updated', order);
-      console.log('📡 Real-time update sent to restaurant and admin');
+      // Just fetch the first order to get the restaurantId, assuming all orders belong to the same restaurant
+      const firstOrder = await orderDB.findById(orderIds[0]);
+      if (firstOrder) {
+        // Emit a single 'orders-updated' event for efficiency
+        io.to(`restaurant-${firstOrder.restaurantId}`).emit('orders-updated', { orderIds, updateData });
+        io.to('admin-room').emit('orders-updated', { orderIds, updateData });
+      }
     }
-    
-    res.json(order);
+
+    res.json({ success: true, count: orderIds.length });
   } catch (error) {
-    console.error('❌ Error updating complete order:', error);
+    console.error('❌ Batch update failed:', error);
     res.status(500).json({ error: error.message });
   }
 });

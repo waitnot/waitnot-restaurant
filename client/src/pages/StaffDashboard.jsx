@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2 } from 'lucide-react';
+import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { smartPrint } from '../utils/qzPrint.js';
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
+import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
 
 const API = '';
 
@@ -14,7 +15,7 @@ export default function StaffDashboard() {
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState('tables'); // 'tables' | 'running' | 'profile'
+  const [activeView, setActiveView] = useState('tables'); // 'tables' | 'running' | 'profile' | 'settings'
   const [socket, setSocket] = useState(null);
 
   // Order flow state
@@ -32,6 +33,17 @@ export default function StaffDashboard() {
   const [utrNumber, setUtrNumber] = useState('');
   const [toast, setToast] = useState(null);
 
+  // Printer settings for staff
+  const [printerSettings, setPrinterSettings] = useState({
+    btKitchenPrinter: '',
+    btBillPrinter: '',
+    autoPrintKitchenBill: false,
+    autoPrintFinalBill: false
+  });
+  const [btPrinters, setBtPrinters] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 2500);
@@ -46,6 +58,13 @@ export default function StaffDashboard() {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     fetchRestaurantData(s.restaurant_id);
     fetchOrders(s.restaurant_id);
+
+    setIsMobile(window.Capacitor?.isNativePlatform?.());
+    loadPrinterSettings(s.restaurant_id);
+    if (window.Capacitor?.isNativePlatform?.()) {
+      loadBluetoothPrinters();
+    }
+
     const newSocket = io(API, { transports: ['websocket', 'polling'] });
     setSocket(newSocket);
     newSocket.emit('join-restaurant', s.restaurant_id);
@@ -58,14 +77,45 @@ export default function StaffDashboard() {
     return () => { newSocket.emit('leave-restaurant', s.restaurant_id); newSocket.disconnect(); };
   }, [navigate]);
 
+  const loadPrinterSettings = (restaurantId) => {
+    const saved = localStorage.getItem(`printer_settings_${restaurantId}`);
+    if (saved) {
+      setPrinterSettings(JSON.parse(saved));
+    }
+  };
+
+  const loadBluetoothPrinters = async () => {
+    try {
+      const state = await BluetoothSerial.isEnabled();
+      if (!state.enabled) await BluetoothSerial.enable();
+      const result = await BluetoothSerial.getPairedDevices();
+      setBtPrinters(result.devices || []);
+    } catch (error) {
+      console.error('Failed to load BT printers:', error);
+    }
+  };
+
+  const savePrinterSettings = () => {
+    setSavingSettings(true);
+    localStorage.setItem(`printer_settings_${staff.restaurant_id}`, JSON.stringify(printerSettings));
+    setTimeout(() => {
+      setSavingSettings(false);
+      showToast('Settings saved');
+    }, 500);
+  };
+
+  const handlePrinterSettingChange = (key, value) => {
+    setPrinterSettings(prev => ({ ...prev, [key]: value }));
+  };
+
   const fetchRestaurantData = async (id) => {
     const { data } = await axios.get(`${API}/api/restaurants/${id}`);
     setRestaurant(data);
   };
 
   const fetchOrders = async (id) => {
-    const { data } = await axios.get(`${API}/api/orders/restaurant/${id}`);
-    setOrders(data.filter(o => o.status !== 'completed'));
+    const { data } = await axios.get(`${API}/api/orders/restaurant/${id}?status=active`);
+    setOrders(data);
     setLoading(false);
   };
 
@@ -105,7 +155,7 @@ export default function StaffDashboard() {
     if (!selectedTable || orderCart.length === 0) return;
     setOrderPlacing(true);
     try {
-      await axios.post(`${API}/api/orders`, {
+      const response = await axios.post(`${API}/api/orders`, {
         restaurantId: staff.restaurant_id,
         tableNumber: selectedTable.num,
         items: orderCart.map(i => ({ menuItemId: i._id, name: i.name, price: i.price, quantity: i.quantity })),
@@ -114,11 +164,24 @@ export default function StaffDashboard() {
         customerName: `Waiter ${staff.waiter_number || staff.name}`,
         source: 'staff', status: 'pending', paymentStatus: 'pending', paymentMethod: 'cash',
       });
+
+      const newOrder = response.data;
       setOrderCart([]);
       showToast('Order placed!');
-      await fetchOrders(staff.restaurant_id);
-      const updated = getTableOrders(selectedTable.num);
-      setSelectedTable(prev => ({ ...prev, orders: updated, total: getTableTotal(updated) }));
+
+      // Auto-print KOT if enabled
+      const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
+      if (savedSettings.autoPrintKitchenBill) {
+        printKOT(newOrder);
+      }
+
+      // Wait for socket to update orders or fetch once if needed
+      // To be safe and show immediate feedback, we can fetch, but socket is better for real-time
+      // Let's keep one fetch but optimize it by not blocking UI
+      fetchOrders(staff.restaurant_id).then(() => {
+        const updated = getTableOrders(selectedTable.num);
+        setSelectedTable(prev => ({ ...prev, orders: updated, total: getTableTotal(updated) }));
+      });
     } catch (err) {
       showToast('Failed to place order', 'error');
     } finally {
@@ -165,14 +228,22 @@ export default function StaffDashboard() {
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          for (const o of tableOrders) {
-            await axios.patch(`${API}/api/orders/${o._id}/payment`, { paymentMethod, paymentSubType: subType || null, utrNumber: utr || null });
-            if (o.status !== 'completed') await updateOrderStatus(o._id, 'completed');
-          }
+          // Use batch update for better performance
+          const orderIds = tableOrders.map(o => o._id);
+          await axios.post(`${API}/api/orders/batch-update`, {
+            orderIds,
+            status: 'completed',
+            paymentMethod,
+            paymentSubType: subType || null,
+            utrNumber: utr || null,
+            paymentStatus: 'paid'
+          });
+
           setSelectedTable(null);
           showToast('Table cleared');
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
+          console.error('❌ Error clearing table:', err);
           showToast('Failed to clear table', 'error');
         }
       }
@@ -232,6 +303,7 @@ export default function StaffDashboard() {
               { id: 'tables', label: 'Tables', icon: UtensilsCrossed },
               { id: 'running', label: 'Orders', icon: ClipboardList, badge: runningTables.length },
               { id: 'profile', label: 'Profile', icon: User },
+              { id: 'settings', label: 'Settings', icon: Settings },
             ].map(tab => {
               const Icon = tab.icon;
               const active = activeView === tab.id;
@@ -486,6 +558,86 @@ export default function StaffDashboard() {
               </div>
             </div>
           )}
+
+          {/* SETTINGS */}
+          {activeView === 'settings' && (
+            <div className="p-4 sm:p-6 max-w-lg">
+              <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-blue-100 p-2 rounded-lg">
+                    <Printer size={24} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Printer Settings</h2>
+                    <p className="text-gray-500 text-sm">Configure Bluetooth printers</p>
+                  </div>
+                </div>
+
+                {!isMobile ? (
+                  <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl text-yellow-800 text-sm">
+                    ⚠️ Bluetooth printing is only available in the mobile app.
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">Kitchen Printer</label>
+                        <button onClick={loadBluetoothPrinters} className="text-blue-500 text-xs font-semibold flex items-center gap-1">
+                          <RefreshCw size={12} /> Scan
+                        </button>
+                      </div>
+                      <select
+                        value={printerSettings.btKitchenPrinter}
+                        onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">— Select device —</option>
+                        {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Bill Printer</label>
+                      <select
+                        value={printerSettings.btBillPrinter}
+                        onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">— Select device —</option>
+                        {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                      </select>
+                    </div>
+
+                    <div className="space-y-4 pt-2">
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className={`w-10 h-5 rounded-full transition-colors ${printerSettings.autoPrintKitchenBill ? 'bg-green-500' : 'bg-gray-300'}`}
+                          onClick={() => handlePrinterSettingChange('autoPrintKitchenBill', !printerSettings.autoPrintKitchenBill)}>
+                          <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${printerSettings.autoPrintKitchenBill ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">Auto-print KOT on order</span>
+                      </label>
+
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className={`w-10 h-5 rounded-full transition-colors ${printerSettings.autoPrintFinalBill ? 'bg-green-500' : 'bg-gray-300'}`}
+                          onClick={() => handlePrinterSettingChange('autoPrintFinalBill', !printerSettings.autoPrintFinalBill)}>
+                          <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${printerSettings.autoPrintFinalBill ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">Auto-print Bill on clear</span>
+                      </label>
+                    </div>
+
+                    <button
+                      onClick={savePrinterSettings}
+                      disabled={savingSettings}
+                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 mt-4"
+                    >
+                      {savingSettings ? 'Saving...' : 'Save Configuration'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>{/* end content area */}
         </div>{/* end md:flex + main content */}
 
@@ -495,6 +647,7 @@ export default function StaffDashboard() {
             { id: 'tables', label: 'Tables', icon: UtensilsCrossed },
             { id: 'running', label: 'Orders', icon: ClipboardList, badge: runningTables.length },
             { id: 'profile', label: 'Profile', icon: User },
+            { id: 'settings', label: 'Settings', icon: Settings },
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeView === tab.id;

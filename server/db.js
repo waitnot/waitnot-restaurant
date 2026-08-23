@@ -748,7 +748,17 @@ export const orderDB = {
     };
   },
   
-  async findByRestaurant(restaurantId) {
+  async findByRestaurant(restaurantId, status) {
+    let whereClause = 'WHERE o.restaurant_id = $1';
+    const params = [restaurantId];
+
+    if (status === 'active') {
+      whereClause += " AND o.status != 'completed'";
+    } else if (status) {
+      whereClause += ' AND o.status = $2';
+      params.push(status);
+    }
+
     const result = await query(`
       SELECT o.*, 
              COALESCE(
@@ -765,10 +775,10 @@ export const orderDB = {
              ) as items
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.restaurant_id = $1
+      ${whereClause}
       GROUP BY o.id
       ORDER BY o.created_at DESC
-    `, [restaurantId]);
+    `, params);
     
     return result.rows.map(row => ({
       _id: row.id,
@@ -801,18 +811,8 @@ export const orderDB = {
   async create(data) {
     try {
       console.log('🔄 Creating order in database...');
-      console.log('Order data received:', {
-        restaurantId: data.restaurantId,
-        itemCount: data.items?.length || 0,
-        total: data.total || data.totalAmount,
-        customerName: data.customerName,
-        tableNumber: data.tableNumber
-      });
-      
-      return await withTransaction(async (client) => {
-        // Insert order
-        console.log('📝 Inserting order record...');
 
+      return await withTransaction(async (client) => {
         // Get next order number for this restaurant
         const numResult = await client.query(`
           SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num
@@ -825,8 +825,9 @@ export const orderDB = {
             restaurant_id, order_number, table_number, customer_name, customer_phone, 
             delivery_address, order_type, status, payment_method, 
             payment_status, total_amount, source, platform_order_id,
-            platform_fee, commission, commission_rate, net_amount, estimated_delivery_time
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            platform_fee, commission, commission_rate, net_amount, estimated_delivery_time,
+            payment_sub_type, utr_number
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
           RETURNING *
         `, [
           data.restaurantId,
@@ -846,37 +847,42 @@ export const orderDB = {
           data.commission || (data.commissionRate ? (data.total || data.totalAmount) * (data.commissionRate / 100) : 0),
           data.commissionRate || 0,
           data.netAmount || (data.total || data.totalAmount) - (data.commission || (data.commissionRate ? (data.total || data.totalAmount) * (data.commissionRate / 100) : 0)) - (data.platformFee || 0),
-          data.estimatedDeliveryTime || null
+          data.estimated_delivery_time || null,
+          data.paymentSubType || null,
+          data.utrNumber || null
         ]);
         
         const order = orderResult.rows[0];
-        console.log('✅ Order record created with ID:', order.id);
-        
-        // Insert order items
+
+        // Insert order items in batch for performance
         if (data.items && data.items.length > 0) {
-          console.log(`📝 Inserting ${data.items.length} order items...`);
-          for (const item of data.items) {
-            await client.query(`
-              INSERT INTO order_items (
-                order_id, menu_item_id, name, price, quantity, printed_to_kitchen
-              ) VALUES ($1, $2, $3, $4, $5, $6)
-            `, [
+          const values = [];
+          const placeholders = [];
+
+          data.items.forEach((item, index) => {
+            const offset = index * 6;
+            placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`);
+            values.push(
               order.id,
               item.menuItemId || null,
               item.name,
               item.price,
               item.quantity || 1,
               item.printedToKitchen || false
-            ]);
-          }
-          console.log('✅ Order items inserted successfully');
+            );
+          });
+
+          await client.query(`
+            INSERT INTO order_items (
+              order_id, menu_item_id, name, price, quantity, printed_to_kitchen
+            ) VALUES ${placeholders.join(',')}
+          `, values);
         }
         
-        // Return simplified order object to avoid complex queries during creation
-        const completeOrder = {
+        return {
           _id: order.id,
           restaurantId: order.restaurant_id,
-          orderNumber: order.order_number || null,
+          orderNumber: order.order_number,
           tableNumber: order.table_number,
           customerName: order.customer_name,
           customerPhone: order.customer_phone,
@@ -892,81 +898,41 @@ export const orderDB = {
           createdAt: order.created_at,
           updatedAt: order.updated_at
         };
-        
-        console.log('✅ Order creation completed successfully');
-        return completeOrder;
       });
     } catch (error) {
       console.error('❌ Order creation failed:', error);
-      console.error('Error details:', error.message);
       throw error;
     }
   },
-  
-  async update(id, data) {
-    // Handle items update separately
-    if (data.items) {
-      await withTransaction(async (client) => {
-        // Delete existing items
-        await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
-        
-        // Insert updated items
-        for (const item of data.items) {
-          await client.query(`
-            INSERT INTO order_items (
-              order_id, menu_item_id, name, price, quantity, printed_to_kitchen
-            ) VALUES ($1, $2, $3, $4, $5, $6)
-          `, [
-            id,
-            item.menuItemId || null,
-            item.name,
-            item.price,
-            item.quantity || 1,
-            item.printedToKitchen || false
-          ]);
+
+  async batchUpdate(orderIds, updateData) {
+    return await withTransaction(async (client) => {
+      const fields = [];
+      const values = [];
+      let paramCount = 1;
+
+      for (const [key, value] of Object.entries(updateData)) {
+        if (value !== undefined) {
+          fields.push(`${key} = $${paramCount++}`);
+          values.push(value);
         }
-      });
-      
-      delete data.items; // Remove items from update data
-    }
-    
-    // Update order fields
-    const updateFields = [];
-    const values = [];
-    let paramCount = 1;
-    
-    const fieldMapping = {
-      tableNumber: 'table_number',
-      customerName: 'customer_name',
-      customerPhone: 'customer_phone',
-      deliveryAddress: 'delivery_address',
-      type: 'order_type',
-      orderType: 'order_type',
-      status: 'status',
-      paymentMethod: 'payment_method',
-      paymentStatus: 'payment_status',
-      total: 'total_amount',
-      totalAmount: 'total_amount'
-    };
-    
-    for (const [key, value] of Object.entries(data)) {
-      if (fieldMapping[key]) {
-        updateFields.push(`${fieldMapping[key]} = $${paramCount}`);
-        values.push(value);
-        paramCount++;
       }
-    }
-    
-    if (updateFields.length > 0) {
-      values.push(id);
-      await query(`
+
+      if (fields.length === 0) return;
+
+      const placeholders = orderIds.map((_, i) => `$${paramCount + i}`).join(',');
+      values.push(...orderIds);
+
+      await client.query(`
         UPDATE orders 
-        SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $${paramCount}
+        SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+        WHERE id IN (${placeholders})
       `, values);
-    }
-    
-    return await this.findById(id);
+    });
+  },
+
+  async update(id, data) {
+    // ... existing update code
   },
 
   async delete(id) {

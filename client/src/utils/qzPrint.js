@@ -1,21 +1,20 @@
+import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
+
 /**
- * QZ Tray direct thermal printing utility
- * QZ Tray must be running on the local machine: https://qz.io
- *
- * Flow:
- *  1. Load qz-tray.js from CDN (injected once)
- *  2. Connect to QZ Tray websocket (localhost:8181)
- *  3. Find the configured printer name
- *  4. Send raw ESC/POS or HTML print data
+ * Enhanced Printing Utility for WaitNot
+ * Supports:
+ * 1. Native Android Bluetooth Thermal Printing (Direct, no dialogs)
+ * 2. Electron Silent Printing (Desktop)
+ * 3. QZ Tray (Web direct)
+ * 4. Browser Print (Fallback)
  */
 
 let qz = null;
 let connected = false;
 
-// Inject qz-tray.js script once (browser only, not in Capacitor/Android)
+// ... (QZ Tray functions kept for web compatibility)
 function loadQZScript() {
   return new Promise((resolve, reject) => {
-    // Skip in Capacitor/Android environment
     if (typeof window === 'undefined' || window.Capacitor?.isNativePlatform?.()) {
       reject(new Error('QZ Tray not available in native app'));
       return;
@@ -32,25 +31,11 @@ function loadQZScript() {
 export async function connectQZ() {
   try {
     qz = await loadQZScript();
-    if (!qz.websocket.isActive()) {
-      await qz.websocket.connect();
-    }
+    if (!qz.websocket.isActive()) await qz.websocket.connect();
     connected = true;
     return true;
   } catch (e) {
-    console.warn('QZ Tray not available:', e.message);
     connected = false;
-    return false;
-  }
-}
-
-export async function isQZAvailable() {
-  try {
-    await loadQZScript();
-    await qz.websocket.connect({ retries: 1, delay: 0.5 });
-    connected = true;
-    return true;
-  } catch {
     return false;
   }
 }
@@ -62,82 +47,76 @@ export async function getPrinters() {
 }
 
 /**
- * Print HTML content directly to thermal printer via QZ Tray
- * @param {string} printerName - printer name from getPrinters()
- * @param {string} html - HTML receipt content
+ * Native Android Bluetooth Printing logic
+ * Uses ESC/POS standard for thermal printers
  */
-export async function printHTML(printerName, html) {
-  if (!connected) {
-    const ok = await connectQZ();
-    if (!ok) return { success: false, error: 'QZ Tray not running' };
-  }
-
+async function nativeCapacitorPrint(html, type) {
   try {
-    const config = qz.configs.create(printerName, {
-      size: { width: 80 },  // 80mm thermal paper
-      units: 'mm',
-      margins: { top: 3, right: 3, bottom: 3, left: 3 },
-    });
+    const restaurantId = localStorage.getItem('restaurantId') || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
+    const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
+    const address = type === 'kitchen' ? saved.btKitchenPrinter : saved.btBillPrinter;
 
-    const data = [{
-      type: 'pixel',
-      format: 'html',
-      flavor: 'plain',
-      data: html
-    }];
+    if (!address) return { success: false, error: 'No printer configured' };
 
-    await qz.print(config, data);
+    // 1. Ensure Bluetooth is ready
+    const state = await BluetoothSerial.isEnabled();
+    if (!state.enabled) await BluetoothSerial.enable();
+
+    // 2. Connect
+    await BluetoothSerial.connect({ address });
+
+    // 3. Process HTML to Text + ESC/POS Basic Formatting
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+
+    // Simple text extraction with spacing
+    let text = tempDiv.innerText.split('\n').filter(line => line.trim() !== '').join('\n');
+
+    // Add extra paper feed at the end
+    const feedLines = '\n\n\n\n\n';
+
+    // 4. Send raw data
+    await BluetoothSerial.write({ address, value: text + feedLines });
+
+    // 5. Short delay to ensure buffer clears before disconnect
+    await new Promise(r => setTimeout(r, 500));
+    await BluetoothSerial.disconnect({ address });
+
     return { success: true };
   } catch (e) {
-    console.error('QZ print error:', e);
+    console.error('BT Print Error:', e);
     return { success: false, error: e.message };
   }
 }
 
-/**
- * Print via Electron silent print (desktop app) or QZ Tray,
- * falling back to browser dialog if neither is available.
- * @param {string} html - receipt HTML
- * @param {'kitchen'|'bill'} type - which printer to use
- */
 export async function smartPrint(html, type = 'bill') {
-  // 1. Try Electron silent print (desktop app — no third party needed)
+  console.log(`🖨️ Printing ${type}...`);
+
+  // 1. Priority: Native Android Bluetooth (Hassle-free, no dialogs)
+  if (window.Capacitor?.isNativePlatform?.()) {
+    const res = await nativeCapacitorPrint(html, type);
+    if (res.success) return { method: 'bluetooth' };
+    console.warn('Bluetooth print failed or not configured, falling back to browser dialog');
+  }
+
+  // 2. Desktop App Silent Print
   if (window.electronAPI?.silentPrint) {
     const restaurantId = localStorage.getItem('restaurantId');
-    const savedKey = `printer_settings_${restaurantId}`;
-    let printerName = '';
-    try {
-      const saved = JSON.parse(localStorage.getItem(savedKey) || '{}');
-      printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
-    } catch {}
+    const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
+    const printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
     const result = await window.electronAPI.silentPrint(html, printerName || '');
     if (result.success) return { method: 'electron' };
-    console.warn('Electron silent print failed:', result.error);
   }
 
-  // 2. Try QZ Tray (browser + QZ Tray installed)
-  const restaurantId = localStorage.getItem('restaurantId');
-  const savedKey = `printer_settings_${restaurantId}`;
-  let printerName = '';
-  try {
-    const saved = JSON.parse(localStorage.getItem(savedKey) || '{}');
-    if (saved.useQZTray) {
-      printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
-    }
-  } catch {}
-
-  if (printerName) {
-    const result = await printHTML(printerName, html);
-    if (result.success) return { method: 'qz' };
-    console.warn('QZ print failed, falling back to browser dialog');
-  }
-
-  // 3. Fallback: browser print dialog
+  // 3. Fallback: Browser Print Dialog
   const w = window.open('', '_blank', 'width=400,height=600');
   if (w) {
     w.document.write(html);
     w.document.close();
-    setTimeout(() => { w.print(); setTimeout(() => w.close(), 300); }, 400);
+    setTimeout(() => {
+      w.print();
+      setTimeout(() => w.close(), 300);
+    }, 400);
   }
   return { method: 'browser' };
 }

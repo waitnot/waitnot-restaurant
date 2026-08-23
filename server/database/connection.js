@@ -116,6 +116,12 @@ export async function initDatabase() {
     await client.query(`
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_number INTEGER
     `);
+
+    // Add payment details columns
+    await client.query(`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_sub_type VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS utr_number VARCHAR(100)
+    `);
     
     // Create order_items table
     await client.query(`
