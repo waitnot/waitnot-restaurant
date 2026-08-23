@@ -86,6 +86,16 @@ export default function StaffDashboard() {
 
   const loadBluetoothPrinters = async () => {
     try {
+      // 1. Check/Request Permissions (Required for Android 12+)
+      if (window.Capacitor?.isNativePlatform?.()) {
+        const hasPermission = await BluetoothSerial.checkBluetoothPermissions();
+        if (!hasPermission) {
+          // If no permissions, the plugin usually doesn't have a direct "request"
+          // but we can try to trigger an action that prompts it or tell user.
+          console.warn('Bluetooth permissions not granted');
+        }
+      }
+
       const state = await BluetoothSerial.isEnabled();
       if (!state.enabled) await BluetoothSerial.enable();
       const result = await BluetoothSerial.getPairedDevices();

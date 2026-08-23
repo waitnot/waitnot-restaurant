@@ -371,6 +371,9 @@ export default function PrinterSettings() {
   const loadBluetoothPrinters = async () => {
     if (!window.Capacitor?.isNativePlatform?.()) return;
     try {
+      // Check/Request Permissions
+      const hasPermission = await BluetoothSerial.checkBluetoothPermissions();
+
       const state = await BluetoothSerial.isEnabled();
       if (!state.enabled) {
         await BluetoothSerial.enable();

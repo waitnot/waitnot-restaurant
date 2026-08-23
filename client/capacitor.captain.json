@@ -4,7 +4,7 @@
   "webDir": "dist-captain",
   "bundledWebRuntime": false,
   "server": {
-    "url": "https://waitnot-restaurant.onrender.com",
+    "url": "https://waitnot-restaurant.onrender.com/staff-login",
     "androidScheme": "https",
     "cleartext": true,
     "allowNavigation": ["waitnot-restaurant.onrender.com"]
