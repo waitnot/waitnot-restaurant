@@ -1,0 +1,16 @@
+{
+  "appId": "com.waitnot.captain",
+  "appName": "WaitNot Captain",
+  "webDir": "dist-captain",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#EF4444",
+      "showSpinner": false
+    }
+  }
+}

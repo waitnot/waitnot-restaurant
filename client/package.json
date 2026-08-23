@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:captain": "vite build --config vite.captain.config.js",
+    "preview": "vite preview",
+    "cap:captain": "npx cap sync --capacitorconfig capacitor.captain.json"
   },
   "dependencies": {
     "@types/react": "^18.2.43",
