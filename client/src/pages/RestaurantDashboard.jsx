@@ -373,7 +373,7 @@ export default function RestaurantDashboard() {
 
   const fetchOrders = async (id) => {
     try {
-      const { data } = await axios.get(`/api/orders/restaurant/${id}?status=active`);
+      const { data } = await axios.get(`/api/orders/restaurant/${id}`);
       setOrders(data);
     } catch (error) {
       console.error('Error fetching orders:', error);
