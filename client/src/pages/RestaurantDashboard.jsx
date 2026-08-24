@@ -342,7 +342,27 @@ export default function RestaurantDashboard() {
     });
 
     socket.on('order-updated', (updatedOrder) => {
-      setOrders(prev => prev.map(o => o._id === updatedOrder._id ? updatedOrder : o));
+      setOrders(prev => {
+        const exists = prev.some(o => o._id === updatedOrder._id);
+        if (exists) {
+          return prev.map(o => o._id === updatedOrder._id ? updatedOrder : o);
+        }
+        // New order from another device — add it
+        return [updatedOrder, ...prev];
+      });
+    });
+
+    // Batch update (e.g. clear table from mobile)
+    socket.on('orders-updated', ({ orderIds, updateData }) => {
+      setOrders(prev => prev.map(o => {
+        if (!orderIds.includes(o._id)) return o;
+        // Map snake_case server fields to camelCase frontend fields
+        const patch = {};
+        if (updateData.status) patch.status = updateData.status;
+        if (updateData.payment_method) patch.paymentMethod = updateData.payment_method;
+        if (updateData.payment_status) patch.paymentStatus = updateData.payment_status;
+        return { ...o, ...patch };
+      }));
     });
 
     return () => socket.disconnect();
