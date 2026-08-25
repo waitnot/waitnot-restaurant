@@ -1,84 +1,57 @@
 import axios from 'axios';
 
-// Always use production server for the captain/staff app
-// This ensures it works on Android APK, browser, and Electron
 const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
 
 const isDesktopApp = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
 const isCapacitorApp = typeof window !== 'undefined' && (
   window.Capacitor?.isNativePlatform?.() ||
-  window.location?.protocol === 'capacitor:' ||
-  window.location?.hostname === 'localhost' && typeof window.Capacitor !== 'undefined'
+  window.location?.protocol === 'capacitor:'
 );
-const isDevelopment = typeof process !== 'undefined' && process.env?.NODE_ENV === 'development' && !isCapacitorApp;
 
-// Force production for native apps, use relative for web production
-const baseURL = (isDesktopApp || isCapacitorApp)
-  ? PRODUCTION_URL
-  : isDevelopment
-    ? 'http://localhost:5001'
-    : PRODUCTION_URL;
+// True dev = running on localhost in a browser (not native app)
+const isLocalDev = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  !isDesktopApp && !isCapacitorApp;
 
-console.log('🔧 Axios Configuration:', {
-  isDesktopApp,
-  isDevelopment,
-  baseURL
-});
+// Local dev: use local server directly (port 5001) — avoids any proxy or CORS issues
+// Native apps: use production
+// Deployed web: use production
+const baseURL = isLocalDev
+  ? 'http://localhost:5001'
+  : PRODUCTION_URL;
+
+console.log('🔧 Axios baseURL:', baseURL);
 
 // Create axios instance with optimized defaults
 const axiosInstance = axios.create({
   baseURL,
-  timeout: 10000, // 10 second timeout
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Add request interceptor to include auth token
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Log all API requests for debugging (only in development)
-    if (isDevelopment) {
-      console.log('📤 API Request:', config.method?.toUpperCase(), config.url, 'Base:', config.baseURL);
+    if (isLocalDev) {
+      console.log('📤 API Request:', config.method?.toUpperCase(), config.url);
     }
-    
-    // Add auth token if available
     const token = localStorage.getItem('restaurantToken') || localStorage.getItem('adminToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
-  (error) => {
-    if (isDevelopment) {
-      console.error('❌ Request Error:', error);
-    }
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Add response interceptor for error handling
 axiosInstance.interceptors.response.use(
-  (response) => {
-    if (isDevelopment) {
-      console.log('📥 API Response:', response.status, response.config.url);
-    }
-    return response;
-  },
+  (response) => response,
   (error) => {
-    if (isDevelopment) {
+    if (isLocalDev) {
       console.error('❌ Response Error:', error.response?.status, error.config?.url, error.message);
     }
-    
-    // Handle 401 errors (unauthorized)
     if (error.response?.status === 401) {
-      // Clear tokens and redirect to login
       localStorage.removeItem('restaurantToken');
       localStorage.removeItem('adminToken');
       localStorage.removeItem('restaurantId');
       localStorage.removeItem('restaurantData');
-      
-      // Only redirect if not already on login page
       if (!window.location.pathname.includes('login')) {
         window.location.href = '/restaurant-login';
       }
@@ -87,7 +60,7 @@ axiosInstance.interceptors.response.use(
   }
 );
 
-// Set as default axios instance
+// Apply to bare axios so pages using `import axios from 'axios'` also hit the right server
 axios.defaults.baseURL = baseURL;
 axios.defaults.timeout = 10000;
 

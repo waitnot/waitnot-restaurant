@@ -6,8 +6,14 @@ import { trackQROrderEvent, trackMenuEvent, trackOrderEvent } from '../utils/ana
 import FeedbackForm from '../components/FeedbackForm';
 
 
-export default function QROrder() {
-  const { restaurantId, tableNumber } = useParams();
+export default function QROrder({ orderMode }) {
+  const { restaurantId, tableNumber, roomNumber } = useParams();
+  // roomNumber param comes from /qr-room/:restaurantId/:roomNumber route
+  const isRoomMode = orderMode === 'room' || !!roomNumber;
+  // The "slot" identifier shown to users and sent in orders
+  const slotNumber = isRoomMode ? roomNumber : tableNumber;
+  // Label — will be updated once restaurant data loads with custom room name
+  const [slotLabel, setSlotLabel] = useState(isRoomMode ? `Room ${slotNumber}` : `Table ${slotNumber}`);
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -90,7 +96,7 @@ export default function QROrder() {
       return;
     }
 
-    const transactionNote = `Table ${tableNumber} - ${restaurant.name} - ${customerInfo.name}`;
+    const transactionNote = `${slotLabel} - ${restaurant.name} - ${customerInfo.name}`;
     
     // Create UPI payment URL
     const upiUrl = `upi://pay?pa=${upiSettings.upiMerchantId}&pn=${encodeURIComponent(upiSettings.merchantName || restaurant.name)}&am=${total}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
@@ -129,8 +135,8 @@ export default function QROrder() {
   }, [restaurantId, tableNumber]);
 
   const loadSavedCustomerInfo = () => {
-    // Load saved customer info for this table
-    const sessionKey = `table_session_${restaurantId}_${tableNumber}`;
+    // Load saved customer info for this table/room
+    const sessionKey = `table_session_${restaurantId}_${isRoomMode ? 'room_' : ''}${slotNumber}`;
     const savedSession = localStorage.getItem(sessionKey);
     
     if (savedSession) {
@@ -148,7 +154,7 @@ export default function QROrder() {
           console.log('Loaded saved customer info:', session.name);
         } else {
           // Session expired, clear it
-          localStorage.removeItem(sessionKey);
+          localStorage.removeItem(`table_session_${restaurantId}_${isRoomMode ? 'room_' : ''}${slotNumber}`);
         }
       } catch (error) {
         console.error('Error loading session:', error);
@@ -157,12 +163,8 @@ export default function QROrder() {
   };
 
   const saveCustomerInfo = (name, phone) => {
-    const sessionKey = `table_session_${restaurantId}_${tableNumber}`;
-    const session = {
-      name,
-      phone,
-      timestamp: Date.now()
-    };
+    const sessionKey = `table_session_${restaurantId}_${isRoomMode ? 'room_' : ''}${slotNumber}`;
+    const session = { name, phone, timestamp: Date.now() };
     localStorage.setItem(sessionKey, JSON.stringify(session));
   };
 
@@ -170,7 +172,10 @@ export default function QROrder() {
     try {
       const { data } = await axios.get(`/api/restaurants/${restaurantId}`);
       setRestaurant(data);
-      
+      // Apply custom room name if set
+      if (isRoomMode && data.features?.roomNames?.[slotNumber]) {
+        setSlotLabel(data.features.roomNames[slotNumber]);
+      }
       // Check if QR ordering is enabled
       if (data.features && data.features.qrOrderingEnabled === false) {
         console.log('QR ordering is disabled for this restaurant');
@@ -406,9 +411,9 @@ export default function QROrder() {
   const placeOrder = async () => {
     try {
       // Track order placement
-      const orderId = `${restaurantId}_${tableNumber}_${Date.now()}`;
+      const orderId = `${restaurantId}_${slotNumber}_${Date.now()}`;
       trackOrderEvent('place_order', orderId, total, cart.length);
-      trackQROrderEvent('place_order', restaurantId, tableNumber, {
+      trackQROrderEvent('place_order', restaurantId, slotNumber, {
         total_amount: total,
         item_count: cart.length,
         payment_method: paymentMethod,
@@ -420,7 +425,8 @@ export default function QROrder() {
       
       const orderData = {
         restaurantId,
-        tableNumber: parseInt(tableNumber),
+        tableNumber: isRoomMode ? null : parseInt(slotNumber),
+        roomNumber: isRoomMode ? parseInt(slotNumber) : null,
         items: cart.map(item => ({
           menuItemId: item._id,
           name: item.name,
@@ -432,7 +438,7 @@ export default function QROrder() {
         discountId: null,
         discountAmount: 0,
         isQrOrder: true,
-        orderType: 'dine-in',
+        orderType: isRoomMode ? 'room' : 'dine-in',
         customerName: customerInfo.name || 'Guest Customer',
         customerPhone: customerInfo.phone || '',
         paymentStatus: 'pending',
@@ -467,7 +473,7 @@ export default function QROrder() {
       console.error('Error placing order:', error);
       
       // Track order failure
-      trackOrderEvent('order_failed', `${restaurantId}_${tableNumber}_${Date.now()}`, total, cart.length);
+      trackOrderEvent('order_failed', `${restaurantId}_${slotNumber}_${Date.now()}`, total, cart.length);
 
       if (error.response?.status === 429) {
         const wait = error.response.data?.retryAfter || 60;
@@ -564,7 +570,7 @@ export default function QROrder() {
             <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border border-red-200">
               <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
                 <MapPin size={16} className="text-red-500" />
-                <span>Table <span className="font-bold text-red-600">#{tableNumber}</span></span>
+                <span>{slotLabel} <span className="font-bold text-red-600">#{slotNumber}</span></span>
                 <span>•</span>
                 <span className="font-semibold">{restaurant.name}</span>
               </div>
@@ -640,14 +646,14 @@ export default function QROrder() {
                   </div>
                   <div className="text-left">
                     <div className="font-semibold text-gray-800">{restaurant.name}</div>
-                    <div className="text-sm text-gray-500">Table #{tableNumber}</div>
+                    <div className="text-sm text-gray-500">{slotLabel}</div>
                   </div>
                 </div>
               </div>
               
               <div className="flex items-center justify-between mb-4">
-                <span className="text-gray-600">Table Number</span>
-                <span className="font-bold text-xl text-red-600">#{tableNumber}</span>
+                <span className="text-gray-600">{isRoomMode ? 'Room Number' : 'Table Number'}</span>
+                <span className="font-bold text-xl text-red-600">#{slotNumber}</span>
               </div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-gray-600">Restaurant</span>
@@ -712,7 +718,7 @@ export default function QROrder() {
                 <h1 className="text-2xl font-bold tracking-tight">{restaurant.name}</h1>
                 <div className="flex items-center space-x-2 text-red-100">
                   <MapPin size={16} />
-                  <span className="text-sm">Table {tableNumber}</span>
+                  <span className="text-sm">{slotLabel}</span>
                 </div>
               </div>
             </div>

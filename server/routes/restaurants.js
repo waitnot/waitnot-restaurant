@@ -68,6 +68,22 @@ router.patch('/:id/tables', async (req, res) => {
   }
 });
 
+// Update room count (MUST be before GET /:id)
+router.patch('/:id/rooms', async (req, res) => {
+  try {
+    const { rooms } = req.body;
+    if (typeof rooms !== 'number' || rooms < 0) {
+      return res.status(400).json({ error: 'Invalid room count' });
+    }
+    const restaurant = await restaurantDB.update(req.params.id, { rooms });
+    if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+    const { password, ...rest } = restaurant;
+    res.json(rest);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Update restaurant profile
 router.put('/:id', async (req, res) => {
   try {

@@ -7,12 +7,13 @@ const router = express.Router();
 const orderRateLimit = new Map(); // key: sessionKey, value: timestamp
 
 const checkOrderRateLimit = (req, res, next) => {
-  // Build key from restaurantId + tableNumber + IP
-  const { restaurantId, tableNumber, isQrOrder } = req.body;
+  // Build key from restaurantId + tableNumber/roomNumber + IP
+  const { restaurantId, tableNumber, roomNumber, isQrOrder } = req.body;
   if (!isQrOrder) return next(); // Only limit QR/customer orders
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-  const key = `${restaurantId}_${tableNumber || 'notbl'}_${ip}`;
+  const slot = roomNumber ? `room_${roomNumber}` : (tableNumber || 'notbl');
+  const key = `${restaurantId}_${slot}_${ip}`;
   const now = Date.now();
   const LIMIT_MS = 60 * 1000; // 60 seconds
 
@@ -170,7 +171,34 @@ router.patch('/:id/items', async (req, res) => {
 
 // Update complete order (for staff order editing)
 router.put('/:id', async (req, res) => {
-  // ... (existing code)
+  try {
+    const { customerName, customerPhone, orderType, deliveryAddress, tableNumber, roomNumber, items, totalAmount, specialInstructions } = req.body;
+
+    const order = await orderDB.update(req.params.id, {
+      customerName,
+      customerPhone,
+      orderType,
+      deliveryAddress,
+      tableNumber,
+      roomNumber,
+      items,
+      totalAmount,
+      specialInstructions
+    });
+
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
+      io.to('admin-room').emit('order-updated', order);
+    }
+
+    res.json(order);
+  } catch (error) {
+    console.error('❌ Order update failed:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Batch update orders (e.g., clearing a table)

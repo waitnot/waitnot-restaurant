@@ -170,6 +170,170 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
   );
 }
 
+function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, printReceipt, clearRoomAndSaveToHistory, openEditOrderModal, onGoToQR }) {
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const roomNames = restaurant?.features?.roomNames || {};
+  const getRoomLabel = (n) => roomNames[n] || `Room ${n}`;
+
+  const getRoomOrders = (n) => activeRoomOrders.filter(o => parseInt(o.roomNumber) === n);
+  const getRoomTotal = (orders) => orders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+
+  const selectedOrders = selectedRoom ? getRoomOrders(selectedRoom) : [];
+  const selectedTotal = getRoomTotal(selectedOrders);
+  const firstOrder = selectedOrders[0];
+  const combinedItems = {};
+  selectedOrders.forEach(o => o.items.forEach(i => {
+    if (combinedItems[i.name]) { combinedItems[i.name].quantity += i.quantity; combinedItems[i.name].total += i.price * i.quantity; }
+    else combinedItems[i.name] = { name: i.name, price: i.price, quantity: i.quantity, total: i.price * i.quantity };
+  }));
+
+  const roomCount = restaurant?.rooms || 0;
+
+  if (roomCount === 0) {
+    return (
+      <div className="text-center py-16 bg-white rounded-xl shadow-sm">
+        <div className="text-5xl mb-3">🏨</div>
+        <p className="text-gray-700 font-semibold mb-1">No rooms assigned yet</p>
+        <p className="text-sm text-gray-400 mb-6">Add rooms from the QR Codes tab to get started.</p>
+        <button
+          onClick={onGoToQR}
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-semibold"
+        >
+          🏨 Assign Rooms (QR Codes tab)
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-6 min-h-[400px]">
+      {/* Room Grid */}
+      <div className="w-full sm:w-80 shrink-0">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-800">Room Plan</h2>
+            <div className="flex gap-3 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-200 border border-green-400 inline-block"></span>Free</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-200 border border-purple-400 inline-block"></span>Ordered</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: roomCount }, (_, i) => i + 1).map(n => {
+              const rOrders = getRoomOrders(n);
+              const rTotal = getRoomTotal(rOrders);
+              const isOccupied = rOrders.length > 0;
+              const isSelected = selectedRoom === n;
+              return (
+                <button
+                  key={n}
+                  onClick={() => setSelectedRoom(isSelected ? null : n)}
+                  className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all ${
+                    isSelected
+                      ? 'border-purple-600 bg-purple-600 shadow-lg scale-105'
+                      : isOccupied
+                      ? 'bg-purple-50 border-purple-300 hover:border-purple-500'
+                      : 'bg-green-50 border-green-300 hover:border-green-500'
+                  }`}
+                >
+                  <span className={`text-xs font-bold leading-none text-center px-0.5 ${isSelected ? 'text-white' : isOccupied ? 'text-purple-700' : 'text-green-700'}`}>{getRoomLabel(n)}</span>
+                  {isOccupied && !isSelected && <span className="text-xs font-medium text-purple-600 leading-none">₹{rTotal}</span>}
+                  {!isOccupied && <span className={`text-xs leading-none ${isSelected ? 'text-white/70' : 'text-green-500'}`}>Free</span>}
+                  {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse"></span>}
+                </button>
+              );
+            })}
+          </div>
+          {activeRoomOrders.length === 0 && (
+            <p className="text-center text-gray-400 text-xs mt-4">No active room orders</p>
+          )}
+        </div>
+      </div>
+
+      {/* Room Detail */}
+      <div className="flex-1 min-w-0">
+        {!selectedRoom ? (
+          <div className="h-full flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <div className="text-5xl mb-3 opacity-30">🏨</div>
+              <p className="text-sm">Select a room to view details</p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-purple-50 to-white border-b border-gray-100">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{getRoomLabel(selectedRoom)}</h3>
+                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Total</p>
+                <p className="text-3xl font-bold text-purple-600">₹{selectedTotal}</p>
+              </div>
+            </div>
+
+            {Object.values(combinedItems).length > 0 ? (
+              <div className="px-5 py-4 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
+                <div className="space-y-2">
+                  {Object.values(combinedItems).map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
+                  <span className="font-bold text-gray-800">Total</span>
+                  <span className="text-xl font-bold text-purple-600">₹{selectedTotal}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="px-5 py-6 border-b border-gray-100 text-center text-gray-400 text-sm">No orders for this room</div>
+            )}
+
+            {selectedOrders.length > 0 && (
+              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap">
+                {selectedOrders.map(o => (
+                  <span key={o._id} className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                    o.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
+                    : o.status === 'preparing' ? 'bg-blue-100 text-blue-700'
+                    : o.status === 'ready' ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-500'
+                  }`}>{o.status}</span>
+                ))}
+              </div>
+            )}
+
+            <div className="px-5 py-4 flex flex-wrap gap-3">
+              <button
+                onClick={() => printKitchenOrder(selectedRoom, selectedOrders)}
+                className="px-5 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
+              >Print KOT</button>
+              <button
+                onClick={() => printReceipt(selectedRoom, selectedOrders, selectedTotal)}
+                className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
+              >Print Bill</button>
+              <button
+                onClick={() => clearRoomAndSaveToHistory(selectedRoom, selectedOrders, selectedTotal)}
+                className="px-5 py-2.5 bg-purple-500 text-white rounded-lg text-sm font-semibold hover:bg-purple-600 transition-colors"
+              >Clear {getRoomLabel(selectedRoom)}</button>
+              {firstOrder && (firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
+                <button
+                  onClick={() => openEditOrderModal(firstOrder)}
+                  className="px-5 py-2.5 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors"
+                >Edit Order</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
@@ -270,6 +434,8 @@ export default function RestaurantDashboard() {
   const dragItemCategory = useRef(null);  const menuSearchInputRef = useRef(null);
   const [availableWaiters, setAvailableWaiters] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
+  // Room name editing state: { roomNum, name } | null
+  const [editingRoomName, setEditingRoomName] = useState(null);
   
   // State to store the last created order for printing
   const [lastCreatedOrder, setLastCreatedOrder] = useState(null);
@@ -616,7 +782,6 @@ export default function RestaurantDashboard() {
   const saveArrangeOrder = async () => {
     try {
       const restaurantId = localStorage.getItem('restaurantId');
-      // Build order: categories first, then items within each category
       const items = [];
       let displayOrder = 1;
       orderedCategories.forEach(cat => {
@@ -625,10 +790,11 @@ export default function RestaurantDashboard() {
         });
       });
       await axios.put(`/api/restaurants/${restaurantId}/menu-reorder`, { items });
-      fetchRestaurant(restaurantId);
+      await fetchRestaurant(restaurantId);
+      showToast('Menu order saved successfully');
     } catch (error) {
       console.error('Error saving order:', error);
-      showToast('Failed to save order', 'error');
+      showToast(`Failed to save order: ${error.response?.data?.error || error.message}`, 'error');
     }
   };
 
@@ -733,6 +899,60 @@ export default function RestaurantDashboard() {
     });
   };
 
+  // Save a custom name for a room (stored in features.roomNames)
+  const saveRoomName = async (roomNum, name) => {
+    try {
+      const restaurantId = localStorage.getItem('restaurantId');
+      const currentNames = restaurant.features?.roomNames || {};
+      const updatedNames = { ...currentNames, [roomNum]: name.trim() || `Room ${roomNum}` };
+      const updatedFeatures = { ...restaurant.features, roomNames: updatedNames };
+      await axios.put(`/api/restaurants/${restaurantId}`, { features: updatedFeatures });
+      await fetchRestaurant(restaurantId);
+      setEditingRoomName(null);
+      showToast(`Room ${roomNum} renamed successfully`);
+    } catch (error) {
+      showToast('Failed to save room name', 'error');
+    }
+  };
+
+  const addRoom = () => {
+    const newRoomCount = (restaurant.rooms || 0) + 1;
+    setConfirmModal({
+      message: `Add Room ${newRoomCount}? A new QR code will be generated for this room.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const restaurantId = localStorage.getItem('restaurantId');
+          await axios.patch(`/api/restaurants/${restaurantId}/rooms`, { rooms: newRoomCount });
+          await fetchRestaurant(restaurantId);
+          showToast(`Room ${newRoomCount} added successfully`);
+        } catch (error) {
+          console.error('Error adding room:', error);
+          showToast(`Failed to add room: ${error.response?.data?.error || error.message}`, 'error');
+        }
+      }
+    });
+  };
+
+  const deleteRoom = async (roomNum) => {
+    setConfirmModal({
+      message: `Delete Room ${roomNum}? This will remove the last room and its QR code.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const restaurantId = localStorage.getItem('restaurantId');
+          const newRoomCount = Math.max(0, (restaurant.rooms || 0) - 1);
+          await axios.patch(`/api/restaurants/${restaurantId}/rooms`, { rooms: newRoomCount });
+          await fetchRestaurant(restaurantId);
+          showToast('Room deleted successfully');
+        } catch (error) {
+          console.error('Error deleting room:', error);
+          showToast(`Failed to delete room: ${error.response?.data?.error || error.message}`, 'error');
+        }
+      }
+    });
+  };
+
   const downloadQRCode = async (tableNum, qrUrl) => {
     try {
       // Get the QR code image
@@ -803,8 +1023,56 @@ export default function RestaurantDashboard() {
     }
   };
 
+  const downloadRoomQRCode = async (roomNum, qrUrl) => {
+    const roomName = restaurant.features?.roomNames?.[roomNum] || `Room ${roomNum}`;
+    try {
+      const imgElement = document.querySelector(`#qr-room-${roomNum} img`);
+      if (!imgElement) { showToast('QR code not found', 'error'); return; }
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const qrSize = 400;
+      const padding = 60;
+      canvas.width = qrSize + (padding * 2);
+      canvas.height = qrSize + (padding * 3);
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const qrImage = new Image();
+      qrImage.crossOrigin = 'anonymous';
+      qrImage.onload = () => {
+        ctx.drawImage(qrImage, padding, padding + 40, qrSize, qrSize);
+        ctx.fillStyle = 'black';
+        ctx.font = 'bold 32px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(restaurant.name, canvas.width / 2, 40);
+        ctx.font = 'bold 36px Arial';
+        ctx.fillText(roomName, canvas.width / 2, qrSize + padding + 80);
+        ctx.font = '20px Arial';
+        ctx.fillStyle = '#666';
+        ctx.fillText('Scan to Order', canvas.width / 2, qrSize + padding + 115);
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = `${restaurant.name.replace(/\s+/g, '-')}-${roomName.replace(/\s+/g, '-')}-QR.png`;
+          link.href = url;
+          link.click();
+          URL.revokeObjectURL(url);
+        });
+      };
+      qrImage.onerror = () => showToast('Failed to load QR code', 'error');
+      qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrUrl)}&margin=20`;
+    } catch (error) {
+      showToast('Failed to download QR code', 'error');
+    }
+  };
+
   const clearTableAndSaveToHistory = async (tableNumber, tableOrders, totalAmount) => {
     setClearTableModal({ tableNumber, tableOrders, totalAmount });
+    setOnlinePayStep(false);
+  };
+
+  const clearRoomAndSaveToHistory = async (roomNumber, roomOrders, totalAmount) => {
+    const roomName = restaurant?.features?.roomNames?.[roomNumber] || `Room ${roomNumber}`;
+    setClearTableModal({ tableNumber: roomName, tableOrders: roomOrders, totalAmount });
     setOnlinePayStep(false);
   };
 
@@ -902,6 +1170,8 @@ export default function RestaurantDashboard() {
 
   const printReceipt = (tableNumber, tableOrders, totalAmount) => {
     const settings = getPrinterSettings();
+    const firstOrderType = tableOrders[0]?.orderType || 'dine-in';
+    const slotLabel = firstOrderType === 'room' ? 'ROOM' : 'TABLE';
     
     // Try to use custom bill first if enabled
     if (settings.billCustomization.enableCustomBill) {
@@ -910,7 +1180,7 @@ export default function RestaurantDashboard() {
         _id: `table-${tableNumber}-${Date.now()}`,
         customerName: tableOrders[0]?.customerName || 'Table Customer',
         customerPhone: tableOrders[0]?.customerPhone || '',
-        orderType: 'dine-in',
+        orderType: firstOrderType,
         tableNumber: tableNumber,
         totalAmount: totalAmount,
         createdAt: new Date().toISOString(),
@@ -1005,7 +1275,7 @@ export default function RestaurantDashboard() {
         <!-- Order Info -->
         <div style="margin-bottom: 12px; font-size: 12px; font-weight: bold;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>TABLE:</span>
+            <span>${slotLabel}:</span>
             <span style="font-weight: 900; font-size: 14px;">${tableNumber}</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
@@ -1083,7 +1353,7 @@ export default function RestaurantDashboard() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Receipt - Table ${tableNumber}</title>
+          <title>Receipt - ${slotLabel} ${tableNumber}</title>
           <style>
             @media print {
               @page {
@@ -1343,6 +1613,8 @@ export default function RestaurantDashboard() {
 
   const printKitchenOrder = (tableNumber, tableOrders) => {
     const settings = getPrinterSettings();
+    const firstOrderType = tableOrders[0]?.orderType || 'dine-in';
+    const slotLabel = firstOrderType === 'room' ? `ROOM ${tableNumber}` : `TABLE ${tableNumber}`;
     
     if (!settings.enableKitchenPrinting) {
       showToast('Kitchen printing is disabled in settings', 'error');
@@ -1398,7 +1670,7 @@ export default function RestaurantDashboard() {
             KITCHEN ORDER (KOT)
           </div>
           <div style="font-size: 14px; font-weight: bold;">
-            TABLE ${tableNumber}
+            ${slotLabel}
           </div>
         </div>
 
@@ -1475,7 +1747,7 @@ export default function RestaurantDashboard() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>KOT - Table ${tableNumber}</title>
+          <title>KOT - ${slotLabel}</title>
           <style>
             @media print {
               @page {
@@ -1562,7 +1834,7 @@ export default function RestaurantDashboard() {
             KITCHEN ORDER (KOT)
           </div>
           <div style="font-size: 14px; font-weight: bold;">
-            ${order.orderType === 'delivery' ? 'DELIVERY ORDER' : `TABLE ${order.tableNumber}`}
+            ${order.orderType === 'delivery' ? 'DELIVERY ORDER' : order.orderType === 'room' ? `ROOM ${order.roomNumber}` : `TABLE ${order.tableNumber}`}
           </div>
         </div>
 
@@ -2354,10 +2626,15 @@ export default function RestaurantDashboard() {
     order.orderType === 'dine-in' || 
     (order.source === 'staff' && order.orderType === 'dine-in')
   );
+  const roomOrders = validOrders.filter(order => order.orderType === 'room');
 
   // Count only active orders for badges (exclude completed orders)
   const activeDeliveryOrders = deliveryOrders.filter(order => order.status !== 'completed');
   const activeDineInOrders = dineInOrders.filter(order => order.status !== 'completed');
+  const activeRoomOrders = roomOrders.filter(order => order.status !== 'completed');
+  // Unique busy table/room counts for badges
+  const activeDineInTableCount = new Set(activeDineInOrders.map(o => o.tableNumber).filter(Boolean)).size;
+  const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -2476,11 +2753,29 @@ export default function RestaurantDashboard() {
                     ? 'bg-white text-primary' 
                     : 'bg-primary text-white'
                 }`}>
-                  {activeDineInOrders.length}
+                  {activeDineInTableCount}
                 </span>
               )}
             </button>
           </FeatureGuard>
+          <button
+            onClick={() => setActiveTab('rooms')}
+            className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              activeTab === 'rooms' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+            }`}
+          >
+            <span className="hidden sm:inline">Room Orders</span>
+            <span className="sm:hidden">Rooms</span>
+            {activeRoomOrders.length > 0 && (
+              <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                activeTab === 'rooms'
+                  ? 'bg-white text-primary'
+                  : 'bg-primary text-white'
+              }`}>
+                {activeRoomOrderCount}
+              </span>
+            )}
+          </button>
           <FeatureGuard feature="menuManagement">
             <button
               onClick={() => setActiveTab('menu')}
@@ -2509,13 +2804,13 @@ export default function RestaurantDashboard() {
             >
               <span className="hidden sm:inline">QR Codes</span>
               <span className="sm:hidden">QR</span>
-              {restaurant?.tables > 0 && (
+              {(restaurant?.tables > 0 || restaurant?.rooms > 0) && (
                 <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
                   activeTab === 'qr' 
                     ? 'bg-white text-primary' 
                     : 'bg-primary text-white'
                 }`}>
-                  {restaurant.tables}
+                  {(restaurant.tables || 0) + (restaurant.rooms || 0)}
                 </span>
               )}
             </button>
@@ -2752,6 +3047,18 @@ export default function RestaurantDashboard() {
             printReceipt={printReceipt}
             clearTableAndSaveToHistory={clearTableAndSaveToHistory}
             openEditOrderModal={openEditOrderModal}
+          />
+        )}
+
+        {activeTab === 'rooms' && (
+          <RoomFloorPlanView
+            restaurant={restaurant}
+            activeRoomOrders={activeRoomOrders}
+            printKitchenOrder={printKitchenOrder}
+            printReceipt={printReceipt}
+            clearRoomAndSaveToHistory={clearRoomAndSaveToHistory}
+            openEditOrderModal={openEditOrderModal}
+            onGoToQR={() => setActiveTab('qr')}
           />
         )}
 
@@ -3322,6 +3629,132 @@ export default function RestaurantDashboard() {
                 })}
               </div>
             )}
+
+            {/* ── Assign Rooms Section ── */}
+            <div className="mt-10">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+                <p className="text-sm text-purple-800 mb-1">
+                  <strong>🏨 Room QR Codes:</strong> Assign QR codes to hotel/guest rooms so customers can order directly from their room.
+                </p>
+                <p className="text-xs text-purple-700">
+                  💡 Print these QR codes and place them in each room. Scanning opens the same menu with a Room order type.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between mb-4 sm:mb-6 flex-wrap gap-2">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                  Assign Rooms ({restaurant.rooms || 0} rooms)
+                </h2>
+                <FeatureGuard feature="tableManagement">
+                  <button
+                    onClick={addRoom}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm sm:text-base"
+                  >
+                    <Plus size={18} />
+                    Add Room
+                  </button>
+                </FeatureGuard>
+              </div>
+
+              {(!restaurant.rooms || restaurant.rooms === 0) ? (
+                <div className="text-center py-12 bg-white rounded-lg shadow-md">
+                  <div className="text-4xl mb-3">🏨</div>
+                  <p className="text-gray-500 mb-4">No rooms added yet</p>
+                  <button
+                    onClick={addRoom}
+                    className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700"
+                  >
+                    Add Your First Room
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  {Array.from({ length: restaurant.rooms || 0 }, (_, i) => i + 1).map((roomNum) => {
+                    const qrUrl = `https://waitnot-restaurant.onrender.com/qr-room/${restaurant._id}/${roomNum}`;
+                    const roomName = restaurant.features?.roomNames?.[roomNum] || `Room ${roomNum}`;
+                    const isEditingThis = editingRoomName?.roomNum === roomNum;
+                    return (
+                      <div key={roomNum} className="bg-white rounded-lg shadow-md p-4 text-center relative border-t-4 border-purple-400">
+                        {roomNum === restaurant.rooms && (
+                          <FeatureGuard feature="tableManagement">
+                            <button
+                              onClick={() => deleteRoom(roomNum)}
+                              className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                              title="Delete this room"
+                            >
+                              <X size={16} />
+                            </button>
+                          </FeatureGuard>
+                        )}
+                        <div id={`qr-room-${roomNum}`} className="bg-white p-3 rounded-lg mb-3 inline-block border-2 border-purple-200">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}&margin=10`}
+                            alt={`QR Code for ${roomName}`}
+                            className="w-[150px] h-[150px]"
+                            crossOrigin="anonymous"
+                          />
+                        </div>
+
+                        {/* Room name — inline edit */}
+                        {isEditingThis ? (
+                          <div className="flex items-center gap-1 mb-1 justify-center">
+                            <input
+                              autoFocus
+                              value={editingRoomName.name}
+                              onChange={e => setEditingRoomName({ ...editingRoomName, name: e.target.value })}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveRoomName(roomNum, editingRoomName.name);
+                                if (e.key === 'Escape') setEditingRoomName(null);
+                              }}
+                              className="border border-purple-400 rounded px-2 py-1 text-sm w-28 text-center focus:outline-none focus:ring-2 focus:ring-purple-400"
+                              maxLength={30}
+                            />
+                            <button
+                              onClick={() => saveRoomName(roomNum, editingRoomName.name)}
+                              className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700"
+                            >✓</button>
+                            <button
+                              onClick={() => setEditingRoomName(null)}
+                              className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded hover:bg-gray-300"
+                            >✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1 mb-1 group">
+                            <span className="text-purple-500">🏨</span>
+                            <p className="font-bold text-gray-800 text-lg">{roomName}</p>
+                            <button
+                              onClick={() => setEditingRoomName({ roomNum, name: roomName })}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-gray-400 hover:text-purple-600"
+                              title="Rename room"
+                            >
+                              <Edit size={14} />
+                            </button>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-gray-500 mb-2">Scan to order</p>
+                        <a
+                          href={qrUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-purple-500 hover:underline block mb-2"
+                        >
+                          Test Link
+                        </a>
+                        <FeatureGuard feature="qrCodeGeneration">
+                          <button
+                            onClick={() => downloadRoomQRCode(roomNum, qrUrl)}
+                            className="text-sm bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 w-full"
+                          >
+                            📥 Download QR
+                          </button>
+                        </FeatureGuard>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -3379,6 +3812,14 @@ export default function RestaurantDashboard() {
                       );
                       related.forEach(o => processedIds.add(o._id));
                       groupedOrders.push(related);
+                    } else if (order.orderType === 'room') {
+                      const related = completedOrders.filter(o =>
+                        o.orderType === 'room' &&
+                        o.roomNumber === order.roomNumber &&
+                        Math.abs(new Date(o.updatedAt) - new Date(order.updatedAt)) < 60000
+                      );
+                      related.forEach(o => processedIds.add(o._id));
+                      groupedOrders.push(related);
                     } else {
                       processedIds.add(order._id);
                       groupedOrders.push([order]);
@@ -3388,6 +3829,7 @@ export default function RestaurantDashboard() {
                   return groupedOrders.map((orderGroup, idx) => {
                     const first = orderGroup[0];
                     const isDineIn = first.orderType === 'dine-in';
+                    const isRoom = first.orderType === 'room';
                     const combinedItems = {};
                     let total = 0;
                     orderGroup.forEach(o => {
@@ -3400,6 +3842,8 @@ export default function RestaurantDashboard() {
                     const itemList = Object.entries(combinedItems);
                     const label = isDineIn
                       ? `${first.source === 'staff' ? 'Staff · ' : ''}Table ${first.tableNumber}`
+                      : isRoom
+                      ? `Room ${first.roomNumber}`
                       : first.orderType === 'takeaway' ? 'Takeaway'
                       : first.orderType === 'delivery' ? 'Delivery'
                       : 'Order';

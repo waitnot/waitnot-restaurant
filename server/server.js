@@ -37,7 +37,10 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'https://waitnot-restaurant-app.vercel.app',
       'https://your-domain.com',
       'https://localhost',
-      'http://localhost'
+      'http://localhost',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
     ] 
   : [
       'http://localhost:3000', 
@@ -49,15 +52,14 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    // Check if origin is in allowed list or is a Vercel preview deployment
+    // Allow any localhost port for development
+    if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+      return callback(null, true);
+    }
     if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
       return callback(null, true);
     }
-    
-    // Log blocked origins for debugging
     console.log('❌ CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },

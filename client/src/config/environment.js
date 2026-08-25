@@ -19,19 +19,9 @@ const PRODUCTION_FRONTEND = 'https://waitnot-restaurant.onrender.com';
 // Development frontend URL
 const DEVELOPMENT_FRONTEND = 'http://localhost:3000';
 
-// Get the correct server URL based on environment
 export const getServerUrl = () => {
-  if (isDesktopApp) {
-    console.log('🖥️ Desktop app detected - using production server');
-    return PRODUCTION_SERVER;
-  }
-  
-  if (isDevelopment) {
-    console.log('🔧 Development environment detected - using local server');
-    return DEVELOPMENT_SERVER;
-  }
-  
-  console.log('🌐 Production environment detected - using production server');
+  if (isDesktopApp) return PRODUCTION_SERVER;
+  if (isDevelopment) return DEVELOPMENT_SERVER;
   return PRODUCTION_SERVER;
 };
 
@@ -44,6 +34,8 @@ export const getFrontendUrl = () => {
 };
 
 // Get WebSocket URL (same as server URL)
+// In dev, use localhost directly — Vite proxy handles WS via /socket.io but
+// socket.io-client can also connect directly to the local server
 export const getWebSocketUrl = () => {
   return getServerUrl();
 };

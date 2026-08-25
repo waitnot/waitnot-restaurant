@@ -207,6 +207,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      rooms: row.rooms || 0,
       features: row.features || {},
       menu: row.menu || [],
       createdAt: row.created_at,
@@ -256,6 +257,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      rooms: row.rooms || 0,
       features: row.features || {},
       menu: row.menu || [],
       createdAt: row.created_at,
@@ -316,6 +318,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      rooms: row.rooms || 0,
       features: row.features || {},
       menu: row.menu || [],
       createdAt: row.created_at,
@@ -392,6 +395,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      rooms: row.rooms || 0,
       menu: [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -416,6 +420,7 @@ export const restaurantDB = {
       password: 'password',
       isDeliveryAvailable: 'is_delivery_available',
       tables: 'tables',
+      rooms: 'rooms',
       features: 'features'
     };
     
@@ -491,6 +496,7 @@ export const restaurantDB = {
       password: row.password,
       isDeliveryAvailable: row.is_delivery_available,
       tables: row.tables,
+      rooms: row.rooms || 0,
       menu: row.menu || [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -673,6 +679,7 @@ export const orderDB = {
       restaurantId: row.restaurant_id,
       orderNumber: row.order_number || null,
       tableNumber: row.table_number,
+      roomNumber: row.room_number,
       customerName: row.customer_name,
       customerPhone: row.customer_phone,
       deliveryAddress: row.delivery_address,
@@ -725,6 +732,7 @@ export const orderDB = {
       restaurantId: row.restaurant_id,
       orderNumber: row.order_number || null,
       tableNumber: row.table_number,
+      roomNumber: row.room_number,
       customerName: row.customer_name,
       customerPhone: row.customer_phone,
       deliveryAddress: row.delivery_address,
@@ -785,6 +793,7 @@ export const orderDB = {
       restaurantId: row.restaurant_id,
       orderNumber: row.order_number || null,
       tableNumber: row.table_number,
+      roomNumber: row.room_number,
       customerName: row.customer_name,
       customerPhone: row.customer_phone,
       deliveryAddress: row.delivery_address,
@@ -822,17 +831,18 @@ export const orderDB = {
 
         const orderResult = await client.query(`
           INSERT INTO orders (
-            restaurant_id, order_number, table_number, customer_name, customer_phone, 
+            restaurant_id, order_number, table_number, room_number, customer_name, customer_phone, 
             delivery_address, order_type, status, payment_method, 
             payment_status, total_amount, source, platform_order_id,
             platform_fee, commission, commission_rate, net_amount, estimated_delivery_time,
             payment_sub_type, utr_number
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
           RETURNING *
         `, [
           data.restaurantId,
           orderNumber,
           data.tableNumber,
+          data.roomNumber || null,
           data.customerName,
           data.customerPhone,
           data.deliveryAddress,
@@ -884,6 +894,7 @@ export const orderDB = {
           restaurantId: order.restaurant_id,
           orderNumber: order.order_number,
           tableNumber: order.table_number,
+          roomNumber: order.room_number,
           customerName: order.customer_name,
           customerPhone: order.customer_phone,
           deliveryAddress: order.delivery_address,
@@ -932,7 +943,104 @@ export const orderDB = {
   },
 
   async update(id, data) {
-    // ... existing update code
+    return await withTransaction(async (client) => {
+      const fieldMapping = {
+        customerName:   'customer_name',
+        customerPhone:  'customer_phone',
+        deliveryAddress:'delivery_address',
+        orderType:      'order_type',
+        status:         'status',
+        paymentMethod:  'payment_method',
+        paymentStatus:  'payment_status',
+        paymentSubType: 'payment_sub_type',
+        utrNumber:      'utr_number',
+        totalAmount:    'total_amount',
+        tableNumber:    'table_number',
+        roomNumber:     'room_number',
+        specialInstructions: 'special_instructions',
+      };
+
+      const updateFields = [];
+      const values = [];
+      let paramCount = 1;
+
+      for (const [key, col] of Object.entries(fieldMapping)) {
+        if (data[key] !== undefined) {
+          updateFields.push(`${col} = $${paramCount++}`);
+          values.push(data[key]);
+        }
+      }
+
+      if (updateFields.length > 0) {
+        values.push(id);
+        await client.query(
+          `UPDATE orders SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramCount}`,
+          values
+        );
+      }
+
+      // Replace order items if provided
+      if (data.items && Array.isArray(data.items)) {
+        await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+
+        if (data.items.length > 0) {
+          const placeholders = data.items.map((_, i) => {
+            const o = i * 6;
+            return `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6})`;
+          }).join(',');
+          const vals = [];
+          data.items.forEach(item => {
+            vals.push(id, item.menuItemId || null, item.name, item.price, item.quantity || 1, item.printedToKitchen || false);
+          });
+          await client.query(
+            `INSERT INTO order_items (order_id, menu_item_id, name, price, quantity, printed_to_kitchen) VALUES ${placeholders}`,
+            vals
+          );
+        }
+      }
+
+      // Return the updated order with items
+      const result = await client.query(`
+        SELECT o.*,
+               COALESCE(
+                 json_agg(
+                   json_build_object(
+                     '_id', oi.id, 'name', oi.name, 'price', oi.price,
+                     'quantity', oi.quantity, 'printedToKitchen', oi.printed_to_kitchen
+                   ) ORDER BY oi.created_at
+                 ) FILTER (WHERE oi.id IS NOT NULL),
+                 '[]'::json
+               ) as items
+        FROM orders o
+        LEFT JOIN order_items oi ON o.id = oi.order_id
+        WHERE o.id = $1
+        GROUP BY o.id
+      `, [id]);
+
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0];
+      return {
+        _id: row.id,
+        restaurantId: row.restaurant_id,
+        orderNumber: row.order_number || null,
+        tableNumber: row.table_number,
+        roomNumber: row.room_number,
+        customerName: row.customer_name,
+        customerPhone: row.customer_phone,
+        deliveryAddress: row.delivery_address,
+        type: row.order_type,
+        orderType: row.order_type,
+        status: row.status,
+        paymentMethod: row.payment_method,
+        paymentStatus: row.payment_status,
+        total: parseFloat(row.total_amount),
+        totalAmount: parseFloat(row.total_amount),
+        source: row.source || 'direct',
+        items: row.items || [],
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
+    });
   },
 
   async delete(id) {
