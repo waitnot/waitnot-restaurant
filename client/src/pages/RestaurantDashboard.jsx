@@ -2752,7 +2752,7 @@ export default function RestaurantDashboard() {
           {/* Staff Ordering Tab - Moved to first position */}
           <FeatureGuard feature="staffOrders">
             <button
-              onClick={() => { setActiveTab('Staff'); setStaffView('tables'); }}
+              onClick={() => { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }}
               className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'Staff' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
@@ -4153,7 +4153,7 @@ export default function RestaurantDashboard() {
         {/* Staff Order Tab */}
         {/* Staff Order Tab */}
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
-          <div className="flex gap-0 h-[calc(100vh-120px)] overflow-hidden -mx-3 sm:-mx-6">
+          <div className="flex gap-0 h-[calc(100vh-110px)] overflow-hidden -mx-3 sm:-mx-6 -mt-3 sm:-mt-4">
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
               <div className="w-full px-4 sm:px-6 py-4 overflow-y-auto bg-gray-50">
@@ -4201,7 +4201,7 @@ export default function RestaurantDashboard() {
               </div>
             ) : (
               /* ── ORDER INTERFACE ── */
-              <>
+              <div className="flex h-full w-full overflow-hidden">
                 {/* LEFT: Category sidebar + Menu items */}
                 <div className="flex h-full w-full lg:w-[58%] border-r border-gray-200 overflow-hidden bg-gray-50">
 
@@ -4307,7 +4307,7 @@ export default function RestaurantDashboard() {
                 </div>
 
                 {/* RIGHT: Cart — sticky header + scrollable items + sticky bottom */}
-                <div className="hidden lg:flex lg:flex-col lg:w-[42%] bg-white overflow-hidden border-l border-gray-100">
+                <div className="hidden lg:flex lg:flex-col lg:w-[42%] bg-white border-l border-gray-100 h-full overflow-hidden">
                   {/* Header */}
                   <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between shrink-0">
                     <div>
@@ -4324,7 +4324,7 @@ export default function RestaurantDashboard() {
                     )}
                   </div>
 
-                  {/* Scrollable items only */}
+                  {/* Scrollable items only — min-h-0 is required for flex overflow scroll */}
                   <div className="flex-1 overflow-y-auto px-3 py-1 min-h-0">
                     {receptionistOrder.items.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-gray-300">
@@ -4332,7 +4332,7 @@ export default function RestaurantDashboard() {
                         <p className="text-xs">Add items from menu</p>
                       </div>
                     ) : (
-                      <div>
+                      <div className="min-h-0">
                         {receptionistOrder.items.map((item, idx) => (
                           <div key={idx} className={`flex items-center gap-2 py-1.5 border-b border-gray-50 ${item.complimentary ? 'opacity-70' : ''}`}>
                             <div className="flex-1 min-w-0">
