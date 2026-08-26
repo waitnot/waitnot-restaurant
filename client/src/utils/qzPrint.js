@@ -46,6 +46,10 @@ export async function getPrinters() {
   return await qz.printers.find();
 }
 
+export function isQZAvailable() {
+  return connected;
+}
+
 /**
  * Native Android Bluetooth Printing logic
  * Uses ESC/POS standard for thermal printers

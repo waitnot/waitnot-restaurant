@@ -2741,8 +2741,8 @@ export default function RestaurantDashboard() {
         </div>
       </nav>
 
-      <div className={activeTab === 'Staff' ? 'p-0' : 'max-w-7xl mx-auto p-3 sm:p-4'}>
-        <div className={`flex gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 hide-scrollbar ${activeTab === 'Staff' ? 'px-3 sm:px-4' : ''}`}>
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar">
           {/* Staff Ordering Tab - Moved to first position */}
           <FeatureGuard feature="staffOrders">
             <button
@@ -4239,12 +4239,12 @@ export default function RestaurantDashboard() {
         {/* Staff Order Tab */}
         {/* Staff Order Tab */}
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
-          <div className="flex gap-0 h-[calc(100vh-140px)] -m-3 sm:-m-4 overflow-hidden px-2">
+          <div className="flex gap-0 h-[calc(100vh-120px)] overflow-hidden -mx-3 sm:-mx-6">
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
-              <div className="w-full px-4 py-4 overflow-y-auto bg-gray-50">
-                <h2 className="text-base font-bold text-gray-700 mb-3">Select Table</h2>
-                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-6">
+              <div className="w-full px-4 sm:px-6 py-4 overflow-y-auto bg-gray-50">
+                <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Select Table</h2>
+                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-4">
                   {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => {
                     const tOrders = activeDineInOrders.filter(o => parseInt(o.tableNumber) === n);
                     const isOccupied = tOrders.length > 0;
@@ -4252,21 +4252,11 @@ export default function RestaurantDashboard() {
                     return (
                       <button
                         key={n}
-                        onClick={() => {
-                          setStaffSelectedTable(n);
-                          setStaffView('order');
-                          setReceptionistOrder(prev => ({ ...prev, orderType: 'dine-in', tableNumber: String(n) }));
-                        }}
-                        className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${
-                          isOccupied
-                            ? 'bg-red-50 border-red-300 hover:border-red-500'
-                            : 'bg-green-50 border-green-300 hover:border-green-500'
-                        }`}
+                        onClick={() => { setStaffSelectedTable(n); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'dine-in', tableNumber: String(n) })); }}
+                        className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-red-50 border-red-300 hover:border-red-500' : 'bg-green-50 border-green-300 hover:border-green-500'}`}
                       >
                         <span className={`text-lg font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
-                        {isOccupied
-                          ? <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span>
-                          : <span className="text-xs text-green-500 leading-none">Free</span>}
+                        {isOccupied ? <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span> : <span className="text-xs text-green-500 leading-none">Free</span>}
                         {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
                       </button>
                     );
@@ -4276,22 +4266,22 @@ export default function RestaurantDashboard() {
                   )}
                 </div>
 
-                {/* Takeaway & Delivery quick-order cards — same compact box style as table cells */}
-                <h2 className="text-base font-bold text-gray-700 mb-3">Quick Order</h2>
+                {/* Takeaway & Delivery — same grid, full names */}
+                <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Quick Order</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
                   <button
                     onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
-                    className="relative rounded-xl py-3 px-1 border-2 border-orange-300 hover:border-orange-500 bg-orange-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 col-span-2 sm:col-span-2"
+                    className="col-span-2 relative rounded-xl py-3 px-1 border-2 border-orange-300 hover:border-orange-500 bg-orange-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95"
                   >
-                    <span className="text-lg">🥡</span>
-                    <span className="text-xs font-bold text-orange-600 leading-none text-center">TW</span>
+                    <span className="text-base leading-none">🥡</span>
+                    <span className="text-xs font-bold text-orange-600 leading-none text-center">Takeaway</span>
                   </button>
                   <button
                     onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '' })); }}
-                    className="relative rounded-xl py-3 px-1 border-2 border-blue-300 hover:border-blue-500 bg-blue-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 col-span-2 sm:col-span-2"
+                    className="col-span-2 relative rounded-xl py-3 px-1 border-2 border-blue-300 hover:border-blue-500 bg-blue-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95"
                   >
-                    <span className="text-lg">🛵</span>
-                    <span className="text-xs font-bold text-blue-600 leading-none text-center">DEL</span>
+                    <span className="text-base leading-none">🛵</span>
+                    <span className="text-xs font-bold text-blue-600 leading-none text-center">Delivery</span>
                   </button>
                 </div>
               </div>
@@ -4322,37 +4312,30 @@ export default function RestaurantDashboard() {
                   <div className="flex flex-col flex-1 overflow-hidden">
                     {/* Top bar */}
                     <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center shrink-0">
-                      {staffSelectedTable && (
-                        <button
-                          onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
-                          className="text-xs text-primary font-semibold flex items-center gap-1"
-                        >
-                          ← Table {staffSelectedTable}
-                        </button>
-                      )}
-                      {/* Only show order type toggle when NOT coming from a table */}
-                      {!staffSelectedTable ? (
+                      {staffSelectedTable ? (
+                        <>
+                          <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }} className="text-xs text-primary font-semibold">← Table {staffSelectedTable}</button>
+                          <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">Dine-In · T{staffSelectedTable}</span>
+                        </>
+                      ) : (receptionistOrder.orderType === 'takeaway') ? (
+                        <>
+                          <button onClick={() => { setStaffView('tables'); }} className="text-xs text-primary font-semibold">← Back</button>
+                          <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🥡 Takeaway</span>
+                        </>
+                      ) : (receptionistOrder.orderType === 'delivery') ? (
+                        <>
+                          <button onClick={() => { setStaffView('tables'); }} className="text-xs text-primary font-semibold">← Back</button>
+                          <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>
+                          <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))}
+                            placeholder="Delivery address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[120px]" />
+                        </>
+                      ) : (
                         <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
                           {[{id:'takeaway',label:'TW'},{id:'delivery',label:'DEL'},{id:'dine-in',label:'DI'}].map(t => (
                             <button key={t.id} onClick={() => setReceptionistOrder(prev => ({...prev, orderType: t.id, deliveryAddress: '', tableNumber: ''}))}
-                              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white' : 'text-gray-500'}`}>
-                              {t.label}
-                            </button>
+                              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white' : 'text-gray-500'}`}>{t.label}</button>
                           ))}
                         </div>
-                      ) : (
-                        <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-lg">Dine-In</span>
-                      )}
-                      {receptionistOrder.orderType === 'dine-in' && !staffSelectedTable && (
-                        <select value={receptionistOrder.tableNumber} onChange={e => setReceptionistOrder(prev => ({...prev, tableNumber: e.target.value}))}
-                          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
-                          <option value="">Table #</option>
-                          {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => <option key={n} value={n}>T{n}</option>)}
-                        </select>
-                      )}
-                      {receptionistOrder.orderType === 'delivery' && (
-                        <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))}
-                          placeholder="Address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[120px]" />
                       )}
                       <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder(prev => ({...prev, waiterId: e.target.value, waiterNumber: w?.waiter_number||''})); }}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
@@ -4373,9 +4356,9 @@ export default function RestaurantDashboard() {
                       </div>
                     </div>
 
-                    {/* Menu grid — compact boxes like table grid */}
+                    {/* Menu grid — bigger boxes, no price shown */}
                     <div className="flex-1 overflow-y-auto p-2">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {restaurant?.menu?.filter(i => i.available)
                           .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
                           .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
@@ -4386,27 +4369,19 @@ export default function RestaurantDashboard() {
                                 className={`relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none ${inOrder ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary'}`}
                                 onClick={() => { if (!inOrder) updateReceptionistOrderItem(item, 1); }}
                               >
-                                {/* Veg/NonVeg dot */}
                                 <span className={`absolute top-2 left-2 w-2 h-2 rounded-sm border ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
-                                <div className="pt-3 pb-1 px-0.5">
-                                  <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2 min-h-[2.5rem]">{item.name}</p>
-                                  <p className="text-xs text-primary font-bold mt-1">₹{item.price}</p>
+                                <div className="pt-4 pb-1 px-0.5 min-h-[3.5rem]">
+                                  <p className="text-xs font-semibold text-gray-800 leading-tight">{item.name}</p>
                                 </div>
                                 {inOrder ? (
                                   <div className="flex items-center justify-between mt-1 gap-1">
-                                    <button
-                                      onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }}
-                                      className="w-6 h-6 rounded bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-bold text-gray-700"
-                                    >−</button>
-                                    <span className="text-sm font-bold text-primary">{inOrder.quantity}</span>
-                                    <button
-                                      onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, 1); }}
-                                      className="w-6 h-6 rounded bg-primary text-white flex items-center justify-center text-sm font-bold"
-                                    >+</button>
+                        <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700">−</button>
+                            <span className="text-sm font-bold text-primary">{inOrder.quantity}</span>
+                            <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, 1); }} className="w-7 h-7 rounded bg-primary text-white flex items-center justify-center text-sm font-bold">+</button>
                                   </div>
                                 ) : (
                                   <div className="flex justify-end mt-1">
-                                    <span className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-base">+</span>
+                                    <span className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-lg leading-none">+</span>
                                   </div>
                                 )}
                               </div>
@@ -4443,28 +4418,27 @@ export default function RestaurantDashboard() {
                     ) : (
                       <div>
                         {receptionistOrder.items.map((item, idx) => (
-                          <div key={idx} className={`flex items-center gap-2 py-2 border-b border-gray-50 ${item.complimentary ? 'opacity-70' : ''}`}>
+                          <div key={idx} className={`flex items-center gap-2 py-1.5 border-b border-gray-50 ${item.complimentary ? 'opacity-70' : ''}`}>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                              <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
                               {item.complimentary
-                                ? <span className="text-xs text-green-600 font-semibold">Complimentary</span>
-                                : <p className="text-xs text-gray-400">₹{item.price} × {item.quantity}</p>}
+                                ? <span className="text-xs text-green-600 font-semibold">Comp</span>
+                                : <p className="text-xs text-gray-400">₹{item.price}</p>}
                             </div>
                             {/* Complimentary toggle */}
                             <button
                               onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
                               title={item.complimentary ? 'Remove complimentary' : 'Mark complimentary'}
-                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 ${item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400'}`}
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 ${item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400'}`}
                             >✓</button>
                             <div className="flex items-center gap-1 shrink-0">
                               <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
                               <span className="w-5 text-center text-xs font-bold">{item.quantity}</span>
                               <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
                             </div>
-                            <p className="text-xs font-semibold text-gray-700 w-12 text-right shrink-0">
+                            <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
                               {item.complimentary ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span> : `₹${item.price * item.quantity}`}
                             </p>
-                            <button onClick={() => setReceptionistOrder(prev => ({...prev, items: prev.items.filter((_,i) => i !== idx)}))} className="text-gray-200 hover:text-red-400 shrink-0"><X size={13} /></button>
                           </div>
                         ))}
                       </div>
@@ -4491,26 +4465,23 @@ export default function RestaurantDashboard() {
                     )}
                   </div>
 
-                  {/* Total & Actions */}
+                  {/* Total & Actions — compact */}
                   {receptionistOrder.items.length > 0 && (() => {
                     const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
                     const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
                     const grandTotal = subtotal + extraCharge;
                     return (
-                      <div className="px-4 pb-4 pt-2 border-t border-gray-100 shrink-0">
-                        <div className="mb-2 space-y-0.5 text-xs text-gray-500">
-                          <div className="flex justify-between"><span>Subtotal</span><span>₹{subtotal}</span></div>
-                          {extraCharge > 0 && <div className="flex justify-between"><span>{receptionistOrder.orderType === 'takeaway' ? 'Packaging' : 'Delivery'}</span><span>₹{extraCharge}</span></div>}
-                          {receptionistOrder.items.some(i => i.complimentary) && <div className="flex justify-between text-green-600"><span>Complimentary</span><span>−₹{receptionistOrder.items.filter(i => i.complimentary).reduce((s,i)=>s+i.price*i.quantity,0)}</span></div>}
+                      <div className="px-3 py-2 border-t border-gray-100 shrink-0">
+                        <div className="flex justify-between items-center text-xs text-gray-500 mb-0.5">
+                          <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items</span>
+                          {extraCharge > 0 && <span>{receptionistOrder.orderType === 'takeaway' ? 'Pkg' : 'Del'} +₹{extraCharge}</span>}
+                          {receptionistOrder.items.some(i => i.complimentary) && <span className="text-green-600">Comp −₹{receptionistOrder.items.filter(i=>i.complimentary).reduce((s,i)=>s+i.price*i.quantity,0)}</span>}
+                          <span className="text-base font-bold text-gray-900">₹{grandTotal}</span>
                         </div>
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-sm text-gray-500">{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items</span>
-                          <span className="text-2xl font-bold text-gray-900">₹{grandTotal}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-orange-600">KOT</button>
-                          <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-blue-600">Bill</button>
-                          <button onClick={clearReceptionistOrder} className="bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-green-600">Save</button>
+                        <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                          <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
+                          <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
+                          <button onClick={clearReceptionistOrder} className="bg-green-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-600">Save</button>
                         </div>
                       </div>
                     );
