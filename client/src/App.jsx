@@ -67,6 +67,8 @@ function App() {
                   <Route path="/checkout" element={<><Navbar /><Checkout /></>} />
                   <Route path="/qr/:restaurantId/:tableNumber" element={<QROrder />} />
                   <Route path="/qr-room/:restaurantId/:roomNumber" element={<QROrder orderMode="room" />} />
+                  <Route path="/qr-takeaway/:restaurantId" element={<QROrder orderMode="takeaway" />} />
+                  <Route path="/qr-delivery/:restaurantId" element={<QROrder orderMode="delivery" />} />
                   <Route path="/delivery/:restaurantId" element={<HomeDelivery />} />
                   <Route path="/restaurant-login" element={<RestaurantLogin />} />
                   <Route path="/restaurant-dashboard" element={<FeatureProvider><RestaurantDashboard /></FeatureProvider>} />

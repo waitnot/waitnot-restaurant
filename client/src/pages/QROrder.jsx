@@ -8,12 +8,17 @@ import FeedbackForm from '../components/FeedbackForm';
 
 export default function QROrder({ orderMode }) {
   const { restaurantId, tableNumber, roomNumber } = useParams();
-  // roomNumber param comes from /qr-room/:restaurantId/:roomNumber route
   const isRoomMode = orderMode === 'room' || !!roomNumber;
-  // The "slot" identifier shown to users and sent in orders
+  const isTakeawayMode = orderMode === 'takeaway';
+  const isDeliveryMode = orderMode === 'delivery';
   const slotNumber = isRoomMode ? roomNumber : tableNumber;
-  // Label — will be updated once restaurant data loads with custom room name
-  const [slotLabel, setSlotLabel] = useState(isRoomMode ? `Room ${slotNumber}` : `Table ${slotNumber}`);
+  const [slotLabel, setSlotLabel] = useState(
+    isRoomMode ? `Room ${slotNumber}`
+    : isTakeawayMode ? 'Takeaway'
+    : isDeliveryMode ? 'Delivery'
+    : `Table ${slotNumber}`
+  );
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -425,7 +430,7 @@ export default function QROrder({ orderMode }) {
       
       const orderData = {
         restaurantId,
-        tableNumber: isRoomMode ? null : parseInt(slotNumber),
+        tableNumber: isRoomMode ? null : (isTakeawayMode || isDeliveryMode) ? null : parseInt(slotNumber),
         roomNumber: isRoomMode ? parseInt(slotNumber) : null,
         items: cart.map(item => ({
           menuItemId: item._id,
@@ -438,9 +443,10 @@ export default function QROrder({ orderMode }) {
         discountId: null,
         discountAmount: 0,
         isQrOrder: true,
-        orderType: isRoomMode ? 'room' : 'dine-in',
+        orderType: isRoomMode ? 'room' : isTakeawayMode ? 'takeaway' : isDeliveryMode ? 'delivery' : 'dine-in',
         customerName: customerInfo.name || 'Guest Customer',
         customerPhone: customerInfo.phone || '',
+        deliveryAddress: isDeliveryMode ? deliveryAddress : undefined,
         paymentStatus: 'pending',
         paymentMethod: 'cash'
       };
@@ -718,7 +724,7 @@ export default function QROrder({ orderMode }) {
                 <h1 className="text-2xl font-bold tracking-tight">{restaurant.name}</h1>
                 <div className="flex items-center space-x-2 text-red-100">
                   <MapPin size={16} />
-                  <span className="text-sm">{slotLabel}</span>
+                  <span className="text-sm">{slotLabel}{isTakeawayMode || isDeliveryMode ? '' : ` ${slotNumber}`}</span>
                 </div>
               </div>
             </div>
@@ -1219,6 +1225,18 @@ export default function QROrder({ orderMode }) {
                   />
                 </div>
               </div>
+              {isDeliveryMode && (
+                <div>
+                  <label className="block text-gray-700 mb-2 font-medium">Delivery Address <span className="text-red-500">*</span></label>
+                  <textarea
+                    value={deliveryAddress}
+                    onChange={e => setDeliveryAddress(e.target.value)}
+                    rows={2}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    placeholder="Enter your delivery address"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4">

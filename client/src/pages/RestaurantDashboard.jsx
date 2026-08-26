@@ -2741,8 +2741,8 @@ export default function RestaurantDashboard() {
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto p-3 sm:p-4">
-        <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 hide-scrollbar">
+      <div className={activeTab === 'Staff' ? 'p-0' : 'max-w-7xl mx-auto p-3 sm:p-4'}>
+        <div className={`flex gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 hide-scrollbar ${activeTab === 'Staff' ? 'px-3 sm:px-4' : ''}`}>
           {/* Staff Ordering Tab - Moved to first position */}
           <FeatureGuard feature="staffOrders">
             <button
@@ -3796,6 +3796,104 @@ export default function RestaurantDashboard() {
                 </div>
               )}
             </div>
+
+            {/* ── Takeaway & Delivery QR ── */}
+            <div className="mt-10">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-orange-800">
+                  <strong>🥡 Takeaway & 🛵 Delivery QR Codes:</strong> Customers can scan these to place takeaway or delivery orders directly from their phone.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Takeaway QR */}
+                {(() => {
+                  const twUrl = `https://waitnot-restaurant.onrender.com/qr-takeaway/${restaurant._id}`;
+                  return (
+                    <div className="bg-white rounded-lg shadow-md p-6 text-center border-t-4 border-orange-400">
+                      <div className="text-3xl mb-2">🥡</div>
+                      <h3 className="font-bold text-gray-800 text-lg mb-3">Takeaway Order</h3>
+                      <div id="qr-takeaway" className="bg-white p-3 rounded-lg mb-3 inline-block border-2 border-orange-200">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(twUrl)}&margin=10`}
+                          alt="Takeaway QR"
+                          className="w-[150px] h-[150px]"
+                          crossOrigin="anonymous"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mb-2">Scan to place takeaway order</p>
+                      <a href={twUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-orange-500 hover:underline block mb-3">Test Link</a>
+                      <FeatureGuard feature="qrCodeGeneration">
+                        <button
+                          onClick={() => {
+                            const img = document.querySelector('#qr-takeaway img');
+                            if (!img) return;
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = 520; canvas.height = 580;
+                            ctx.fillStyle = 'white'; ctx.fillRect(0,0,canvas.width,canvas.height);
+                            const qrImg = new Image(); qrImg.crossOrigin = 'anonymous';
+                            qrImg.onload = () => {
+                              ctx.drawImage(qrImg, 60, 60, 400, 400);
+                              ctx.fillStyle = 'black'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center';
+                              ctx.fillText(restaurant.name, canvas.width/2, 40);
+                              ctx.font = 'bold 28px Arial'; ctx.fillText('Takeaway Order', canvas.width/2, 500);
+                              ctx.font = '18px Arial'; ctx.fillStyle = '#666'; ctx.fillText('Scan to Order', canvas.width/2, 535);
+                              canvas.toBlob(blob => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.download = `${restaurant.name}-Takeaway-QR.png`; a.href = url; a.click(); URL.revokeObjectURL(url); });
+                            };
+                            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(twUrl)}&margin=20`;
+                          }}
+                          className="text-sm bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 w-full"
+                        >📥 Download QR</button>
+                      </FeatureGuard>
+                    </div>
+                  );
+                })()}
+
+                {/* Delivery QR */}
+                {(() => {
+                  const delUrl = `https://waitnot-restaurant.onrender.com/qr-delivery/${restaurant._id}`;
+                  return (
+                    <div className="bg-white rounded-lg shadow-md p-6 text-center border-t-4 border-blue-400">
+                      <div className="text-3xl mb-2">🛵</div>
+                      <h3 className="font-bold text-gray-800 text-lg mb-3">Delivery Order</h3>
+                      <div id="qr-delivery" className="bg-white p-3 rounded-lg mb-3 inline-block border-2 border-blue-200">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(delUrl)}&margin=10`}
+                          alt="Delivery QR"
+                          className="w-[150px] h-[150px]"
+                          crossOrigin="anonymous"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mb-2">Scan to place delivery order</p>
+                      <a href={delUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline block mb-3">Test Link</a>
+                      <FeatureGuard feature="qrCodeGeneration">
+                        <button
+                          onClick={() => {
+                            const img = document.querySelector('#qr-delivery img');
+                            if (!img) return;
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = 520; canvas.height = 580;
+                            ctx.fillStyle = 'white'; ctx.fillRect(0,0,canvas.width,canvas.height);
+                            const qrImg = new Image(); qrImg.crossOrigin = 'anonymous';
+                            qrImg.onload = () => {
+                              ctx.drawImage(qrImg, 60, 60, 400, 400);
+                              ctx.fillStyle = 'black'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center';
+                              ctx.fillText(restaurant.name, canvas.width/2, 40);
+                              ctx.font = 'bold 28px Arial'; ctx.fillText('Delivery Order', canvas.width/2, 500);
+                              ctx.font = '18px Arial'; ctx.fillStyle = '#666'; ctx.fillText('Scan to Order', canvas.width/2, 535);
+                              canvas.toBlob(blob => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.download = `${restaurant.name}-Delivery-QR.png`; a.href = url; a.click(); URL.revokeObjectURL(url); });
+                            };
+                            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(delUrl)}&margin=20`;
+                          }}
+                          className="text-sm bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 w-full"
+                        >📥 Download QR</button>
+                      </FeatureGuard>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
           </div>
         )}
 
@@ -4145,16 +4243,8 @@ export default function RestaurantDashboard() {
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
               <div className="w-full p-4 overflow-y-auto bg-gray-50">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-800">Select Table to Order</h2>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
-                      className="text-sm text-gray-500 border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-100"
-                    >Takeaway / Delivery</button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+                <h2 className="text-base font-bold text-gray-700 mb-3">Select Table</h2>
+                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-6">
                   {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => {
                     const tOrders = activeDineInOrders.filter(o => parseInt(o.tableNumber) === n);
                     const isOccupied = tOrders.length > 0;
@@ -4167,24 +4257,51 @@ export default function RestaurantDashboard() {
                           setStaffView('order');
                           setReceptionistOrder(prev => ({ ...prev, orderType: 'dine-in', tableNumber: String(n) }));
                         }}
-                        className={`relative rounded-xl py-4 px-2 border-2 flex flex-col items-center gap-1 transition-all hover:scale-105 ${
+                        className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${
                           isOccupied
                             ? 'bg-red-50 border-red-300 hover:border-red-500'
                             : 'bg-green-50 border-green-300 hover:border-green-500'
                         }`}
                       >
-                        <span className={`text-xl font-bold ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
+                        <span className={`text-lg font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
                         {isOccupied
-                          ? <span className="text-xs font-medium text-red-600">₹{tTotal}</span>
-                          : <span className="text-xs text-green-500">Free</span>}
-                        {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                          ? <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span>
+                          : <span className="text-xs text-green-500 leading-none">Free</span>}
+                        {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
                       </button>
                     );
                   })}
+                  {(!restaurant?.tables || restaurant.tables === 0) && (
+                    <p className="col-span-full text-gray-400 text-sm text-center py-4">No tables configured.</p>
+                  )}
                 </div>
-                {(!restaurant?.tables || restaurant.tables === 0) && (
-                  <p className="text-gray-400 text-sm text-center mt-8">No tables configured. Add tables in QR Codes tab.</p>
-                )}
+
+                {/* Takeaway & Delivery quick-order cards */}
+                <h2 className="text-base font-bold text-gray-700 mb-3">Quick Order</h2>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setStaffSelectedTable(null);
+                      setStaffView('order');
+                      setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' }));
+                    }}
+                    className="flex-1 bg-white border-2 border-orange-300 hover:border-orange-500 rounded-xl py-5 flex flex-col items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+                  >
+                    <span className="text-2xl">🥡</span>
+                    <span className="text-sm font-bold text-orange-600">Takeaway</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStaffSelectedTable(null);
+                      setStaffView('order');
+                      setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '' }));
+                    }}
+                    className="flex-1 bg-white border-2 border-blue-300 hover:border-blue-500 rounded-xl py-5 flex flex-col items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+                  >
+                    <span className="text-2xl">🛵</span>
+                    <span className="text-sm font-bold text-blue-600">Delivery</span>
+                  </button>
+                </div>
               </div>
             ) : (
               /* ── ORDER INTERFACE ── */
@@ -4221,15 +4338,20 @@ export default function RestaurantDashboard() {
                           ← Table {staffSelectedTable}
                         </button>
                       )}
-                      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-                        {[{id:'takeaway',label:'TW'},{id:'delivery',label:'DEL'},{id:'dine-in',label:'DI'}].map(t => (
-                          <button key={t.id} onClick={() => setReceptionistOrder(prev => ({...prev, orderType: t.id, deliveryAddress: '', tableNumber: t.id === 'dine-in' && staffSelectedTable ? String(staffSelectedTable) : prev.tableNumber}))}
-                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white' : 'text-gray-500'}`}>
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                      {receptionistOrder.orderType === 'dine-in' && (
+                      {/* Only show order type toggle when NOT coming from a table */}
+                      {!staffSelectedTable ? (
+                        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                          {[{id:'takeaway',label:'TW'},{id:'delivery',label:'DEL'},{id:'dine-in',label:'DI'}].map(t => (
+                            <button key={t.id} onClick={() => setReceptionistOrder(prev => ({...prev, orderType: t.id, deliveryAddress: '', tableNumber: ''}))}
+                              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white' : 'text-gray-500'}`}>
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-lg">Dine-In</span>
+                      )}
+                      {receptionistOrder.orderType === 'dine-in' && !staffSelectedTable && (
                         <select value={receptionistOrder.tableNumber} onChange={e => setReceptionistOrder(prev => ({...prev, tableNumber: e.target.value}))}
                           className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
                           <option value="">Table #</option>
