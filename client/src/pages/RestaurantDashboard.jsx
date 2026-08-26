@@ -13,7 +13,7 @@ import { smartPrint } from '../utils/qzPrint.js';
 import DiscountManager from '../components/DiscountManager';
 import StaffManagement from '../components/StaffManagement';
 
-function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printStaffCustomerBill, printKitchenOrder, printReceipt, clearTableAndSaveToHistory, openEditOrderModal }) {
+function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printStaffCustomerBill, printKitchenOrder, printReceipt, clearTableAndSaveToHistory, openEditOrderModal, cancelOrder }) {
   const [selectedFloorTable, setSelectedFloorTable] = useState(null);
 
   const getTableOrders = (n) => activeDineInOrders.filter(o => parseInt(o.tableNumber) === n);
@@ -162,6 +162,12 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
                   className="px-5 py-2.5 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors"
                 >Edit Order</button>
               )}
+              {firstOrder && firstOrder.status !== 'completed' && firstOrder.status !== 'cancelled' && (
+                <button
+                  onClick={() => cancelOrder(firstOrder)}
+                  className="px-5 py-2.5 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors"
+                >Cancel</button>
+              )}
             </div>
           </div>
         )}
@@ -170,7 +176,7 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
   );
 }
 
-function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, printReceipt, clearRoomAndSaveToHistory, openEditOrderModal, onGoToQR }) {
+function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, printReceipt, clearRoomAndSaveToHistory, openEditOrderModal, onGoToQR, cancelOrder }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const roomNames = restaurant?.features?.roomNames || {};
   const getRoomLabel = (n) => roomNames[n] || `Room ${n}`;
@@ -326,6 +332,12 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
                   className="px-5 py-2.5 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors"
                 >Edit Order</button>
               )}
+              {firstOrder && firstOrder.status !== 'completed' && firstOrder.status !== 'cancelled' && (
+                <button
+                  onClick={() => cancelOrder(firstOrder)}
+                  className="px-5 py-2.5 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors"
+                >Cancel</button>
+              )}
             </div>
           </div>
         )}
@@ -413,14 +425,19 @@ export default function RestaurantDashboard() {
   const [receptionistOrder, setReceptionistOrder] = useState({
     customerName: '',
     customerPhone: '',
-    orderType: 'takeaway', // 'takeaway', 'delivery', 'dine-in'
+    orderType: 'takeaway',
     deliveryAddress: '',
     tableNumber: '',
     items: [],
     specialInstructions: '',
     waiterId: '',
-    waiterNumber: ''
+    waiterNumber: '',
+    packagingCharge: 0,
+    deliveryCharge: 0,
   });
+  // Staff page view: 'tables' = table grid, 'order' = ordering interface
+  const [staffView, setStaffView] = useState('order');
+  const [staffSelectedTable, setStaffSelectedTable] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [editOrderSearchQuery, setEditOrderSearchQuery] = useState('');
@@ -1408,6 +1425,50 @@ export default function RestaurantDashboard() {
     }
   };
 
+  // Returns receipt HTML for an individual order (used by both normal print and speed print)
+  const printIndividualReceiptHTML = (order) => {
+    const settings = getPrinterSettings();
+    const receiptWidth = settings.receiptWidth || '80mm';
+    const orderId = order.orderNumber ? `#${String(order.orderNumber).padStart(3,'0')}` : `ORD-${(order._id||'').slice(-6).toUpperCase()}`;
+    const dateStr = new Date(order.createdAt).toLocaleDateString('en-IN');
+    const timeStr = new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const subtotal = order.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+    const packaging = order.packagingCharge || 0;
+    const delivery = order.deliveryCharge || 0;
+    const grand = subtotal + packaging + delivery;
+    return `<div style="width:${receiptWidth};max-width:302px;font-family:'Courier New',monospace;font-size:12px;line-height:1.4;color:#000;background:white;padding:10px;">
+      <div style="text-align:center;margin-bottom:12px;border-bottom:2px solid #000;padding-bottom:8px;">
+        <div style="font-size:16px;font-weight:bold;">${restaurant.name.toUpperCase()}</div>
+        <div style="font-size:10px;">${order.orderType.toUpperCase()} RECEIPT</div>
+      </div>
+      <div style="margin-bottom:10px;font-size:11px;">
+        <div style="display:flex;justify-content:space-between;"><span>ORDER:</span><span>${orderId}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>DATE:</span><span>${dateStr} ${timeStr}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>TYPE:</span><span>${order.orderType.toUpperCase()}</span></div>
+        ${order.tableNumber ? `<div style="display:flex;justify-content:space-between;"><span>TABLE:</span><span><strong>${order.tableNumber}</strong></span></div>` : ''}
+        ${order.customerName ? `<div style="display:flex;justify-content:space-between;"><span>CUSTOMER:</span><span>${order.customerName}</span></div>` : ''}
+        ${order.deliveryAddress ? `<div><span>ADDR:</span><span style="word-wrap:break-word">${order.deliveryAddress}</span></div>` : ''}
+      </div>
+      <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin-bottom:8px;">
+        ${order.items.map(item => `<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+          <span style="flex:2;">${item.name}${item.complimentary ? ' [COMP]' : ''}</span>
+          <span style="width:25px;text-align:center;">${item.quantity}</span>
+          <span style="width:55px;text-align:right;">${item.complimentary ? '₹0' : '₹' + (item.price * item.quantity)}</span>
+        </div>`).join('')}
+      </div>
+      <div style="font-size:11px;margin-bottom:8px;">
+        ${packaging > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Packaging:</span><span>₹${packaging}</span></div>` : ''}
+        ${delivery > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Delivery:</span><span>₹${delivery}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;border-top:2px solid #000;padding-top:5px;margin-top:4px;">
+          <span>TOTAL:</span><span>₹${grand}</span>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:10px;border-top:1px dashed #000;padding-top:8px;">
+        <div>Thank you! Please visit again</div><div>★★★★★</div>
+      </div>
+    </div>`;
+  };
+
   const printIndividualReceipt = (order) => {
     const settings = getPrinterSettings();
     
@@ -1989,108 +2050,78 @@ export default function RestaurantDashboard() {
 
   // Print KOT without saving order
   const printStaffKOTOnly = () => {
-    // Validate required fields - only items are required now
-    if (receptionistOrder.items.length === 0) {
-      showToast('Please select at least one item', 'error');
-      return;
-    }
-
-    if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
-      showToast('Please enter a delivery address', 'error');
-      return;
-    }
-
-    if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
-      showToast('Please select a table number', 'error');
-      return;
-    }
-
-    // Calculate total amount
-    const totalAmount = receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-    // Create temporary order object for printing
-    const tempOrder = {
+    if (receptionistOrder.items.length === 0) { showToast('Please select at least one item', 'error'); return; }
+    if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) { showToast('Please enter a delivery address', 'error'); return; }
+    if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) { showToast('Please select a table number', 'error'); return; }
+    const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+    const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
+    printStaffKOT({
       _id: `TEMP-${Date.now()}`,
       customerName: receptionistOrder.customerName || 'Guest Customer',
       customerPhone: receptionistOrder.customerPhone || '',
       orderType: receptionistOrder.orderType,
       items: receptionistOrder.items,
-      totalAmount,
+      totalAmount: subtotal + extraCharge,
+      packagingCharge: receptionistOrder.packagingCharge || 0,
+      deliveryCharge: receptionistOrder.deliveryCharge || 0,
       specialInstructions: receptionistOrder.specialInstructions,
       source: 'staff',
       deliveryAddress: receptionistOrder.deliveryAddress,
       tableNumber: receptionistOrder.tableNumber ? parseInt(receptionistOrder.tableNumber) : null,
       createdAt: new Date().toISOString()
-    };
-
-    // Print KOT
-    printStaffKOT(tempOrder);
+    });
   };
 
   // Print Customer Bill without saving order
   const printStaffBillOnly = () => {
-    // Validate required fields - only items are required now
-    if (receptionistOrder.items.length === 0) {
-      showToast('Please select at least one item', 'error');
-      return;
-    }
-
-    if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
-      showToast('Please enter a delivery address', 'error');
-      return;
-    }
-
-    if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
-      showToast('Please select a table number', 'error');
-      return;
-    }
-
-    // Calculate total amount
-    const totalAmount = receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-    // Create temporary order object for printing
-    const tempOrder = {
+    if (receptionistOrder.items.length === 0) { showToast('Please select at least one item', 'error'); return; }
+    if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) { showToast('Please enter a delivery address', 'error'); return; }
+    if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) { showToast('Please select a table number', 'error'); return; }
+    const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+    const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
+    printStaffCustomerBill({
       _id: `TEMP-${Date.now()}`,
       customerName: receptionistOrder.customerName || 'Guest Customer',
       customerPhone: receptionistOrder.customerPhone || '',
       orderType: receptionistOrder.orderType,
       items: receptionistOrder.items,
-      totalAmount,
+      totalAmount: subtotal + extraCharge,
+      packagingCharge: receptionistOrder.packagingCharge || 0,
+      deliveryCharge: receptionistOrder.deliveryCharge || 0,
       specialInstructions: receptionistOrder.specialInstructions,
       source: 'staff',
       deliveryAddress: receptionistOrder.deliveryAddress,
       tableNumber: receptionistOrder.tableNumber ? parseInt(receptionistOrder.tableNumber) : null,
       createdAt: new Date().toISOString()
-    };
-
-    // Print Customer Bill
-    printStaffCustomerBill(tempOrder);
+    });
   };
 
   const clearReceptionistOrder = async () => {
-    // Check if there's an order to save - only check for items now
     if (receptionistOrder.items.length > 0) {
       try {
         const restaurantId = localStorage.getItem('restaurantId');
-        console.log('🔄 Saving Staff order...', { restaurantId, receptionistOrder });
-        
-        // Validate required fields before saving
+
         if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
           setSuccessMessage('⚠️ Please enter delivery address before saving delivery orders.');
           setTimeout(() => setSuccessMessage(''), 3000);
           return;
         }
-
         if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
           setSuccessMessage('⚠️ Please select a table number before saving dine-in orders.');
           setTimeout(() => setSuccessMessage(''), 3000);
           return;
         }
 
-        // Calculate total amount
-        const totalAmount = receptionistOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const subtotal = receptionistOrder.items
+          .filter(i => !i.complimentary)
+          .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const extraCharge = receptionistOrder.orderType === 'takeaway'
+          ? (receptionistOrder.packagingCharge || 0)
+          : receptionistOrder.orderType === 'delivery'
+          ? (receptionistOrder.deliveryCharge || 0)
+          : 0;
+        const totalAmount = subtotal + extraCharge;
 
-        // Prepare order data
         const orderData = {
           restaurantId,
           customerName: receptionistOrder.customerName || 'Guest Customer',
@@ -2099,76 +2130,72 @@ export default function RestaurantDashboard() {
           items: receptionistOrder.items,
           totalAmount,
           specialInstructions: receptionistOrder.specialInstructions,
-          source: 'staff', // Mark as Staff order
-          status: 'pending', // Set as pending so it appears in Table Orders until final bill
+          source: 'staff',
+          status: 'pending',
           waiterId: receptionistOrder.waiterId || null,
           waiterNumber: receptionistOrder.waiterNumber || null,
+          packagingCharge: receptionistOrder.packagingCharge || 0,
+          deliveryCharge: receptionistOrder.deliveryCharge || 0,
           ...(receptionistOrder.orderType === 'delivery' && { deliveryAddress: receptionistOrder.deliveryAddress }),
           ...(receptionistOrder.orderType === 'dine-in' && { tableNumber: parseInt(receptionistOrder.tableNumber) })
         };
 
-        console.log('📤 Sending order data:', orderData);
-
-        // Submit order
         const response = await axios.post('/api/orders', orderData);
         const createdOrder = response.data;
 
-        console.log('✅ Order saved successfully:', createdOrder);
-
-        // Track analytics
         trackRestaurantEvent('staff_order_saved', {
           orderType: receptionistOrder.orderType,
           itemCount: receptionistOrder.items.length,
           totalAmount
         });
 
-        // Show success immediately
         setSuccessMessage(`✅ Order #${createdOrder.orderNumber ? String(createdOrder.orderNumber).padStart(3,'0') : createdOrder._id?.slice(-6).toUpperCase()} saved! Total: ₹${totalAmount}`);
         setTimeout(() => setSuccessMessage(''), 5000);
 
-        // Clear form instantly — don't wait for refresh
         setReceptionistOrder({
-          customerName: '',
-          customerPhone: '',
-          orderType: 'takeaway',
-          deliveryAddress: '',
-          tableNumber: '',
-          items: [],
-          specialInstructions: '',
-          waiterId: '',
-          waiterNumber: ''
+          customerName: '', customerPhone: '', orderType: 'takeaway',
+          deliveryAddress: '', tableNumber: '', items: [],
+          specialInstructions: '', waiterId: '', waiterNumber: '',
+          packagingCharge: 0, deliveryCharge: 0,
         });
         setSelectedCategory('all');
         setStaffSearchQuery('');
-
-        // Refresh orders in background (non-blocking)
+        if (staffView === 'order' && staffSelectedTable) setStaffView('tables');
         fetchOrders(restaurantId);
-        return; // skip the form clear at the bottom — already done above
-
-        } catch (error) {
-          console.error('❌ Error saving Staff order:', error);
-          console.error('Error details:', error.response?.data);
-          setSuccessMessage(`❌ Failed to save order: ${error.response?.data?.error || error.message}`);
-          setTimeout(() => setSuccessMessage(''), 5000);
-          return; // Don't clear the form if save failed
-        }
+        return;
+      } catch (error) {
+        console.error('❌ Error saving Staff order:', error);
+        setSuccessMessage(`❌ Failed to save order: ${error.response?.data?.error || error.message}`);
+        setTimeout(() => setSuccessMessage(''), 5000);
+        return;
       }
-
-    // Clear the form
-    console.log('Clearing Staff order form');
+    }
     setReceptionistOrder({
-      customerName: '',
-      customerPhone: '',
-      orderType: 'takeaway',
-      deliveryAddress: '',
-      tableNumber: '',
-      items: [],
-      specialInstructions: '',
-      waiterId: '',
-      waiterNumber: ''
+      customerName: '', customerPhone: '', orderType: 'takeaway',
+      deliveryAddress: '', tableNumber: '', items: [],
+      specialInstructions: '', waiterId: '', waiterNumber: '',
+      packagingCharge: 0, deliveryCharge: 0,
     });
     setSelectedCategory('all');
-    setStaffSearchQuery(''); // Clear search query
+    setStaffSearchQuery('');
+  };
+
+  // Cancel an active order
+  const cancelOrder = async (order) => {
+    setConfirmModal({
+      message: `Cancel order #${order.orderNumber ? String(order.orderNumber).padStart(3,'0') : order._id?.slice(-6)}? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await axios.patch(`/api/orders/${order._id}/status`, { status: 'cancelled' });
+          const restaurantId = localStorage.getItem('restaurantId');
+          await fetchOrders(restaurantId);
+          showToast('Order cancelled');
+        } catch (error) {
+          showToast(`Failed to cancel: ${error.response?.data?.error || error.message}`, 'error');
+        }
+      }
+    });
   };
 
   // Print KOT (Kitchen Order Ticket) for Staff orders
@@ -2410,20 +2437,31 @@ export default function RestaurantDashboard() {
           </div>
           ${order.items.map(item => `
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px;">
-              <span style="flex: 2;">${item.name}</span>
+              <span style="flex: 2;">${item.name}${item.complimentary ? ' ★' : ''}</span>
               <span style="width: 30px; text-align: center;">${item.quantity}</span>
-              <span style="width: 50px; text-align: right;">₹${item.price}</span>
-              <span style="width: 60px; text-align: right;">₹${item.price * item.quantity}</span>
+              <span style="width: 50px; text-align: right;">${item.complimentary ? 'COMP' : '₹' + item.price}</span>
+              <span style="width: 60px; text-align: right;">${item.complimentary ? '₹0' : '₹' + (item.price * item.quantity)}</span>
             </div>
           `).join('')}
         </div>
 
         <!-- Total -->
         <div style="margin-bottom: 15px;">
-          <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; padding: 5px 0; border-top: 1px solid #000;">
-            <span>TOTAL AMOUNT:</span>
-            <span>₹${order.totalAmount}</span>
-          </div>
+          ${(() => {
+            const subtotal = order.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+            const compTotal = order.items.filter(i => i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+            const packaging = order.packagingCharge || 0;
+            const delivery = order.deliveryCharge || 0;
+            const grand = subtotal + packaging + delivery;
+            return `
+              ${compTotal > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px;"><span>Complimentary:</span><span>−₹${compTotal}</span></div>` : ''}
+              ${packaging > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px;"><span>Packaging:</span><span>₹${packaging}</span></div>` : ''}
+              ${delivery > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px;"><span>Delivery:</span><span>₹${delivery}</span></div>` : ''}
+              <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; padding: 5px 0; border-top: 1px solid #000;">
+                <span>TOTAL AMOUNT:</span><span>₹${grand}</span>
+              </div>
+            `;
+          })()}
         </div>
 
         ${order.specialInstructions ? `
@@ -2708,7 +2746,7 @@ export default function RestaurantDashboard() {
           {/* Staff Ordering Tab - Moved to first position */}
           <FeatureGuard feature="staffOrders">
             <button
-              onClick={() => setActiveTab('Staff')}
+              onClick={() => { setActiveTab('Staff'); setStaffView('tables'); }}
               className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'Staff' ? 'bg-primary text-white' : 'bg-white text-gray-700'
               }`}
@@ -2946,49 +2984,50 @@ export default function RestaurantDashboard() {
                       <button
                         onClick={() => clearIndividualOrder(order)}
                         className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 font-semibold flex items-center justify-center gap-2"
-                      >
-                        Clear Order
-                      </button>
+                      >Clear Order</button>
                       {/* Edit Order Button for Completed Staff Orders */}
                       {(order.status === 'completed' || order.status === 'pending') && (
-                        <button
-                          onClick={() => openEditOrderModal(order)}
-                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 font-semibold flex items-center justify-center gap-2"
-                        >
-                          <Edit size={16} />
-                          Edit Order
+                        <button onClick={() => openEditOrderModal(order)}
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 font-semibold flex items-center justify-center gap-2">
+                          <Edit size={16} />Edit Order
+                        </button>
+                      )}
+                      {order.status !== 'completed' && order.status !== 'cancelled' && (
+                        <button onClick={() => cancelOrder(order)}
+                          className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 font-semibold">
+                          Cancel
                         </button>
                       )}
                     </>
                   ) : (
                     // Regular Order Print Buttons
                     <>
-                      {/* Kitchen Print Button - Smart Visibility */}
                       {order.items.some(item => !item.printed_to_kitchen) && (
-                        <button
-                          onClick={() => printKitchenOrderIndividual(order)}
-                          className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2"
-                        >
+                        <button onClick={() => printKitchenOrderIndividual(order)}
+                          className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-lg hover:from-orange-600 hover:to-red-600 font-semibold flex items-center justify-center gap-2">
                           Print Bill (Kitchen)
                         </button>
                       )}
-                      
-                      {/* Cash Counter Print Receipt Button */}
+                      {/* Speed Print — no dialog */}
                       <button
-                        onClick={() => printIndividualReceipt(order)}
-                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
-                      >
+                        onClick={() => { smartPrint(printIndividualReceiptHTML(order), 'bill'); }}
+                        className="flex-1 bg-gray-700 text-white py-2 rounded-lg hover:bg-gray-800 font-semibold flex items-center justify-center gap-2"
+                        title="Speed Print — sends directly to printer, no dialog"
+                      >⚡ Print</button>
+                      <button onClick={() => printIndividualReceipt(order)}
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2">
                         Print Receipt
                       </button>
-                      
-                      {/* Edit Order Button for QR Orders */}
                       {(order.status === 'completed' || order.status === 'pending') && (
-                        <button
-                          onClick={() => openEditOrderModal(order)}
-                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 font-semibold flex items-center justify-center gap-2"
-                        >
-                          <Edit size={16} />
-                          Edit Order
+                        <button onClick={() => openEditOrderModal(order)}
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 font-semibold flex items-center justify-center gap-2">
+                          <Edit size={16} />Edit Order
+                        </button>
+                      )}
+                      {order.status !== 'completed' && order.status !== 'cancelled' && (
+                        <button onClick={() => cancelOrder(order)}
+                          className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 font-semibold">
+                          Cancel
                         </button>
                       )}
                     </>
@@ -3047,6 +3086,7 @@ export default function RestaurantDashboard() {
             printReceipt={printReceipt}
             clearTableAndSaveToHistory={clearTableAndSaveToHistory}
             openEditOrderModal={openEditOrderModal}
+            cancelOrder={cancelOrder}
           />
         )}
 
@@ -3059,6 +3099,7 @@ export default function RestaurantDashboard() {
             clearRoomAndSaveToHistory={clearRoomAndSaveToHistory}
             openEditOrderModal={openEditOrderModal}
             onGoToQR={() => setActiveTab('qr')}
+            cancelOrder={cancelOrder}
           />
         )}
 
@@ -4101,162 +4142,278 @@ export default function RestaurantDashboard() {
         {/* Staff Order Tab */}
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
           <div className="flex gap-0 h-[calc(100vh-140px)] -m-3 sm:-m-4 overflow-hidden">
-            {/* LEFT: Menu Panel */}
-            <div className="flex flex-col w-full lg:w-[58%] bg-gray-50 border-r border-gray-200 overflow-hidden">
-              {/* Order config bar */}
-              <div className="bg-white border-b border-gray-100 px-4 py-3 flex flex-wrap gap-2 items-center shrink-0">
-                {/* Order type */}
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-                  {[{id:'takeaway',label:'Takeaway'},{id:'delivery',label:'Delivery'},{id:'dine-in',label:'Dine-In'}].map(t => (
-                    <button key={t.id} onClick={() => setReceptionistOrder({...receptionistOrder, orderType: t.id, deliveryAddress: ''})}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                {/* Table select for dine-in */}
-                {receptionistOrder.orderType === 'dine-in' && (
-                  <select value={receptionistOrder.tableNumber} onChange={e => setReceptionistOrder({...receptionistOrder, tableNumber: e.target.value})}
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary bg-white">
-                    <option value="">Table #</option>
-                    {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => <option key={n} value={n}>Table {n}</option>)}
-                  </select>
-                )}
-                {/* Delivery address */}
-                {receptionistOrder.orderType === 'delivery' && (
-                  <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder({...receptionistOrder, deliveryAddress: e.target.value})}
-                    placeholder="Delivery address" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary flex-1 min-w-[160px]" />
-                )}
-                {/* Waiter */}
-                <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder({...receptionistOrder, waiterId: e.target.value, waiterNumber: w?.waiter_number||''}); }}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary bg-white">
-                  <option value="">Waiter</option>
-                  {availableWaiters.map(w => <option key={w.id} value={w.id}>{w.waiter_number} {w.name}</option>)}
-                </select>
-                {/* Customer name */}
-                <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder({...receptionistOrder, customerName: e.target.value})}
-                  placeholder="Customer name" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary min-w-[120px]" />
-              </div>
-
-              {/* Search */}
-              <div className="px-3 pt-3 pb-2 shrink-0">
-                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                  <Search size={14} className="text-gray-400 shrink-0" />
-                  <input value={staffSearchQuery} onChange={e => setStaffSearchQuery(e.target.value)} placeholder="Search items..."
-                    className="flex-1 text-sm outline-none text-gray-700 placeholder-gray-400 bg-transparent" />
-                  {staffSearchQuery && <button onClick={() => setStaffSearchQuery('')}><X size={14} className="text-gray-400" /></button>}
-                </div>
-              </div>
-
-              {/* Category tabs */}
-              <div className="px-3 pb-2 shrink-0 flex gap-2 overflow-x-auto hide-scrollbar">
-                {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category) || [])]].map(cat => (
-                  <button key={cat} onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-primary'}`}>
-                    {cat === 'all' ? 'All' : cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Menu grid */}
-              <div className="flex-1 overflow-y-auto px-3 pb-3">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {restaurant?.menu?.filter(i => i.available)
-                    .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
-                    .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()) || i.category?.toLowerCase().includes(staffSearchQuery.toLowerCase()))
-                    .map(item => {
-                      const inOrder = receptionistOrder.items.find(x => x._id === item._id);
-                      return (
-                        <div key={item._id} onClick={() => updateReceptionistOrderItem(item, 1)}
-                          className="bg-white rounded-xl border border-gray-100 p-3 cursor-pointer hover:border-primary hover:shadow-md transition-all active:scale-95 relative">
-                          {item.image && <img src={item.image} alt={item.name} className="w-full h-20 object-cover rounded-lg mb-2" onError={e => e.target.style.display='none'} />}
-                          <p className="font-semibold text-gray-800 text-sm leading-tight">{item.name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{item.category} · {item.isVeg ? '🟢' : '🔴'}</p>
-                          <p className="text-primary font-bold text-sm mt-1">₹{item.price}</p>
-                          {inOrder && (
-                            <span className="absolute top-2 right-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{inOrder.quantity}</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT: Cart / Order Summary */}
-            <div className="hidden lg:flex lg:flex-col lg:w-[42%] bg-white overflow-hidden">
-              {/* Cart header */}
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <div>
-                  <h3 className="font-bold text-gray-900 text-lg">Current Order</h3>
-                  <p className="text-xs text-gray-400 capitalize">{receptionistOrder.orderType}{receptionistOrder.tableNumber ? ` · Table ${receptionistOrder.tableNumber}` : ''}{receptionistOrder.customerName ? ` · ${receptionistOrder.customerName}` : ''}</p>
-                </div>
-                {receptionistOrder.items.length > 0 && (
-                  <button onClick={clearReceptionistOrder} className="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear</button>
-                )}
-              </div>
-
-              {/* Cart items */}
-              <div className="flex-1 overflow-y-auto px-4 py-3">
-                {receptionistOrder.items.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-300">
-                    <ShoppingCart size={48} className="mb-3 opacity-30" />
-                    <p className="text-sm">Add items from the menu</p>
+            {staffView === 'tables' ? (
+              /* ── TABLE GRID VIEW ── */
+              <div className="w-full p-4 overflow-y-auto bg-gray-50">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-800">Select Table to Order</h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
+                      className="text-sm text-gray-500 border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-100"
+                    >Takeaway / Delivery</button>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {receptionistOrder.items.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-3 py-2 border-b border-gray-50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-                          <p className="text-xs text-gray-400">₹{item.price} each</p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-600">-</button>
-                          <span className="w-6 text-center text-sm font-bold text-gray-800">{item.quantity}</span>
-                          <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-6 h-6 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">+</button>
-                        </div>
-                        <p className="text-sm font-semibold text-gray-700 w-14 text-right shrink-0">₹{item.price * item.quantity}</p>
-                        <button onClick={() => setReceptionistOrder(prev => ({...prev, items: prev.items.filter((_,i) => i !== idx)}))} className="text-gray-300 hover:text-red-400 shrink-0"><X size={14} /></button>
-                      </div>
+                </div>
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+                  {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => {
+                    const tOrders = activeDineInOrders.filter(o => parseInt(o.tableNumber) === n);
+                    const isOccupied = tOrders.length > 0;
+                    const tTotal = tOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+                    return (
+                      <button
+                        key={n}
+                        onClick={() => {
+                          setStaffSelectedTable(n);
+                          setStaffView('order');
+                          setReceptionistOrder(prev => ({ ...prev, orderType: 'dine-in', tableNumber: String(n) }));
+                        }}
+                        className={`relative rounded-xl py-4 px-2 border-2 flex flex-col items-center gap-1 transition-all hover:scale-105 ${
+                          isOccupied
+                            ? 'bg-red-50 border-red-300 hover:border-red-500'
+                            : 'bg-green-50 border-green-300 hover:border-green-500'
+                        }`}
+                      >
+                        <span className={`text-xl font-bold ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
+                        {isOccupied
+                          ? <span className="text-xs font-medium text-red-600">₹{tTotal}</span>
+                          : <span className="text-xs text-green-500">Free</span>}
+                        {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {(!restaurant?.tables || restaurant.tables === 0) && (
+                  <p className="text-gray-400 text-sm text-center mt-8">No tables configured. Add tables in QR Codes tab.</p>
+                )}
+              </div>
+            ) : (
+              /* ── ORDER INTERFACE ── */
+              <>
+                {/* LEFT: Category sidebar + Menu items */}
+                <div className="flex h-full w-full lg:w-[58%] border-r border-gray-200 overflow-hidden bg-gray-50">
+
+                  {/* Category sidebar */}
+                  <div className="w-28 shrink-0 bg-white border-r border-gray-100 overflow-y-auto flex flex-col">
+                    {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category) || [])]].map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`px-2 py-3 text-xs font-semibold text-center border-b border-gray-100 transition-all ${
+                          selectedCategory === cat
+                            ? 'bg-primary text-white'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {cat === 'all' ? 'All Items' : cat}
+                      </button>
                     ))}
                   </div>
-                )}
-              </div>
 
-              {/* Notes */}
-              <div className="px-4 py-2 shrink-0">
-                <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder({...receptionistOrder, specialInstructions: e.target.value})}
-                  placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
+                  {/* Menu items list (no images, text-only like Pet Pooja) */}
+                  <div className="flex flex-col flex-1 overflow-hidden">
+                    {/* Top bar */}
+                    <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center shrink-0">
+                      {staffSelectedTable && (
+                        <button
+                          onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
+                          className="text-xs text-primary font-semibold flex items-center gap-1"
+                        >
+                          ← Table {staffSelectedTable}
+                        </button>
+                      )}
+                      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                        {[{id:'takeaway',label:'TW'},{id:'delivery',label:'DEL'},{id:'dine-in',label:'DI'}].map(t => (
+                          <button key={t.id} onClick={() => setReceptionistOrder(prev => ({...prev, orderType: t.id, deliveryAddress: '', tableNumber: t.id === 'dine-in' && staffSelectedTable ? String(staffSelectedTable) : prev.tableNumber}))}
+                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white' : 'text-gray-500'}`}>
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                      {receptionistOrder.orderType === 'dine-in' && (
+                        <select value={receptionistOrder.tableNumber} onChange={e => setReceptionistOrder(prev => ({...prev, tableNumber: e.target.value}))}
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
+                          <option value="">Table #</option>
+                          {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => <option key={n} value={n}>T{n}</option>)}
+                        </select>
+                      )}
+                      {receptionistOrder.orderType === 'delivery' && (
+                        <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))}
+                          placeholder="Address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[120px]" />
+                      )}
+                      <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder(prev => ({...prev, waiterId: e.target.value, waiterNumber: w?.waiter_number||''})); }}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
+                        <option value="">Waiter</option>
+                        {availableWaiters.map(w => <option key={w.id} value={w.id}>{w.waiter_number}</option>)}
+                      </select>
+                      <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))}
+                        placeholder="Name" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none min-w-[80px]" />
+                    </div>
 
-              {/* Total & Actions */}
-              {receptionistOrder.items.length > 0 && (
-                <div className="px-4 pb-4 pt-2 border-t border-gray-100 shrink-0">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-gray-500 text-sm">{receptionistOrder.items.reduce((s,i) => s + i.quantity, 0)} items</span>
-                    <span className="text-2xl font-bold text-gray-900">₹{receptionistOrder.items.reduce((s,i) => s + i.price * i.quantity, 0)}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-orange-600 transition-colors">KOT</button>
-                    <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors">Bill</button>
-                    <button onClick={clearReceptionistOrder} className="bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">Save</button>
+                    {/* Search */}
+                    <div className="px-3 py-2 shrink-0 bg-white border-b border-gray-100">
+                      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                        <Search size={13} className="text-gray-400 shrink-0" />
+                        <input value={staffSearchQuery} onChange={e => setStaffSearchQuery(e.target.value)} placeholder="Search..."
+                          className="flex-1 text-xs outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+                        {staffSearchQuery && <button onClick={() => setStaffSearchQuery('')}><X size={13} className="text-gray-400" /></button>}
+                      </div>
+                    </div>
+
+                    {/* Menu list — Pet Pooja style rows, no images */}
+                    <div className="flex-1 overflow-y-auto">
+                      {restaurant?.menu?.filter(i => i.available)
+                        .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
+                        .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
+                        .map(item => {
+                          const inOrder = receptionistOrder.items.find(x => x._id === item._id);
+                          return (
+                            <div key={item._id}
+                              className={`flex items-center justify-between px-4 py-2.5 border-b border-gray-100 cursor-pointer hover:bg-primary/5 transition-colors ${inOrder ? 'bg-primary/5' : 'bg-white'}`}
+                              onClick={() => updateReceptionistOrderItem(item, 1)}
+                            >
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className={`w-2.5 h-2.5 rounded-sm border shrink-0 ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                                  <p className="text-xs text-gray-400">{item.category}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className="text-sm font-semibold text-gray-700">₹{item.price}</span>
+                                {inOrder ? (
+                                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                    <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-600">−</button>
+                                    <span className="w-6 text-center text-sm font-bold text-primary">{inOrder.quantity}</span>
+                                    <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-6 h-6 rounded bg-primary text-white flex items-center justify-center text-sm font-bold">+</button>
+                                  </div>
+                                ) : (
+                                  <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">+</div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* Mobile: Cart button + bottom sheet handled via successMessage */}
-            {receptionistOrder.items.length > 0 && (
-              <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 z-20">
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500">{receptionistOrder.items.reduce((s,i) => s + i.quantity,0)} items</p>
-                  <p className="font-bold text-gray-900">₹{receptionistOrder.items.reduce((s,i) => s + i.price * i.quantity,0)}</p>
+                {/* RIGHT: Cart */}
+                <div className="hidden lg:flex lg:flex-col lg:w-[42%] bg-white overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
+                    <div>
+                      <h3 className="font-bold text-gray-900">
+                        {receptionistOrder.orderType === 'dine-in' && receptionistOrder.tableNumber
+                          ? `Table ${receptionistOrder.tableNumber}`
+                          : receptionistOrder.orderType === 'takeaway' ? 'Takeaway'
+                          : 'Delivery'}
+                      </h3>
+                      <p className="text-xs text-gray-400">{receptionistOrder.customerName || 'Guest'}</p>
+                    </div>
+                    {receptionistOrder.items.length > 0 && (
+                      <button onClick={() => setReceptionistOrder(prev => ({...prev, items: []}))} className="text-xs text-gray-400 hover:text-red-500">Clear</button>
+                    )}
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto px-3 py-2">
+                    {receptionistOrder.items.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-300">
+                        <ShoppingCart size={40} className="mb-2 opacity-30" />
+                        <p className="text-sm">Add items from menu</p>
+                      </div>
+                    ) : (
+                      <div>
+                        {receptionistOrder.items.map((item, idx) => (
+                          <div key={idx} className={`flex items-center gap-2 py-2 border-b border-gray-50 ${item.complimentary ? 'opacity-70' : ''}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                              {item.complimentary
+                                ? <span className="text-xs text-green-600 font-semibold">Complimentary</span>
+                                : <p className="text-xs text-gray-400">₹{item.price} × {item.quantity}</p>}
+                            </div>
+                            {/* Complimentary toggle */}
+                            <button
+                              onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
+                              title={item.complimentary ? 'Remove complimentary' : 'Mark complimentary'}
+                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 ${item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400'}`}
+                            >✓</button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
+                              <span className="w-5 text-center text-xs font-bold">{item.quantity}</span>
+                              <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
+                            </div>
+                            <p className="text-xs font-semibold text-gray-700 w-12 text-right shrink-0">
+                              {item.complimentary ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span> : `₹${item.price * item.quantity}`}
+                            </p>
+                            <button onClick={() => setReceptionistOrder(prev => ({...prev, items: prev.items.filter((_,i) => i !== idx)}))} className="text-gray-200 hover:text-red-400 shrink-0"><X size={13} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notes + Charges */}
+                  <div className="px-4 py-2 border-t border-gray-100 shrink-0 space-y-2">
+                    <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder(prev => ({...prev, specialInstructions: e.target.value}))}
+                      placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary" />
+                    {receptionistOrder.orderType === 'takeaway' && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500 w-32 shrink-0">Packaging Charge ₹</label>
+                        <input type="number" min="0" value={receptionistOrder.packagingCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, packagingCharge: parseFloat(e.target.value) || 0}))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary w-24" />
+                      </div>
+                    )}
+                    {receptionistOrder.orderType === 'delivery' && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500 w-32 shrink-0">Delivery Charge ₹</label>
+                        <input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary w-24" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total & Actions */}
+                  {receptionistOrder.items.length > 0 && (() => {
+                    const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+                    const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
+                    const grandTotal = subtotal + extraCharge;
+                    return (
+                      <div className="px-4 pb-4 pt-2 border-t border-gray-100 shrink-0">
+                        <div className="mb-2 space-y-0.5 text-xs text-gray-500">
+                          <div className="flex justify-between"><span>Subtotal</span><span>₹{subtotal}</span></div>
+                          {extraCharge > 0 && <div className="flex justify-between"><span>{receptionistOrder.orderType === 'takeaway' ? 'Packaging' : 'Delivery'}</span><span>₹{extraCharge}</span></div>}
+                          {receptionistOrder.items.some(i => i.complimentary) && <div className="flex justify-between text-green-600"><span>Complimentary</span><span>−₹{receptionistOrder.items.filter(i => i.complimentary).reduce((s,i)=>s+i.price*i.quantity,0)}</span></div>}
+                        </div>
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-sm text-gray-500">{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items</span>
+                          <span className="text-2xl font-bold text-gray-900">₹{grandTotal}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-orange-600">KOT</button>
+                          <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-blue-600">Bill</button>
+                          <button onClick={clearReceptionistOrder} className="bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-green-600">Save</button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-                <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
-                <button onClick={printStaffBillOnly} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
-                <button onClick={clearReceptionistOrder} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Save</button>
-              </div>
+
+                {/* Mobile bottom bar */}
+                {receptionistOrder.items.length > 0 && (() => {
+                  const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+                  const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
+                  return (
+                    <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-2 z-20">
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-500">{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items</p>
+                        <p className="font-bold text-gray-900">₹{subtotal + extraCharge}</p>
+                      </div>
+                      <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
+                      <button onClick={printStaffBillOnly} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
+                      <button onClick={clearReceptionistOrder} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Save</button>
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
         )}
