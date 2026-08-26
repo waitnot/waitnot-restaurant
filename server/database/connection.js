@@ -11,11 +11,11 @@ const dbConfig = {
   ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : {
     rejectUnauthorized: false
   },
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
-  query_timeout: 30000, // Query timeout
-  statement_timeout: 30000, // Statement timeout
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 15000, // Increased for Neon cold start
+  query_timeout: 60000,
+  statement_timeout: 60000,
 };
 
 // Create connection pool
@@ -30,6 +30,15 @@ pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client', err);
   process.exit(-1);
 });
+
+// Keepalive ping every 4 minutes to prevent Neon cold starts
+setInterval(async () => {
+  try {
+    await pool.query('SELECT 1');
+  } catch (e) {
+    // silent — next real query will reconnect
+  }
+}, 4 * 60 * 1000);
 
 // Initialize database (create tables if they don't exist)
 export async function initDatabase() {

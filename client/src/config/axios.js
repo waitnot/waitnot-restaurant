@@ -25,7 +25,7 @@ console.log('🔧 Axios baseURL:', baseURL);
 // Create axios instance with optimized defaults
 const axiosInstance = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: 30000, // 30s — handles Neon cold start (~5-8s)
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -62,6 +62,6 @@ axiosInstance.interceptors.response.use(
 
 // Apply to bare axios so pages using `import axios from 'axios'` also hit the right server
 axios.defaults.baseURL = baseURL;
-axios.defaults.timeout = 10000;
+axios.defaults.timeout = 30000;
 
 export default axiosInstance;
