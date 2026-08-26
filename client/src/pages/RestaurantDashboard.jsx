@@ -436,7 +436,7 @@ export default function RestaurantDashboard() {
     deliveryCharge: 0,
   });
   // Staff page view: 'tables' = table grid, 'order' = ordering interface
-  const [staffView, setStaffView] = useState('order');
+  const [staffView, setStaffView] = useState('tables');
   const [staffSelectedTable, setStaffSelectedTable] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
