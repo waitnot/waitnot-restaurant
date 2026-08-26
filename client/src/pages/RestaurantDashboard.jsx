@@ -4239,10 +4239,10 @@ export default function RestaurantDashboard() {
         {/* Staff Order Tab */}
         {/* Staff Order Tab */}
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
-          <div className="flex gap-0 h-[calc(100vh-140px)] -m-3 sm:-m-4 overflow-hidden">
+          <div className="flex gap-0 h-[calc(100vh-140px)] -m-3 sm:-m-4 overflow-hidden px-2">
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
-              <div className="w-full p-4 overflow-y-auto bg-gray-50">
+              <div className="w-full px-4 py-4 overflow-y-auto bg-gray-50">
                 <h2 className="text-base font-bold text-gray-700 mb-3">Select Table</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-6">
                   {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => {
@@ -4276,30 +4276,22 @@ export default function RestaurantDashboard() {
                   )}
                 </div>
 
-                {/* Takeaway & Delivery quick-order cards */}
+                {/* Takeaway & Delivery quick-order cards — same compact box style as table cells */}
                 <h2 className="text-base font-bold text-gray-700 mb-3">Quick Order</h2>
-                <div className="flex gap-3">
+                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
                   <button
-                    onClick={() => {
-                      setStaffSelectedTable(null);
-                      setStaffView('order');
-                      setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' }));
-                    }}
-                    className="flex-1 bg-white border-2 border-orange-300 hover:border-orange-500 rounded-xl py-5 flex flex-col items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+                    onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
+                    className="relative rounded-xl py-3 px-1 border-2 border-orange-300 hover:border-orange-500 bg-orange-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 col-span-2 sm:col-span-2"
                   >
-                    <span className="text-2xl">🥡</span>
-                    <span className="text-sm font-bold text-orange-600">Takeaway</span>
+                    <span className="text-lg">🥡</span>
+                    <span className="text-xs font-bold text-orange-600 leading-none text-center">TW</span>
                   </button>
                   <button
-                    onClick={() => {
-                      setStaffSelectedTable(null);
-                      setStaffView('order');
-                      setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '' }));
-                    }}
-                    className="flex-1 bg-white border-2 border-blue-300 hover:border-blue-500 rounded-xl py-5 flex flex-col items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+                    onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '' })); }}
+                    className="relative rounded-xl py-3 px-1 border-2 border-blue-300 hover:border-blue-500 bg-blue-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 col-span-2 sm:col-span-2"
                   >
-                    <span className="text-2xl">🛵</span>
-                    <span className="text-sm font-bold text-blue-600">Delivery</span>
+                    <span className="text-lg">🛵</span>
+                    <span className="text-xs font-bold text-blue-600 leading-none text-center">DEL</span>
                   </button>
                 </div>
               </div>
@@ -4381,40 +4373,46 @@ export default function RestaurantDashboard() {
                       </div>
                     </div>
 
-                    {/* Menu list — Pet Pooja style rows, no images */}
-                    <div className="flex-1 overflow-y-auto">
-                      {restaurant?.menu?.filter(i => i.available)
-                        .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
-                        .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
-                        .map(item => {
-                          const inOrder = receptionistOrder.items.find(x => x._id === item._id);
-                          return (
-                            <div key={item._id}
-                              className={`flex items-center justify-between px-4 py-2.5 border-b border-gray-100 cursor-pointer hover:bg-primary/5 transition-colors ${inOrder ? 'bg-primary/5' : 'bg-white'}`}
-                              onClick={() => updateReceptionistOrderItem(item, 1)}
-                            >
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <span className={`w-2.5 h-2.5 rounded-sm border shrink-0 ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-                                  <p className="text-xs text-gray-400">{item.category}</p>
+                    {/* Menu grid — compact boxes like table grid */}
+                    <div className="flex-1 overflow-y-auto p-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        {restaurant?.menu?.filter(i => i.available)
+                          .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
+                          .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
+                          .map(item => {
+                            const inOrder = receptionistOrder.items.find(x => x._id === item._id);
+                            return (
+                              <div key={item._id}
+                                className={`relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none ${inOrder ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary'}`}
+                                onClick={() => { if (!inOrder) updateReceptionistOrderItem(item, 1); }}
+                              >
+                                {/* Veg/NonVeg dot */}
+                                <span className={`absolute top-2 left-2 w-2 h-2 rounded-sm border ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
+                                <div className="pt-3 pb-1 px-0.5">
+                                  <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2 min-h-[2.5rem]">{item.name}</p>
+                                  <p className="text-xs text-primary font-bold mt-1">₹{item.price}</p>
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-3 shrink-0">
-                                <span className="text-sm font-semibold text-gray-700">₹{item.price}</span>
                                 {inOrder ? (
-                                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                    <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-600">−</button>
-                                    <span className="w-6 text-center text-sm font-bold text-primary">{inOrder.quantity}</span>
-                                    <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-6 h-6 rounded bg-primary text-white flex items-center justify-center text-sm font-bold">+</button>
+                                  <div className="flex items-center justify-between mt-1 gap-1">
+                                    <button
+                                      onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }}
+                                      className="w-6 h-6 rounded bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-bold text-gray-700"
+                                    >−</button>
+                                    <span className="text-sm font-bold text-primary">{inOrder.quantity}</span>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, 1); }}
+                                      className="w-6 h-6 rounded bg-primary text-white flex items-center justify-center text-sm font-bold"
+                                    >+</button>
                                   </div>
                                 ) : (
-                                  <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">+</div>
+                                  <div className="flex justify-end mt-1">
+                                    <span className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-base">+</span>
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                      </div>
                     </div>
                   </div>
                 </div>
