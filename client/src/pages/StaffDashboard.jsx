@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff, History } from 'lucide-react';
 import { smartPrint } from '../utils/qzPrint.js';
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
@@ -15,15 +15,21 @@ export default function StaffDashboard() {
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState('tables'); // 'tables' | 'running' | 'profile' | 'settings'
+  const [activeView, setActiveView] = useState('tables'); // 'tables' | 'running' | 'history' | 'profile' | 'settings'
   const [socket, setSocket] = useState(null);
 
+  // Order history
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+
   // Order flow state
-  const [selectedTable, setSelectedTable] = useState(null); // { num, orders, total }
+  const [selectedTable, setSelectedTable] = useState(null); // { num, type, roomNumber, orderType }
   const [orderCart, setOrderCart] = useState([]);
   const [menuSearch, setMenuSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [orderPlacing, setOrderPlacing] = useState(false);
+  const [orderContext, setOrderContext] = useState({ orderType: 'dine-in', tableNumber: null, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
 
   // Modals
   const [confirmModal, setConfirmModal] = useState(null);
@@ -129,6 +135,18 @@ export default function StaffDashboard() {
     setLoading(false);
   };
 
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await axios.get(`${API}/api/orders/restaurant/${staff.restaurant_id}?status=completed`);
+      setHistoryOrders(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const getTableStatus = (n) => {
     const t = orders.filter(o => o.orderType === 'dine-in' && parseInt(o.tableNumber) === n);
     return t.length > 0 ? 'occupied' : 'vacant';
@@ -139,8 +157,33 @@ export default function StaffDashboard() {
   const getTableTotal = (tableOrders) => tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
 
   const openTable = (n) => {
-    const tableOrders = getTableOrders(n);
-    setSelectedTable({ num: n, orders: tableOrders, total: getTableTotal(tableOrders) });
+    setOrderContext({ orderType: 'dine-in', tableNumber: n, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setSelectedTable({ num: n, label: `Table ${n}` });
+    setOrderCart([]);
+    setMenuSearch('');
+    setSelectedCategory('All');
+  };
+
+  const openRoom = (n) => {
+    const label = restaurant?.features?.roomNames?.[n] || `Room ${n}`;
+    setOrderContext({ orderType: 'room', tableNumber: null, roomNumber: n, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setSelectedTable({ num: n, label });
+    setOrderCart([]);
+    setMenuSearch('');
+    setSelectedCategory('All');
+  };
+
+  const openTakeaway = () => {
+    setOrderContext({ orderType: 'takeaway', tableNumber: null, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setSelectedTable({ num: null, label: 'Takeaway' });
+    setOrderCart([]);
+    setMenuSearch('');
+    setSelectedCategory('All');
+  };
+
+  const openDelivery = () => {
+    setOrderContext({ orderType: 'delivery', tableNumber: null, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setSelectedTable({ num: null, label: 'Delivery' });
     setOrderCart([]);
     setMenuSearch('');
     setSelectedCategory('All');
@@ -159,19 +202,32 @@ export default function StaffDashboard() {
     else setOrderCart(prev => prev.map(i => i._id === id ? { ...i, quantity: qty } : i));
   };
 
-  const cartTotal = orderCart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const cartSubtotal = orderCart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const cartTotal = cartSubtotal + (orderContext.packagingCharge || 0) + (orderContext.deliveryCharge || 0);
+
+  const getActiveOrdersForSlot = () => {
+    const { orderType, tableNumber, roomNumber } = orderContext;
+    if (orderType === 'dine-in') return orders.filter(o => o.orderType === 'dine-in' && parseInt(o.tableNumber) === tableNumber);
+    if (orderType === 'room') return orders.filter(o => o.orderType === 'room' && parseInt(o.roomNumber) === roomNumber);
+    return [];
+  };
 
   const placeOrder = async () => {
     if (!selectedTable || orderCart.length === 0) return;
     setOrderPlacing(true);
     try {
+      const { orderType, tableNumber, roomNumber, customerName, deliveryAddress, packagingCharge, deliveryCharge } = orderContext;
       const response = await axios.post(`${API}/api/orders`, {
         restaurantId: staff.restaurant_id,
-        tableNumber: selectedTable.num,
+        tableNumber: orderType === 'dine-in' ? tableNumber : undefined,
+        roomNumber: orderType === 'room' ? roomNumber : undefined,
         items: orderCart.map(i => ({ menuItemId: i._id, name: i.name, price: i.price, quantity: i.quantity })),
-        totalAmount: cartTotal,
-        orderType: 'dine-in',
-        customerName: `Waiter ${staff.waiter_number || staff.name}`,
+        totalAmount: cartSubtotal + (packagingCharge || 0) + (deliveryCharge || 0),
+        orderType,
+        customerName: customerName || `Waiter ${staff.waiter_number || staff.name}`,
+        deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
+        packagingCharge: orderType === 'takeaway' ? packagingCharge : undefined,
+        deliveryCharge: orderType === 'delivery' ? deliveryCharge : undefined,
         source: 'staff', status: 'pending', paymentStatus: 'pending', paymentMethod: 'cash',
       });
 
@@ -179,19 +235,10 @@ export default function StaffDashboard() {
       setOrderCart([]);
       showToast('Order placed!');
 
-      // Auto-print KOT if enabled
       const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
-      if (savedSettings.autoPrintKitchenBill) {
-        printKOT(newOrder);
-      }
+      if (savedSettings.autoPrintKitchenBill) printKOT(newOrder);
 
-      // Wait for socket to update orders or fetch once if needed
-      // To be safe and show immediate feedback, we can fetch, but socket is better for real-time
-      // Let's keep one fetch but optimize it by not blocking UI
-      fetchOrders(staff.restaurant_id).then(() => {
-        const updated = getTableOrders(selectedTable.num);
-        setSelectedTable(prev => ({ ...prev, orders: updated, total: getTableTotal(updated) }));
-      });
+      fetchOrders(staff.restaurant_id);
     } catch (err) {
       showToast('Failed to place order', 'error');
     } finally {
@@ -281,11 +328,17 @@ export default function StaffDashboard() {
     return catMatch && searchMatch;
   });
 
-  // Running orders (waiter's table orders for Orders view)
+  // Running orders (all active orders grouped)
   const runningTables = Object.entries(
     orders.filter(o => o.orderType === 'dine-in' && o.tableNumber)
       .reduce((acc, o) => { const t = o.tableNumber; if (!acc[t]) acc[t] = []; acc[t].push(o); return acc; }, {})
   );
+  const runningRooms = Object.entries(
+    orders.filter(o => o.orderType === 'room' && o.roomNumber)
+      .reduce((acc, o) => { const r = o.roomNumber; if (!acc[r]) acc[r] = []; acc[r].push(o); return acc; }, {})
+  );
+  const runningOther = orders.filter(o => o.orderType === 'takeaway' || o.orderType === 'delivery');
+  const totalRunningCount = runningTables.length + runningRooms.length + runningOther.length;
 
   return (
     <>
@@ -305,184 +358,299 @@ export default function StaffDashboard() {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 overflow-y-auto pb-20 md:pb-0 md:flex md:min-h-0">
+        <div className="flex-1 flex overflow-hidden md:min-h-0" style={{ height: 'calc(100vh - 57px)' }}>
 
-          {/* Sidebar nav — desktop */}
-          <div className="hidden md:flex md:flex-col md:w-56 md:shrink-0 bg-white border-r border-gray-200 sticky top-[57px] h-[calc(100vh-57px)]">
-            {[
-              { id: 'tables', label: 'Tables', icon: UtensilsCrossed },
-              { id: 'running', label: 'Orders', icon: ClipboardList, badge: runningTables.length },
-              { id: 'profile', label: 'Profile', icon: User },
-              { id: 'settings', label: 'Settings', icon: Settings },
-            ].map(tab => {
-              const Icon = tab.icon;
-              const active = activeView === tab.id;
-              return (
-                <button key={tab.id} onClick={() => { setActiveView(tab.id); setSelectedTable(null); }}
-                  className={`flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors text-left relative ${active ? 'bg-red-50 text-red-600 border-r-2 border-red-500' : 'text-gray-500 hover:bg-gray-50'}`}>
-                  <div className="relative">
-                    <Icon size={20} />
-                    {tab.badge > 0 && (
-                      <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">{tab.badge}</span>
-                    )}
-                  </div>
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Sidebar nav — desktop — REMOVED, using bottom nav instead */}
+
 
           {/* Content area */}
-          <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
           {/* TABLE FLOOR VIEW */}
           {activeView === 'tables' && !selectedTable && (
-            <div className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-bold text-gray-800 text-lg">Floor Plan</h2>
-                <div className="flex gap-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-400 inline-block"></span>Vacant</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-400 inline-block"></span>Occupied</span>
+            <div className="overflow-y-auto flex-1 pb-20 bg-gray-50">
+
+              {/* Dine-In Tables */}
+              <div className="px-4 sm:px-6 pt-4 pb-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Dine-In Tables</h2>
+                  <div className="flex gap-3 text-xs text-gray-400">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-green-400 inline-block"></span>Free</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-400 inline-block"></span>Occupied</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
+                  {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
+                    const tOrders = getTableOrders(n);
+                    const isOccupied = tOrders.length > 0;
+                    const tTotal = getTableTotal(tOrders);
+                    return (
+                      <button key={n} onClick={() => openTable(n)}
+                        className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-red-50 border-red-300 hover:border-red-500' : 'bg-green-50 border-green-300 hover:border-green-500'}`}>
+                        <span className={`text-lg font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
+                        {isOccupied ? <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span> : <span className="text-xs text-green-500 leading-none">Free</span>}
+                        {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
-                  const status = getTableStatus(n);
-                  const tOrders = getTableOrders(n);
-                  const tTotal = getTableTotal(tOrders);
-                  const isOccupied = status === 'occupied';
-                  return (
-                    <button
-                      key={n}
-                      onClick={() => openTable(n)}
-                      className={`relative rounded-2xl p-4 border-2 flex flex-col items-center transition-all active:scale-95 ${
-                        isOccupied
-                          ? 'bg-red-50 border-red-300 shadow-sm'
-                          : 'bg-green-50 border-green-300'
-                      }`}
-                    >
-                      <UtensilsCrossed size={20} className={isOccupied ? 'text-red-400 mb-1' : 'text-green-400 mb-1'} />
-                      <span className={`text-xl font-bold ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
-                      <span className={`text-xs mt-0.5 ${isOccupied ? 'text-red-500' : 'text-green-500'}`}>
-                        {isOccupied ? 'Occupied' : 'Vacant'}
-                      </span>
-                      {isOccupied && (
-                        <span className="text-xs font-semibold text-red-600 mt-1">₹{tTotal}</span>
-                      )}
-                      {isOccupied && (
-                        <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
-                      )}
-                    </button>
-                  );
-                })}
+
+              {/* Rooms */}
+              {(restaurant?.rooms || 0) > 0 && (
+                <div className="px-4 sm:px-6 pt-4 pb-2">
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Rooms</h2>
+                  <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
+                    {Array.from({ length: restaurant.rooms }, (_, i) => i + 1).map(n => {
+                      const label = restaurant?.features?.roomNames?.[n] || `Room ${n}`;
+                      const rOrders = orders.filter(o => o.orderType === 'room' && parseInt(o.roomNumber) === n);
+                      const isOccupied = rOrders.length > 0;
+                      const rTotal = getTableTotal(rOrders);
+                      return (
+                        <button key={n} onClick={() => openRoom(n)}
+                          className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-orange-50 border-orange-300 hover:border-orange-500' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}>
+                          <span className="text-base leading-none">🛏</span>
+                          <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{label}</span>
+                          {isOccupied ? <span className="text-xs font-medium text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs text-blue-400 leading-none">Free</span>}
+                          {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Orders */}
+              <div className="px-4 sm:px-6 pt-4 pb-4">
+                <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Quick Order</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <button onClick={openTakeaway}
+                    className="rounded-xl py-4 px-3 border-2 border-orange-300 hover:border-orange-500 bg-orange-50 flex flex-col items-center gap-1 transition-all hover:scale-105 active:scale-95">
+                    <span className="text-2xl">🥡</span>
+                    <span className="text-sm font-bold text-orange-600">Takeaway</span>
+                  </button>
+                  <button onClick={openDelivery}
+                    className="rounded-xl py-4 px-3 border-2 border-blue-300 hover:border-blue-500 bg-blue-50 flex flex-col items-center gap-1 transition-all hover:scale-105 active:scale-95">
+                    <span className="text-2xl">🛵</span>
+                    <span className="text-sm font-bold text-blue-600">Delivery</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {/* TABLE DETAIL / ORDER TAKING */}
           {activeView === 'tables' && selectedTable && (
-            <div className="flex flex-col h-full">
-              {/* Table header */}
-              <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-20">
-                <button onClick={() => setSelectedTable(null)} className="text-gray-500 hover:text-gray-700 p-1">
-                  <X size={20} />
-                </button>
-                <div className="flex-1">
-                  <h2 className="font-bold text-gray-900">Table {selectedTable.num}</h2>
-                  <p className="text-xs text-gray-500">{selectedTable.orders.length} order(s) · ₹{getTableTotal(getTableOrders(selectedTable.num))}</p>
+            <div className="flex h-full w-full overflow-hidden">
+
+              {/* LEFT: Category sidebar + Menu */}
+              <div className="flex h-full w-full lg:w-[58%] border-r border-gray-200 overflow-hidden bg-gray-50">
+
+                {/* Category sidebar */}
+                <div className="w-28 shrink-0 bg-white border-r border-gray-100 overflow-y-auto flex flex-col">
+                  {categories.map(cat => (
+                    <button key={cat} onClick={() => setSelectedCategory(cat)}
+                      className={`px-2 py-3 text-xs font-semibold text-center border-b border-gray-100 transition-all ${
+                        selectedCategory === cat ? 'bg-red-500 text-white' : 'text-gray-600 hover:bg-gray-50'
+                      }`}>
+                      {cat}
+                    </button>
+                  ))}
                 </div>
-                {/* Action buttons for occupied tables */}
-                {getTableOrders(selectedTable.num).length > 0 && (
-                  <div className="flex gap-2">
-                    <button onClick={() => getTableOrders(selectedTable.num).forEach(o => printKOT(o))} className="p-2 bg-orange-100 text-orange-600 rounded-lg text-xs font-medium">KOT</button>
-                    <button onClick={() => { const t = getTableOrders(selectedTable.num); printBill(t, selectedTable.num, getTableTotal(t)); }} className="p-2 bg-blue-100 text-blue-600 rounded-lg text-xs font-medium">Bill</button>
-                    <button onClick={() => clearTable(getTableOrders(selectedTable.num), selectedTable.num)} className="p-2 bg-red-100 text-red-600 rounded-lg text-xs font-medium">Clear</button>
+
+                {/* Menu area */}
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  {/* Top bar */}
+                  <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center shrink-0">
+                    <button onClick={() => setSelectedTable(null)} className="text-xs text-red-500 font-semibold">← Back</button>
+                    {orderContext.orderType === 'dine-in' && <span className="text-xs font-bold text-white bg-red-500 px-3 py-1 rounded-lg">Dine-In · T{orderContext.tableNumber}</span>}
+                    {orderContext.orderType === 'room' && <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🛏 {selectedTable?.label}</span>}
+                    {orderContext.orderType === 'takeaway' && <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🥡 Takeaway</span>}
+                    {orderContext.orderType === 'delivery' && <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>}
+                    <input type="text" value={orderContext.customerName}
+                      onChange={e => setOrderContext(prev => ({ ...prev, customerName: e.target.value }))}
+                      placeholder="Customer name"
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none min-w-[100px]" />
+                    {orderContext.orderType === 'delivery' && (
+                      <input type="text" value={orderContext.deliveryAddress}
+                        onChange={e => setOrderContext(prev => ({ ...prev, deliveryAddress: e.target.value }))}
+                        placeholder="Delivery address"
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[140px]" />
+                    )}
+                  </div>
+
+                  {/* Search */}
+                  <div className="px-3 py-2 shrink-0 bg-white border-b border-gray-100">
+                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                      <Search size={13} className="text-gray-400 shrink-0" />
+                      <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Search..."
+                        className="flex-1 text-xs outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+                      {menuSearch && <button onClick={() => setMenuSearch('')}><X size={13} className="text-gray-400" /></button>}
+                    </div>
+                  </div>
+
+                  {/* Menu grid */}
+                  <div className="flex-1 overflow-y-auto p-2 pb-24 lg:pb-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {filteredMenu.length === 0 && <p className="col-span-full text-center text-gray-400 py-8 text-xs">No items found</p>}
+                      {filteredMenu.map(item => {
+                        const inCart = orderCart.find(c => c._id === item._id);
+                        return (
+                          <div key={item._id}
+                            className={`relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none ${inCart ? 'border-red-400 bg-red-50/30' : 'border-gray-200 hover:border-red-300'}`}
+                            onClick={() => { if (!inCart) addToCart(item); }}
+                          >
+                            <span className={`absolute top-2 left-2 w-2 h-2 rounded-sm border ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
+                            <div className="pt-4 pb-1 px-0.5 min-h-[3.5rem]">
+                              <p className="text-xs font-semibold text-gray-800 leading-tight">{item.name}</p>
+                            </div>
+                            {inCart ? (
+                              <div className="flex items-center justify-between mt-1 gap-1">
+                                <button onClick={e => { e.stopPropagation(); updateQty(item._id, inCart.quantity - 1); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700">−</button>
+                                <span className="text-sm font-bold text-red-600">{inCart.quantity}</span>
+                                <button onClick={e => { e.stopPropagation(); updateQty(item._id, inCart.quantity + 1); }} className="w-7 h-7 rounded bg-red-500 text-white flex items-center justify-center text-sm font-bold">+</button>
+                              </div>
+                            ) : (
+                              <div className="flex justify-end mt-1">
+                                <span className="w-7 h-7 rounded bg-red-50 flex items-center justify-center text-red-500 font-bold text-lg leading-none">+</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT: Cart panel — desktop only */}
+              <div className="hidden lg:flex lg:flex-col lg:w-[42%] bg-white h-full overflow-hidden">
+                {/* Header */}
+                <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between shrink-0">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-sm">{selectedTable?.label}</h3>
+                    <p className="text-xs text-gray-400">
+                      {getActiveOrdersForSlot().length > 0
+                        ? `Running: ₹${getTableTotal(getActiveOrdersForSlot())}`
+                        : 'No running orders'}
+                    </p>
+                  </div>
+                  {orderCart.length > 0 && (
+                    <button onClick={() => setOrderCart([])} className="text-xs text-gray-400 hover:text-red-500">Clear</button>
+                  )}
+                </div>
+
+                {/* Running order summary (existing orders) */}
+                {getActiveOrdersForSlot().length > 0 && (
+                  <div className="px-3 py-2 bg-amber-50 border-b border-amber-100 shrink-0">
+                    <p className="text-xs font-semibold text-amber-700 mb-1">Running Order</p>
+                    {(() => {
+                      const items = {};
+                      getActiveOrdersForSlot().forEach(o => o.items.forEach(i => {
+                        if (items[i.name]) items[i.name].qty += i.quantity;
+                        else items[i.name] = { qty: i.quantity, price: i.price };
+                      }));
+                      return Object.entries(items).map(([name, d]) => (
+                        <div key={name} className="flex justify-between text-xs text-gray-600">
+                          <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+
+                {/* Cart items */}
+                <div className="flex-1 overflow-y-auto px-3 py-1 min-h-0">
+                  {orderCart.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-300">
+                      <ShoppingCart size={32} className="mb-1 opacity-30" />
+                      <p className="text-xs">Add items from menu</p>
+                    </div>
+                  ) : (
+                    orderCart.map(item => (
+                      <div key={item._id} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
+                          <p className="text-xs text-gray-400">₹{item.price}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => updateQty(item._id, item.quantity - 1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
+                          <span className="w-4 text-center text-xs font-bold">{item.quantity}</span>
+                          <button onClick={() => updateQty(item._id, item.quantity + 1)} className="w-5 h-5 rounded bg-red-50 flex items-center justify-center text-xs font-bold text-red-500">+</button>
+                        </div>
+                        <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">₹{item.price * item.quantity}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Bottom actions */}
+                {orderCart.length > 0 && (
+                  <div className="shrink-0 border-t border-gray-100 px-3 py-2">
+                    {orderContext.orderType === 'takeaway' && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-xs text-gray-500 shrink-0">Packaging ₹</label>
+                        <input type="number" min="0" value={orderContext.packagingCharge || ''}
+                          onChange={e => setOrderContext(prev => ({ ...prev, packagingCharge: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
+                      </div>
+                    )}
+                    {orderContext.orderType === 'delivery' && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
+                        <input type="number" min="0" value={orderContext.deliveryCharge || ''}
+                          onChange={e => setOrderContext(prev => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
+                      <span>{orderCart.reduce((s, i) => s + i.quantity, 0)} items</span>
+                      <span className="text-base font-bold text-gray-900">₹{cartTotal}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
+                      <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
+                      <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600 disabled:opacity-50">
+                        {orderPlacing ? '...' : 'Place'}
+                      </button>
+                    </div>
+                    {getActiveOrdersForSlot().length > 0 && (
+                      <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)}
+                        className="w-full mt-1.5 bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">
+                        Clear / Pay
+                      </button>
+                    )}
+                  </div>
+                )}
+                {/* Show KOT/Bill/Clear even when cart is empty if slot has orders */}
+                {orderCart.length === 0 && getActiveOrdersForSlot().length > 0 && (
+                  <div className="shrink-0 border-t border-gray-100 px-3 py-2">
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
+                      <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
+                      <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600">Clear</button>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Current orders for this table */}
-              {getTableOrders(selectedTable.num).length > 0 && (
-                <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
-                  <p className="text-xs font-semibold text-amber-700 mb-2">Running Order</p>
-                  {(() => {
-                    const items = {};
-                    getTableOrders(selectedTable.num).forEach(o => o.items.forEach(i => {
-                      if (items[i.name]) items[i.name].qty += i.quantity;
-                      else items[i.name] = { qty: i.quantity, price: i.price };
-                    }));
-                    return Object.entries(items).map(([name, d]) => (
-                      <div key={name} className="flex justify-between text-sm text-gray-700">
-                        <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
-                      </div>
-                    ));
-                  })()}
+              {/* Mobile bottom bar */}
+              {orderCart.length > 0 && (
+                <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
+                  <span className="flex-1 font-bold text-sm">₹{cartTotal}</span>
+                  <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
+                  <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
+                  <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50">
+                    {orderPlacing ? '...' : 'Place'}
+                  </button>
                 </div>
               )}
-
-              {/* Category tabs */}
-              <div className="bg-white border-b border-gray-100 px-3 py-2 flex gap-2 overflow-x-auto hide-scrollbar sticky top-0 z-10">
-                {categories.map(cat => (
-                  <button key={cat} onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${selectedCategory === cat ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Search + Place Order on same row */}
-              <div className="bg-white px-3 py-2 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1">
-                    <Search size={14} className="text-gray-400 shrink-0" />
-                    <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Search menu..." className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
-                    {menuSearch && <button onClick={() => setMenuSearch('')}><X size={14} className="text-gray-400" /></button>}
-                  </div>
-                  {orderCart.length > 0 && (
-                    <button onClick={placeOrder} disabled={orderPlacing}
-                      className="bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-600 disabled:opacity-50 transition-colors whitespace-nowrap shrink-0">
-                      {orderPlacing ? '...' : `Place Order · ₹${cartTotal}`}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Menu list */}
-              <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pb-48 md:pb-24 content-start">
-                {filteredMenu.length === 0 && <p className="text-center text-gray-400 py-8 text-sm">No items found</p>}
-                {filteredMenu.map(item => {
-                  const inCart = orderCart.find(c => c._id === item._id);
-                  return (
-                    <div key={item._id} className="bg-white rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-800 text-sm">{item.name}</p>
-                        <p className="text-xs text-gray-500">{item.category} · {item.isVeg ? '🟢' : '🔴'}</p>
-                        <p className="text-red-500 font-bold text-sm mt-0.5">₹{item.price}</p>
-                      </div>
-                      {inCart ? (
-                        <div className="flex items-center gap-2 bg-red-50 rounded-xl px-2 py-1">
-                          <button onClick={() => updateQty(item._id, inCart.quantity - 1)} className="w-7 h-7 bg-red-500 text-white rounded-lg flex items-center justify-center"><Minus size={12} /></button>
-                          <span className="text-sm font-bold text-red-700 w-5 text-center">{inCart.quantity}</span>
-                          <button onClick={() => updateQty(item._id, inCart.quantity + 1)} className="w-7 h-7 bg-red-500 text-white rounded-lg flex items-center justify-center"><Plus size={12} /></button>
-                        </div>
-                      ) : (
-                        <button onClick={() => addToCart(item)} className="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-red-600 flex items-center gap-1">
-                          <Plus size={14} /> Add
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Place Order bar - sticky bottom summary */}
-              {orderCart.length > 0 && (
-                <div className="sticky bottom-0 md:relative px-4 py-2 bg-white border-t border-gray-200 z-20 flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-600">{orderCart.reduce((s, i) => s + i.quantity, 0)} item(s) · <span className="font-bold text-gray-900">₹{cartTotal}</span></span>
-                  <button onClick={placeOrder} disabled={orderPlacing}
-                    className="bg-red-500 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-red-600 disabled:opacity-50 transition-colors whitespace-nowrap">
-                    {orderPlacing ? 'Placing...' : 'Place Order'}
-                  </button>
+              {orderCart.length === 0 && getActiveOrdersForSlot().length > 0 && (
+                <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
+                  <span className="flex-1 font-bold text-sm">{selectedTable?.label}</span>
+                  <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
+                  <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
+                  <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Clear</button>
                 </div>
               )}
             </div>
@@ -490,62 +658,145 @@ export default function StaffDashboard() {
 
           {/* RUNNING ORDERS */}
           {activeView === 'running' && (
-            <div className="p-4 sm:p-6">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 pb-20">
               <h2 className="font-bold text-gray-800 text-lg mb-4">Running Orders</h2>
-              {runningTables.length === 0 && (
+              {totalRunningCount === 0 && (
                 <div className="text-center py-16 text-gray-400">
                   <ClipboardList size={40} className="mx-auto mb-3 opacity-40" />
                   <p className="text-sm">No active orders</p>
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {runningTables.map(([tableNum, tableOrders]) => {
-                const total = getTableTotal(tableOrders);
-                const items = {};
-                tableOrders.forEach(o => o.items.forEach(i => {
-                  if (items[i.name]) items[i.name].qty += i.quantity;
-                  else items[i.name] = { qty: i.quantity, price: i.price };
-                }));
-                return (
-                  <div key={tableNum} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">{tableNum}</div>
-                        <div>
-                          <p className="font-bold text-gray-900 text-sm">Table {tableNum}</p>
-                          <p className="text-xs text-gray-400">{tableOrders.length} order(s)</p>
+
+              {/* Dine-In Tables */}
+              {runningTables.length > 0 && (
+                <>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Dine-In Tables</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                    {runningTables.map(([tableNum, tableOrders]) => {
+                      const total = getTableTotal(tableOrders);
+                      const items = {};
+                      tableOrders.forEach(o => o.items.forEach(i => {
+                        if (items[i.name]) items[i.name].qty += i.quantity;
+                        else items[i.name] = { qty: i.quantity, price: i.price };
+                      }));
+                      return (
+                        <div key={tableNum} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">{tableNum}</div>
+                              <div>
+                                <p className="font-bold text-gray-900 text-sm">Table {tableNum}</p>
+                                <p className="text-xs text-gray-400">{tableOrders.length} order(s)</p>
+                              </div>
+                            </div>
+                            <p className="font-bold text-red-500 text-lg">₹{total}</p>
+                          </div>
+                          <div className="px-4 py-2 space-y-1">
+                            {Object.entries(items).map(([name, d]) => (
+                              <div key={name} className="flex justify-between text-sm text-gray-600">
+                                <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex border-t border-gray-100">
+                            <button onClick={() => tableOrders.forEach(o => printKOT(o))} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
+                            <button onClick={() => printBill(tableOrders, tableNum, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
+                            <button onClick={() => clearTable(tableOrders, parseInt(tableNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
+                          </div>
                         </div>
-                      </div>
-                      <p className="font-bold text-red-500 text-lg">₹{total}</p>
-                    </div>
-                    <div className="px-4 py-2 space-y-1">
-                      {Object.entries(items).map(([name, d]) => (
-                        <div key={name} className="flex justify-between text-sm text-gray-600">
-                          <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex border-t border-gray-100">
-                      <button onClick={() => tableOrders.forEach(o => printKOT(o))} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1">
-                        <Printer size={14} /> KOT
-                      </button>
-                      <button onClick={() => printBill(tableOrders, tableNum, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1">
-                        <Printer size={14} /> Bill
-                      </button>
-                      <button onClick={() => clearTable(tableOrders, parseInt(tableNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1">
-                        <Trash2 size={14} /> Clear
-                      </button>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-              </div>
+                </>
+              )}
+
+              {/* Rooms */}
+              {runningRooms.length > 0 && (
+                <>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Rooms</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                    {runningRooms.map(([roomNum, roomOrders]) => {
+                      const label = restaurant?.features?.roomNames?.[roomNum] || `Room ${roomNum}`;
+                      const total = getTableTotal(roomOrders);
+                      const items = {};
+                      roomOrders.forEach(o => o.items.forEach(i => {
+                        if (items[i.name]) items[i.name].qty += i.quantity;
+                        else items[i.name] = { qty: i.quantity, price: i.price };
+                      }));
+                      return (
+                        <div key={roomNum} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">🛏</div>
+                              <div>
+                                <p className="font-bold text-gray-900 text-sm">{label}</p>
+                                <p className="text-xs text-gray-400">{roomOrders.length} order(s)</p>
+                              </div>
+                            </div>
+                            <p className="font-bold text-orange-500 text-lg">₹{total}</p>
+                          </div>
+                          <div className="px-4 py-2 space-y-1">
+                            {Object.entries(items).map(([name, d]) => (
+                              <div key={name} className="flex justify-between text-sm text-gray-600">
+                                <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex border-t border-gray-100">
+                            <button onClick={() => roomOrders.forEach(o => printKOT(o))} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
+                            <button onClick={() => printBill(roomOrders, label, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
+                            <button onClick={() => clearTable(roomOrders, parseInt(roomNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Takeaway & Delivery */}
+              {runningOther.length > 0 && (
+                <>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Takeaway & Delivery</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                    {runningOther.map(order => {
+                      const isTakeaway = order.orderType === 'takeaway';
+                      return (
+                        <div key={order._id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${isTakeaway ? 'bg-orange-400' : 'bg-blue-500'}`}>{isTakeaway ? '🥡' : '🛵'}</div>
+                              <div>
+                                <p className="font-bold text-gray-900 text-sm">{isTakeaway ? 'Takeaway' : 'Delivery'}</p>
+                                <p className="text-xs text-gray-400">{order.customerName || 'Guest'}</p>
+                              </div>
+                            </div>
+                            <p className={`font-bold text-lg ${isTakeaway ? 'text-orange-500' : 'text-blue-500'}`}>₹{order.totalAmount}</p>
+                          </div>
+                          <div className="px-4 py-2 space-y-1">
+                            {order.items.map((item, i) => (
+                              <div key={i} className="flex justify-between text-sm text-gray-600">
+                                <span>{item.name} × {item.quantity}</span><span>₹{item.price * item.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex border-t border-gray-100">
+                            <button onClick={() => printKOT(order)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
+                            <button onClick={() => printBill([order], order.customerName || 'Guest', order.totalAmount)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
+                            <button onClick={() => clearTable([order], order.customerName || 'Guest')} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
           {/* PROFILE */}
           {activeView === 'profile' && (
-            <div className="p-4 sm:p-6 max-w-lg">
+            <div className="p-4 sm:p-6 max-w-lg overflow-y-auto flex-1 pb-20">
               <div className="bg-white rounded-2xl shadow-sm p-6 text-center mb-4">
                 <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <User size={28} className="text-red-500" />
@@ -571,7 +822,7 @@ export default function StaffDashboard() {
 
           {/* SETTINGS */}
           {activeView === 'settings' && (
-            <div className="p-4 sm:p-6 max-w-lg">
+            <div className="p-4 sm:p-6 max-w-lg overflow-y-auto flex-1 pb-20">
               <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-blue-100 p-2 rounded-lg">
@@ -648,21 +899,106 @@ export default function StaffDashboard() {
               </div>
             </div>
           )}
+
+          {/* ORDER HISTORY */}
+          {activeView === 'history' && (
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 pb-20">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-800 text-lg">Order History</h2>
+                <button onClick={fetchHistory} className="text-xs text-red-500 font-semibold flex items-center gap-1">
+                  <RefreshCw size={13} /> Refresh
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 mb-4">
+                <Search size={14} className="text-gray-400 shrink-0" />
+                <input value={historySearch} onChange={e => setHistorySearch(e.target.value)}
+                  placeholder="Search by table, item..." className="flex-1 text-sm outline-none text-gray-700 placeholder-gray-400" />
+                {historySearch && <button onClick={() => setHistorySearch('')}><X size={14} className="text-gray-400" /></button>}
+              </div>
+
+              {historyLoading ? (
+                <div className="flex justify-center py-16">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                </div>
+              ) : historyOrders.length === 0 ? (
+                <div className="text-center py-16 text-gray-400">
+                  <History size={40} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No completed orders yet</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {historyOrders
+                    .filter(o => {
+                      const q = historySearch.toLowerCase();
+                      if (!q) return true;
+                      return (
+                        o.tableNumber?.toString().includes(q) ||
+                        o.items?.some(i => i.name.toLowerCase().includes(q)) ||
+                        o.customerName?.toLowerCase().includes(q) ||
+                        o.orderType?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map(order => (
+                      <div key={order._id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600 font-bold text-sm">
+                              {order.orderType === 'dine-in' ? order.tableNumber : order.orderType === 'room' ? '🛏' : order.orderType === 'takeaway' ? '🥡' : '🛵'}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900 text-sm">
+                                {order.orderType === 'dine-in' ? `Table ${order.tableNumber}` : order.orderType === 'room' ? (restaurant?.features?.roomNames?.[order.roomNumber] || `Room ${order.roomNumber}`) : order.orderType === 'takeaway' ? 'Takeaway' : 'Delivery'}
+                              </p>
+                              <p className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-gray-900">₹{order.totalAmount}</p>
+                            {order.paymentMethod && <p className="text-xs text-green-600 capitalize">{order.paymentMethod}</p>}
+                          </div>
+                        </div>
+                        <div className="px-4 py-2 space-y-0.5">
+                          {order.items?.map((item, i) => (
+                            <div key={i} className="flex justify-between text-xs text-gray-600">
+                              <span>{item.name} × {item.quantity}</span>
+                              <span>₹{item.price * item.quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {order.customerName && (
+                          <div className="px-4 pb-2">
+                            <p className="text-xs text-gray-400">{order.customerName}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>{/* end content area */}
         </div>{/* end md:flex + main content */}
 
-        {/* Bottom navigation — mobile only */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-30">
+        {/* Bottom navigation — all screens */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-30">
           {[
             { id: 'tables', label: 'Tables', icon: UtensilsCrossed },
-            { id: 'running', label: 'Orders', icon: ClipboardList, badge: runningTables.length },
+            { id: 'running', label: 'Orders', icon: ClipboardList, badge: totalRunningCount },
+            { id: 'history', label: 'History', icon: History },
             { id: 'profile', label: 'Profile', icon: User },
             { id: 'settings', label: 'Settings', icon: Settings },
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeView === tab.id;
             return (
-              <button key={tab.id} onClick={() => { setActiveView(tab.id); setSelectedTable(null); }}
+              <button key={tab.id} onClick={() => {
+                setActiveView(tab.id);
+                setSelectedTable(null);
+                if (tab.id === 'history') fetchHistory();
+              }}
                 className={`flex-1 py-3 flex flex-col items-center gap-0.5 relative ${active ? 'text-red-500' : 'text-gray-400'}`}>
                 <div className="relative">
                   <Icon size={22} />

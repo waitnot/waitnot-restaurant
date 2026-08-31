@@ -240,4 +240,23 @@ router.post('/batch-update', async (req, res) => {
   }
 });
 
+// Delete a single order by ID
+router.delete('/:id', async (req, res) => {
+  try {
+    const order = await orderDB.delete(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`restaurant-${order.restaurantId}`).emit('order-deleted', { orderId: req.params.id });
+      io.to('admin-room').emit('order-deleted', { orderId: req.params.id });
+    }
+
+    res.json({ success: true, orderId: req.params.id });
+  } catch (error) {
+    console.error('❌ Order delete failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

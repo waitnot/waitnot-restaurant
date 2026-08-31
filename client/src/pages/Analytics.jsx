@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2, Search, X } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, AreaChart, Area
@@ -14,6 +14,9 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('week');
   const [analytics, setAnalytics] = useState({});
+  const [showOrdersTable, setShowOrdersTable] = useState(false);
+  const [orderSearch, setOrderSearch] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -217,6 +220,19 @@ const Analytics = () => {
       repeatCustomerRate,
       totalCustomers
     });
+  };
+
+  const deleteOrder = async (orderId) => {
+    if (!window.confirm('Delete this order permanently? This cannot be undone.')) return;
+    setDeletingId(orderId);
+    try {
+      await axios.delete(`/api/orders/${orderId}`);
+      setOrders(prev => prev.filter(o => o._id !== orderId));
+    } catch (e) {
+      alert('Failed to delete order.');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const downloadReport = async (type) => {
@@ -454,6 +470,12 @@ const Analytics = () => {
                 >
                   Clear History
                 </button>
+                <button
+                  onClick={() => setShowOrdersTable(v => !v)}
+                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 flex items-center gap-2"
+                >
+                  {showOrdersTable ? 'Hide Orders' : 'Edit Report'}
+                </button>
               </div>
             </div>
           </div>
@@ -684,6 +706,117 @@ const Analytics = () => {
             </div>
           </div>
         </div>
+
+        {/* Edit Report — Orders Table */}
+        {showOrdersTable && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Orders — Edit / Delete</h3>
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 w-64">
+                <Search size={14} className="text-gray-400 shrink-0" />
+                <input
+                  value={orderSearch}
+                  onChange={e => setOrderSearch(e.target.value)}
+                  placeholder="Search by table, customer, type..."
+                  className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
+                />
+                {orderSearch && <button onClick={() => setOrderSearch('')}><X size={14} className="text-gray-400" /></button>}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-xs text-gray-500 uppercase tracking-wide">
+                    <th className="pb-3 pr-4">Date / Time</th>
+                    <th className="pb-3 pr-4">Type</th>
+                    <th className="pb-3 pr-4">Table / Room</th>
+                    <th className="pb-3 pr-4">Customer</th>
+                    <th className="pb-3 pr-4">Items</th>
+                    <th className="pb-3 pr-4">Payment</th>
+                    <th className="pb-3 pr-4">Status</th>
+                    <th className="pb-3 text-right">Total</th>
+                    <th className="pb-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders
+                    .filter(o => {
+                      const q = orderSearch.toLowerCase();
+                      if (!q) return true;
+                      return (
+                        o.tableNumber?.toString().includes(q) ||
+                        o.roomNumber?.toString().includes(q) ||
+                        o.customerName?.toLowerCase().includes(q) ||
+                        o.orderType?.toLowerCase().includes(q) ||
+                        o.status?.toLowerCase().includes(q) ||
+                        o.items?.some(i => i.name.toLowerCase().includes(q))
+                      );
+                    })
+                    .map(order => (
+                      <tr key={order._id} className="border-b border-gray-50 hover:bg-gray-50 group">
+                        <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">
+                          {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}{' '}
+                          <span className="text-xs">{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            order.orderType === 'dine-in' ? 'bg-red-100 text-red-700' :
+                            order.orderType === 'room' ? 'bg-orange-100 text-orange-700' :
+                            order.orderType === 'takeaway' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {order.orderType === 'dine-in' ? '🍽 Dine-In' :
+                             order.orderType === 'room' ? '🛏 Room' :
+                             order.orderType === 'takeaway' ? '🥡 Takeaway' : '🛵 Delivery'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-4 text-gray-700">
+                          {order.tableNumber ? `T${order.tableNumber}` : order.roomNumber ? `R${order.roomNumber}` : '—'}
+                        </td>
+                        <td className="py-2.5 pr-4 text-gray-700 max-w-[120px] truncate">{order.customerName || '—'}</td>
+                        <td className="py-2.5 pr-4 text-gray-600 max-w-[180px]">
+                          <span className="truncate block">{order.items?.map(i => `${i.name} ×${i.quantity}`).join(', ')}</span>
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          <span className={`text-xs font-medium capitalize ${order.paymentMethod === 'online' ? 'text-blue-600' : 'text-green-600'}`}>
+                            {order.paymentMethod || 'cash'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            order.status === 'completed' ? 'bg-green-100 text-green-700' :
+                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-gray-800">₹{order.totalAmount}</td>
+                        <td className="py-2.5 text-right">
+                          <button
+                            onClick={() => deleteOrder(order._id)}
+                            disabled={deletingId === order._id}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              {orders.filter(o => {
+                const q = orderSearch.toLowerCase();
+                if (!q) return true;
+                return o.tableNumber?.toString().includes(q) || o.customerName?.toLowerCase().includes(q) || o.orderType?.toLowerCase().includes(q) || o.items?.some(i => i.name.toLowerCase().includes(q));
+              }).length === 0 && (
+                <p className="text-center text-gray-400 py-8 text-sm">No orders found</p>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">{orders.length} total orders · Hover a row to reveal the delete button</p>
+          </div>
+        )}
 
         {/* Actionable Recommendations */}
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl shadow-lg p-6">
