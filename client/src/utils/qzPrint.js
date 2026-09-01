@@ -1,22 +1,24 @@
 import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
 
 /**
- * Enhanced Printing Utility for WaitNot
- * Supports:
- * 1. Native Android Bluetooth Thermal Printing (Direct, no dialogs)
- * 2. Electron Silent Printing (Desktop)
- * 3. QZ Tray (Web direct)
- * 4. Browser Print (Fallback)
+ * WaitNot Silent Printing Utility
+ *
+ * Priority order:
+ * 1. Native Android Bluetooth (Capacitor app)
+ * 2. Electron desktop silent print (no dialog)
+ * 3. QZ Tray (web browser with QZ Tray installed)
+ * 4. Browser window.print() fallback
  */
 
 let qz = null;
-let connected = false;
+let qzConnected = false;
 
-// ... (QZ Tray functions kept for web compatibility)
+// ─── QZ Tray ────────────────────────────────────────────────────────────────
+
 function loadQZScript() {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || window.Capacitor?.isNativePlatform?.()) {
-      reject(new Error('QZ Tray not available in native app'));
+      reject(new Error('QZ not available in native app'));
       return;
     }
     if (window.qz) { resolve(window.qz); return; }
@@ -32,101 +34,132 @@ export async function connectQZ() {
   try {
     qz = await loadQZScript();
     if (!qz.websocket.isActive()) await qz.websocket.connect();
-    connected = true;
+    qzConnected = true;
     return true;
   } catch (e) {
-    connected = false;
+    qzConnected = false;
     return false;
   }
 }
 
 export async function getPrinters() {
-  if (!connected) await connectQZ();
-  if (!connected) return [];
-  return await qz.printers.find();
+  if (!qzConnected) await connectQZ();
+  if (!qzConnected) return [];
+  try { return await qz.printers.find(); } catch { return []; }
 }
 
-export function isQZAvailable() {
-  return connected;
-}
+export function isQZAvailable() { return qzConnected; }
 
-/**
- * Native Android Bluetooth Printing logic
- * Uses ESC/POS standard for thermal printers
- */
-async function nativeCapacitorPrint(html, type) {
+// ─── QZ Tray silent print ────────────────────────────────────────────────────
+
+async function qzPrint(html, printerName) {
+  if (!qzConnected) {
+    const ok = await connectQZ();
+    if (!ok) return false;
+  }
   try {
-    const restaurantId = localStorage.getItem('restaurantId') || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
+    const config = qz.configs.create(printerName, {
+      margins: { top: 0, right: 0, bottom: 0, left: 0 },
+      size: { width: 80, height: null }, // mm, null = auto (roll)
+      units: 'mm',
+      copies: 1,
+      colorType: 'blackwhite',
+      density: 203,
+    });
+    const data = [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }];
+    await qz.print(config, data);
+    return true;
+  } catch (e) {
+    console.error('QZ print error:', e);
+    return false;
+  }
+}
+
+// ─── Bluetooth (Android Capacitor) ──────────────────────────────────────────
+
+async function bluetoothPrint(html, type) {
+  try {
+    const restaurantId = localStorage.getItem('restaurantId')
+      || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
     const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
     const address = type === 'kitchen' ? saved.btKitchenPrinter : saved.btBillPrinter;
+    if (!address) return { success: false, error: 'No Bluetooth printer configured' };
 
-    if (!address) return { success: false, error: 'No printer configured' };
-
-    // 1. Ensure Bluetooth is ready
     const state = await BluetoothSerial.isEnabled();
     if (!state.enabled) await BluetoothSerial.enable();
-
-    // 2. Connect
     await BluetoothSerial.connect({ address });
 
-    // 3. Process HTML to Text + ESC/POS Basic Formatting
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const text = div.innerText.split('\n').filter(l => l.trim()).join('\n');
+    const feed = '\n\n\n\n';
 
-    // Simple text extraction with spacing
-    let text = tempDiv.innerText.split('\n').filter(line => line.trim() !== '').join('\n');
-
-    // Add extra paper feed at the end
-    const feedLines = '\n\n\n\n\n';
-
-    // 4. Send raw data
-    await BluetoothSerial.write({ address, value: text + feedLines });
-
-    // 5. Short delay to ensure buffer clears before disconnect
+    await BluetoothSerial.write({ address, value: text + feed });
     await new Promise(r => setTimeout(r, 500));
     await BluetoothSerial.disconnect({ address });
-
     return { success: true };
   } catch (e) {
-    console.error('BT Print Error:', e);
+    console.error('BT print error:', e);
     return { success: false, error: e.message };
   }
 }
 
+// ─── Browser fallback ────────────────────────────────────────────────────────
+
+function browserPrint(html) {
+  const w = window.open('', '_blank', 'width=400,height=600');
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => {
+    w.focus();
+    w.print();
+    w.onafterprint = () => w.close();
+    setTimeout(() => { try { w.close(); } catch (e) {} }, 4000);
+  };
+}
+
+// ─── Main export ─────────────────────────────────────────────────────────────
+
 export async function smartPrint(html, type = 'bill') {
-  console.log(`🖨️ Printing ${type}...`);
+  console.log(`🖨️ smartPrint [${type}]`);
 
-  // 1. Priority: Native Android Bluetooth (Hassle-free, no dialogs)
+  // 1. Android Bluetooth
   if (window.Capacitor?.isNativePlatform?.()) {
-    const res = await nativeCapacitorPrint(html, type);
+    const res = await bluetoothPrint(html, type);
     if (res.success) return { method: 'bluetooth' };
-
-    // CUSTOM MOBILE FALLBACK: Show alert instead of redirecting to Chrome
-    alert('⚠️ Bluetooth printer not configured. Please go to "Settings" tab in this app to pair and select your printer.');
-    return { method: 'none', error: 'No printer' };
+    alert('⚠️ Bluetooth printer not configured. Go to Settings → Bluetooth Printer to pair your printer.');
+    return { method: 'none', error: res.error };
   }
 
-  // 2. Desktop App Silent Print
+  // 2. Electron desktop silent print
   if (window.electronAPI?.silentPrint) {
+    const restaurantId = localStorage.getItem('restaurantId')
+      || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
+    const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
+    const printerName = type === 'kitchen'
+      ? (saved.qzKitchenPrinter || saved.kitchenPrinterName || '')
+      : (saved.qzBillPrinter || saved.cashCounterPrinterName || '');
+    const result = await window.electronAPI.silentPrint(html, printerName);
+    if (result.success) return { method: 'electron' };
+    console.warn('Electron silent print failed:', result.error, '— falling back');
+    // Fall through to browser print as last resort
+  }
+
+  // 3. QZ Tray (web browser)
+  if (!window.electronAPI) {
     const restaurantId = localStorage.getItem('restaurantId');
     const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
-    const printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
-    const result = await window.electronAPI.silentPrint(html, printerName || '');
-    if (result.success) return { method: 'electron' };
+    if (saved.useQZTray) {
+      const printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
+      if (printerName) {
+        const ok = await qzPrint(html, printerName);
+        if (ok) return { method: 'qz' };
+      }
+    }
   }
 
-  // 3. Fallback: Browser Print Dialog
-  const w = window.open('', '_blank', 'width=400,height=600');
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    w.onload = () => {
-      w.focus();
-      w.print();
-      w.onafterprint = () => w.close();
-      // Safety close in case onafterprint doesn't fire (some browsers)
-      setTimeout(() => { try { w.close(); } catch(e) {} }, 3000);
-    };
-  }
+  // 4. Browser fallback
+  browserPrint(html);
   return { method: 'browser' };
 }

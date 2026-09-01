@@ -416,7 +416,9 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
       webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
-    printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    // Use data URI for reliable loading
+    const encoded = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+    printWin.loadURL(encoded);
 
     printWin.webContents.on('did-finish-load', () => {
       const options = {
@@ -424,7 +426,14 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
         printBackground: true,
         deviceName: printerName || '',
         margins: { marginType: 'none' },
-        pageSize: 'A8' // ~80mm thermal receipt size
+        // Custom 80mm thermal paper — auto height so it cuts at content end
+        pageSize: { width: 80000, height: 297000 }, // microns: 80mm wide, 297mm max
+        scaleFactor: 100,
+        landscape: false,
+        color: false,
+        collate: false,
+        copies: 1,
+        dpi: { horizontal: 203, vertical: 203 } // standard thermal DPI
       };
 
       printWin.webContents.print(options, (success, errorType) => {
@@ -433,6 +442,12 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
         else resolve({ success: false, error: errorType });
       });
     });
+
+    // Safety timeout
+    setTimeout(() => {
+      if (!printWin.isDestroyed()) printWin.close();
+      resolve({ success: false, error: 'timeout' });
+    }, 15000);
   });
 });
 
