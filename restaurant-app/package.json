@@ -12,13 +12,7 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder --publish=never"
   },
-  "keywords": [
-    "restaurant",
-    "management",
-    "waitnot",
-    "pos",
-    "orders"
-  ],
+  "keywords": ["restaurant", "management", "waitnot", "pos", "orders"],
   "author": "WaitNot Team",
   "license": "MIT",
   "devDependencies": {
@@ -26,8 +20,69 @@
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "electron-updater": "^6.1.7"
+    "electron-updater": "^6.1.7",
+    "node-thermal-printer": "^4.3.3",
+    "pdf-to-printer": "^5.3.1"
   },
+  "build": {
+    "appId": "com.waitnot.restaurant",
+    "productName": "WaitNot Restaurant",
+    "copyright": "Copyright © 2024 WaitNot Team",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "printer.js",
+      "fallback.html",
+      "renderer/**/*",
+      "assets/**/*",
+      "sounds/**/*",
+      "logo.png",
+      "node_modules/**/*"
+    ],
+    "extraMetadata": {
+      "description": "Complete Restaurant Management System with Order Management, Menu Management, QR Code Ordering, and Analytics Dashboard"
+    },
+    "win": {
+      "target": [{"target": "nsis", "arch": ["x64", "ia32"]}],
+      "icon": "logo.png",
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "WaitNot Team",
+      "verifyUpdateCodeSignature": false
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business",
+      "icon": "logo.png"
+    },
+    "linux": {
+      "target": [{"target": "AppImage", "arch": ["x64"]}],
+      "category": "Office",
+      "icon": "logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "WaitNot Restaurant",
+      "runAfterFinish": true,
+      "menuCategory": "WaitNot",
+      "deleteAppDataOnUninstall": false,
+      "packElevateHelper": true,
+      "perMachine": false,
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "uninstallDisplayName": "${productName}"
+    },
+    "extraMetadata": {
+      "main": "main.js"
+    }
+  }
+}
   "build": {
     "appId": "com.waitnot.restaurant",
     "productName": "WaitNot Restaurant",

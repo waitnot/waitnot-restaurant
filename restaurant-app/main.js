@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, shell, dialog, ipcMain, protocol } = require('
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
+const { listPrinters, printKOT, printBill } = require('./printer');
 
 // Keep a global reference of the window object
 let mainWindow;
@@ -408,7 +409,21 @@ ipcMain.handle('show-message-box', async (event, options) => {
   return result;
 });
 
-// Silent print IPC handler — no dialog
+// ─── ESC/POS silent print — KOT ─────────────────────────────────────────────
+// data: { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time }
+ipcMain.handle('print-kot', async (event, { data, printerName }) => {
+  console.log(`🖨️ KOT → ${printerName}`);
+  return await printKOT(data, printerName);
+});
+
+// ─── ESC/POS silent print — Bill ────────────────────────────────────────────
+// data: { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText }
+ipcMain.handle('print-bill', async (event, { data, printerName }) => {
+  console.log(`🖨️ Bill → ${printerName}`);
+  return await printBill(data, printerName);
+});
+
+// ─── Legacy HTML silent print (fallback for non-thermal printers) ────────────
 ipcMain.handle('silent-print', async (event, { html, printerName }) => {
   return new Promise((resolve) => {
     const printWin = new BrowserWindow({
@@ -416,34 +431,27 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
       webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
-    // Use data URI for reliable loading
     const encoded = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
     printWin.loadURL(encoded);
 
-    printWin.webContents.on('did-finish-load', () => {
+    printWin.webContents.once('did-finish-load', () => {
       const options = {
         silent: true,
         printBackground: true,
         deviceName: printerName || '',
         margins: { marginType: 'none' },
-        // Custom 80mm thermal paper — auto height so it cuts at content end
-        pageSize: { width: 80000, height: 297000 }, // microns: 80mm wide, 297mm max
+        pageSize: { width: 80000, height: 297000 },
         scaleFactor: 100,
         landscape: false,
         color: false,
-        collate: false,
         copies: 1,
-        dpi: { horizontal: 203, vertical: 203 } // standard thermal DPI
       };
-
       printWin.webContents.print(options, (success, errorType) => {
         printWin.close();
-        if (success) resolve({ success: true });
-        else resolve({ success: false, error: errorType });
+        resolve(success ? { success: true } : { success: false, error: errorType });
       });
     });
 
-    // Safety timeout
     setTimeout(() => {
       if (!printWin.isDestroyed()) printWin.close();
       resolve({ success: false, error: 'timeout' });
@@ -451,10 +459,9 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
   });
 });
 
-// Get available printers
+// ─── Get available printers ──────────────────────────────────────────────────
 ipcMain.handle('get-printers', async () => {
-  const printers = await mainWindow.webContents.getPrintersAsync();
-  return printers.map(p => ({ name: p.name, isDefault: p.isDefault }));
+  return await listPrinters(mainWindow.webContents);
 });
 
 // Handle certificate errors

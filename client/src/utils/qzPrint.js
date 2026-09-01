@@ -3,22 +3,22 @@ import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
 /**
  * WaitNot Silent Printing Utility
  *
- * Priority order:
- * 1. Native Android Bluetooth (Capacitor app)
- * 2. Electron desktop silent print (no dialog)
- * 3. QZ Tray (web browser with QZ Tray installed)
+ * Priority:
+ * 1. Electron ESC/POS (raw bytes → thermal driver, zero dialog) ← like Petpooja
+ * 2. Android Bluetooth ESC/POS (Capacitor native)
+ * 3. QZ Tray (web browser + QZ Tray service)
  * 4. Browser window.print() fallback
  */
+
+// ─── QZ Tray ─────────────────────────────────────────────────────────────────
 
 let qz = null;
 let qzConnected = false;
 
-// ─── QZ Tray ────────────────────────────────────────────────────────────────
-
 function loadQZScript() {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || window.Capacitor?.isNativePlatform?.()) {
-      reject(new Error('QZ not available in native app'));
+      reject(new Error('QZ not available'));
       return;
     }
     if (window.qz) { resolve(window.qz); return; }
@@ -36,13 +36,15 @@ export async function connectQZ() {
     if (!qz.websocket.isActive()) await qz.websocket.connect();
     qzConnected = true;
     return true;
-  } catch (e) {
-    qzConnected = false;
-    return false;
-  }
+  } catch { qzConnected = false; return false; }
 }
 
 export async function getPrinters() {
+  // Electron: use native printer list
+  if (window.electronAPI?.getPrinters) {
+    const list = await window.electronAPI.getPrinters();
+    return list.map(p => p.name);
+  }
   if (!qzConnected) await connectQZ();
   if (!qzConnected) return [];
   try { return await qz.printers.find(); } catch { return []; }
@@ -50,40 +52,67 @@ export async function getPrinters() {
 
 export function isQZAvailable() { return qzConnected; }
 
-// ─── QZ Tray silent print ────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function qzPrint(html, printerName) {
-  if (!qzConnected) {
-    const ok = await connectQZ();
-    if (!ok) return false;
-  }
-  try {
-    const config = qz.configs.create(printerName, {
-      margins: { top: 0, right: 0, bottom: 0, left: 0 },
-      size: { width: 80, height: null }, // mm, null = auto (roll)
-      units: 'mm',
-      copies: 1,
-      colorType: 'blackwhite',
-      density: 203,
-    });
-    const data = [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }];
-    await qz.print(config, data);
-    return true;
-  } catch (e) {
-    console.error('QZ print error:', e);
-    return false;
-  }
+function getSavedSettings() {
+  const restaurantId = localStorage.getItem('restaurantId')
+    || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
+  return JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
 }
 
-// ─── Bluetooth (Android Capacitor) ──────────────────────────────────────────
+// ─── 1. Electron ESC/POS ─────────────────────────────────────────────────────
+
+async function electronPrintKOT(order, restaurantName) {
+  const saved = getSavedSettings();
+  const printerName = saved.qzKitchenPrinter || saved.kitchenPrinterName || '';
+  if (!printerName) return { success: false, error: 'No kitchen printer configured' };
+
+  const now = new Date();
+  const data = {
+    restaurantName,
+    orderId: order._id || 'N/A',
+    tableNumber: order.tableNumber || null,
+    roomNumber: order.roomNumber || null,
+    orderType: order.orderType || 'dine-in',
+    items: order.items.map(i => ({ name: i.name, quantity: i.quantity })),
+    time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+  };
+  return await window.electronAPI.printKOT(data, printerName);
+}
+
+async function electronPrintBill(orders, tableLabel, total, restaurantName) {
+  const saved = getSavedSettings();
+  const printerName = saved.qzBillPrinter || saved.cashCounterPrinterName || '';
+  if (!printerName) return { success: false, error: 'No bill printer configured' };
+
+  // Merge items from all orders
+  const itemMap = {};
+  orders.forEach(o => o.items?.forEach(i => {
+    if (itemMap[i.name]) itemMap[i.name].qty += i.quantity;
+    else itemMap[i.name] = { name: i.name, qty: i.quantity, price: i.price };
+  }));
+
+  const now = new Date();
+  const data = {
+    restaurantName,
+    tableLabel,
+    items: Object.values(itemMap),
+    total,
+    paymentMethod: orders[0]?.paymentMethod || 'cash',
+    time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+    date: now.toLocaleDateString('en-IN'),
+    footerText: 'Thank you! Visit Again',
+  };
+  return await window.electronAPI.printBill(data, printerName);
+}
+
+// ─── 2. Android Bluetooth ─────────────────────────────────────────────────────
 
 async function bluetoothPrint(html, type) {
   try {
-    const restaurantId = localStorage.getItem('restaurantId')
-      || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
-    const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
+    const saved = getSavedSettings();
     const address = type === 'kitchen' ? saved.btKitchenPrinter : saved.btBillPrinter;
-    if (!address) return { success: false, error: 'No Bluetooth printer configured' };
+    if (!address) return { success: false, error: 'No BT printer configured' };
 
     const state = await BluetoothSerial.isEnabled();
     if (!state.enabled) await BluetoothSerial.enable();
@@ -92,19 +121,39 @@ async function bluetoothPrint(html, type) {
     const div = document.createElement('div');
     div.innerHTML = html;
     const text = div.innerText.split('\n').filter(l => l.trim()).join('\n');
-    const feed = '\n\n\n\n';
-
-    await BluetoothSerial.write({ address, value: text + feed });
+    await BluetoothSerial.write({ address, value: text + '\n\n\n\n' });
     await new Promise(r => setTimeout(r, 500));
     await BluetoothSerial.disconnect({ address });
     return { success: true };
   } catch (e) {
-    console.error('BT print error:', e);
     return { success: false, error: e.message };
   }
 }
 
-// ─── Browser fallback ────────────────────────────────────────────────────────
+// ─── 3. QZ Tray ──────────────────────────────────────────────────────────────
+
+async function qzPrintHTML(html, printerName) {
+  if (!qzConnected) {
+    const ok = await connectQZ();
+    if (!ok) return false;
+  }
+  try {
+    const config = qz.configs.create(printerName, {
+      margins: { top: 0, right: 0, bottom: 0, left: 0 },
+      size: { width: 80, height: null },
+      units: 'mm',
+      copies: 1,
+      colorType: 'blackwhite',
+    });
+    await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
+    return true;
+  } catch (e) {
+    console.error('QZ error:', e);
+    return false;
+  }
+}
+
+// ─── 4. Browser fallback ─────────────────────────────────────────────────────
 
 function browserPrint(html) {
   const w = window.open('', '_blank', 'width=400,height=600');
@@ -115,47 +164,64 @@ function browserPrint(html) {
     w.focus();
     w.print();
     w.onafterprint = () => w.close();
-    setTimeout(() => { try { w.close(); } catch (e) {} }, 4000);
+    setTimeout(() => { try { w.close(); } catch {} }, 4000);
   };
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
 
-export async function smartPrint(html, type = 'bill') {
+/**
+ * smartPrint — routes to the best available print method
+ * 
+ * @param {string} html - Rendered HTML for fallback printing
+ * @param {string} type - 'kitchen' | 'bill'
+ * @param {Object} [orderData] - { order, orders, tableLabel, total, restaurantName }
+ *   Provide this for Electron ESC/POS path. Falls back to HTML if not given.
+ */
+export async function smartPrint(html, type = 'bill', orderData = null) {
   console.log(`🖨️ smartPrint [${type}]`);
 
-  // 1. Android Bluetooth
-  if (window.Capacitor?.isNativePlatform?.()) {
-    const res = await bluetoothPrint(html, type);
-    if (res.success) return { method: 'bluetooth' };
-    alert('⚠️ Bluetooth printer not configured. Go to Settings → Bluetooth Printer to pair your printer.');
-    return { method: 'none', error: res.error };
+  // 1. Electron ESC/POS — true silent thermal, no dialog
+  if (window.electronAPI?.printKOT && orderData) {
+    let result;
+    if (type === 'kitchen' && orderData.order) {
+      result = await electronPrintKOT(orderData.order, orderData.restaurantName);
+    } else if (type === 'bill' && orderData.orders) {
+      result = await electronPrintBill(
+        orderData.orders, orderData.tableLabel,
+        orderData.total, orderData.restaurantName
+      );
+    }
+    if (result?.success) return { method: 'electron-escpos' };
+    console.warn('ESC/POS failed:', result?.error, '— falling back to HTML print');
+    // Fall through to silent HTML print
   }
 
-  // 2. Electron desktop silent print
+  // 1b. Electron HTML silent print (when no orderData or ESC/POS failed)
   if (window.electronAPI?.silentPrint) {
-    const restaurantId = localStorage.getItem('restaurantId')
-      || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
-    const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
+    const saved = getSavedSettings();
     const printerName = type === 'kitchen'
       ? (saved.qzKitchenPrinter || saved.kitchenPrinterName || '')
       : (saved.qzBillPrinter || saved.cashCounterPrinterName || '');
     const result = await window.electronAPI.silentPrint(html, printerName);
-    if (result.success) return { method: 'electron' };
-    console.warn('Electron silent print failed:', result.error, '— falling back');
-    // Fall through to browser print as last resort
+    if (result?.success) return { method: 'electron-html' };
   }
 
-  // 3. QZ Tray (web browser)
-  if (!window.electronAPI) {
-    const restaurantId = localStorage.getItem('restaurantId');
-    const saved = JSON.parse(localStorage.getItem(`printer_settings_${restaurantId}`) || '{}');
-    if (saved.useQZTray) {
-      const printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
-      if (printerName) {
-        const ok = await qzPrint(html, printerName);
-        if (ok) return { method: 'qz' };
-      }
+  // 2. Android Bluetooth
+  if (window.Capacitor?.isNativePlatform?.()) {
+    const res = await bluetoothPrint(html, type);
+    if (res.success) return { method: 'bluetooth' };
+    alert('⚠️ Bluetooth printer not configured. Go to Settings → Bluetooth Printer.');
+    return { method: 'none', error: res.error };
+  }
+
+  // 3. QZ Tray
+  const saved = getSavedSettings();
+  if (saved.useQZTray) {
+    const printerName = type === 'kitchen' ? saved.qzKitchenPrinter : saved.qzBillPrinter;
+    if (printerName) {
+      const ok = await qzPrintHTML(html, printerName);
+      if (ok) return { method: 'qz' };
     }
   }
 
