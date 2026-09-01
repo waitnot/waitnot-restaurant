@@ -336,7 +336,16 @@ export default function StaffDashboard() {
     const d = new Date().toLocaleDateString('en-IN'), t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const css = `@page{size:80mm auto;margin:0}*{box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;margin:0;padding:8px;width:80mm;overflow:hidden}.c{text-align:center}.b{font-weight:bold}.r{display:flex;justify-content:space-between;margin-bottom:2px}.d{border-top:1px dashed #000;margin:6px 0}@media print{body{width:80mm;overflow:hidden}html,body{height:auto!important;page-break-after:avoid;page-break-inside:avoid}}`;
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body><div class="c b" style="font-size:14px">${restaurant?.name?.toUpperCase()}</div><div class="c b">** KOT **</div><div class="d"></div><div class="r"><span>Order:</span><span>${order._id.slice(-6).toUpperCase()}</span></div>${order.tableNumber ? `<div class="r"><span>Table:</span><span><b>${order.tableNumber}</b></span></div>` : ''}${order.roomNumber ? `<div class="r"><span>Room:</span><span><b>${order.roomNumber}</b></span></div>` : ''}<div class="r"><span>Time:</span><span>${d} ${t}</span></div><div class="d"></div>${order.items.map(i => `<div class="r"><span>${i.name}</span><span>x${i.quantity}</span></div>`).join('')}<div class="d"></div><div class="c" style="font-size:10px">-- PREPARE WITH CARE --</div></body></html>`;
-    smartPrint(html, 'kitchen');
+    smartPrint(html, 'kitchen', {
+      order: {
+        _id: order._id,
+        tableNumber: order.tableNumber,
+        roomNumber: order.roomNumber,
+        orderType: order.orderType || 'dine-in',
+        items: order.items.map(i => ({ name: i.name, quantity: i.quantity })),
+      },
+      restaurantName: restaurant?.name || '',
+    });
   };
 
   const printBill = (tableOrders, tableNum, total) => {
@@ -348,7 +357,12 @@ export default function StaffDashboard() {
     }));
     const css = `@page{size:80mm auto;margin:0}*{box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;margin:0;padding:8px;width:80mm;overflow:hidden}.c{text-align:center}.b{font-weight:bold}.r{display:flex;justify-content:space-between;margin-bottom:2px}.d{border-top:1px dashed #000;margin:6px 0}@media print{body{width:80mm;overflow:hidden}html,body{height:auto!important;page-break-after:avoid;page-break-inside:avoid}}`;
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body><div class="c b" style="font-size:14px">${restaurant?.name?.toUpperCase()}</div><div class="c">BILL</div><div class="d"></div><div class="r"><span>Table/Ref:</span><span><b>${tableNum}</b></span></div><div class="r"><span>Date:</span><span>${d} ${t}</span></div><div class="d"></div>${Object.entries(items).map(([n, v]) => `<div class="r"><span>${n} x${v.qty}</span><span>₹${v.total}</span></div>`).join('')}<div class="d"></div><div class="r b"><span>TOTAL</span><span>₹${total}</span></div><div class="d"></div><div class="c" style="font-size:10px">Thank you! Visit Again</div></body></html>`;
-    smartPrint(html, 'bill');
+    smartPrint(html, 'bill', {
+      orders: tableOrders,
+      tableLabel: String(tableNum),
+      total,
+      restaurantName: restaurant?.name || '',
+    });
   };
 
   const clearTable = (tableOrders, tableNum) => {

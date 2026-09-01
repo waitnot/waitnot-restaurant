@@ -156,16 +156,31 @@ async function qzPrintHTML(html, printerName) {
 // ─── 4. Browser fallback ─────────────────────────────────────────────────────
 
 function browserPrint(html) {
-  const w = window.open('', '_blank', 'width=400,height=600');
-  if (!w) return;
+  const w = window.open('', '_blank', 'width=420,height=700');
+  if (!w) {
+    // Popup blocked — try iframe approach
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden';
+    document.body.appendChild(iframe);
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 300);
+    return;
+  }
+  w.document.open();
   w.document.write(html);
   w.document.close();
-  w.onload = () => {
+  // Use setTimeout instead of onload — more reliable after document.write
+  setTimeout(() => {
     w.focus();
     w.print();
     w.onafterprint = () => w.close();
-    setTimeout(() => { try { w.close(); } catch {} }, 4000);
-  };
+    setTimeout(() => { try { w.close(); } catch {} }, 5000);
+  }, 350);
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
