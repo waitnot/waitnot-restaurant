@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff, History } from 'lucide-react';
+import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff, History, TrendingUp } from 'lucide-react';
 import { smartPrint } from '../utils/qzPrint.js';
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
@@ -15,13 +15,18 @@ export default function StaffDashboard() {
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState('tables'); // 'tables' | 'running' | 'history' | 'profile' | 'settings'
+  const [activeView, setActiveView] = useState('tables'); // 'tables' | 'running' | 'history' | 'sales' | 'profile' | 'settings'
   const [socket, setSocket] = useState(null);
 
   // Order history
   const [historyOrders, setHistoryOrders] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
+
+  // Sales report
+  const [salesData, setSalesData] = useState(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesPeriod, setSalesPeriod] = useState('today');
 
   // Order flow state
   const [selectedTable, setSelectedTable] = useState(null); // { num, type, roomNumber, orderType }
@@ -144,6 +149,50 @@ export default function StaffDashboard() {
       console.error(e);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchSales = async (period = salesPeriod) => {
+    setSalesLoading(true);
+    try {
+      const { data } = await axios.get(`${API}/api/orders/restaurant/${staff.restaurant_id}?status=completed`);
+      const now = new Date();
+      let startDate;
+      if (period === 'today') startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      else if (period === 'week') startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      else if (period === 'month') startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      else startDate = new Date(0);
+
+      const filtered = data.filter(o => new Date(o.createdAt) >= startDate);
+
+      const totalRevenue = filtered.reduce((s, o) => s + (o.totalAmount || 0), 0);
+      const totalOrders = filtered.length;
+      const cashOrders = filtered.filter(o => o.paymentMethod === 'cash' || !o.paymentMethod);
+      const onlineOrders = filtered.filter(o => o.paymentMethod === 'online');
+      const cashRevenue = cashOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+      const onlineRevenue = onlineOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+
+      const itemMap = {};
+      filtered.forEach(o => o.items?.forEach(i => {
+        if (!itemMap[i.name]) itemMap[i.name] = { qty: 0, revenue: 0 };
+        itemMap[i.name].qty += i.quantity;
+        itemMap[i.name].revenue += i.price * i.quantity;
+      }));
+      const topItems = Object.entries(itemMap).sort((a, b) => b[1].qty - a[1].qty).slice(0, 10);
+
+      const typeMap = {};
+      filtered.forEach(o => {
+        const t = o.orderType || 'dine-in';
+        if (!typeMap[t]) typeMap[t] = { count: 0, revenue: 0 };
+        typeMap[t].count++;
+        typeMap[t].revenue += o.totalAmount || 0;
+      });
+
+      setSalesData({ totalRevenue, totalOrders, cashRevenue, onlineRevenue, cashCount: cashOrders.length, onlineCount: onlineOrders.length, topItems, typeMap, filtered });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesLoading(false);
     }
   };
 
@@ -1005,6 +1054,101 @@ export default function StaffDashboard() {
             </div>
           )}
 
+          {/* SALES REPORT */}
+          {activeView === 'sales' && (
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 pb-20">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2"><TrendingUp size={20} className="text-red-500" /> Sales Report</h2>
+                <div className="flex items-center gap-2">
+                  <select value={salesPeriod} onChange={e => { setSalesPeriod(e.target.value); fetchSales(e.target.value); }}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none bg-white">
+                    <option value="today">Today</option>
+                    <option value="week">Last 7 Days</option>
+                    <option value="month">This Month</option>
+                    <option value="all">All Time</option>
+                  </select>
+                  <button onClick={() => fetchSales(salesPeriod)} className="text-xs text-red-500 font-semibold flex items-center gap-1">
+                    <RefreshCw size={13} /> Refresh
+                  </button>
+                </div>
+              </div>
+
+              {salesLoading ? (
+                <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div></div>
+              ) : !salesData ? (
+                <div className="text-center py-16 text-gray-400">
+                  <TrendingUp size={40} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">Tap refresh to load sales</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                    <div className="bg-red-500 text-white rounded-2xl p-4">
+                      <p className="text-xs text-red-100">Total Revenue</p>
+                      <p className="text-2xl font-bold">₹{salesData.totalRevenue.toLocaleString()}</p>
+                      <p className="text-xs text-red-200 mt-0.5">{salesData.totalOrders} orders</p>
+                    </div>
+                    <div className="bg-green-500 text-white rounded-2xl p-4">
+                      <p className="text-xs text-green-100">Cash</p>
+                      <p className="text-2xl font-bold">₹{salesData.cashRevenue.toLocaleString()}</p>
+                      <p className="text-xs text-green-200 mt-0.5">{salesData.cashCount} orders</p>
+                    </div>
+                    <div className="bg-blue-500 text-white rounded-2xl p-4">
+                      <p className="text-xs text-blue-100">Online</p>
+                      <p className="text-2xl font-bold">₹{salesData.onlineRevenue.toLocaleString()}</p>
+                      <p className="text-xs text-blue-200 mt-0.5">{salesData.onlineCount} orders</p>
+                    </div>
+                    <div className="bg-purple-500 text-white rounded-2xl p-4">
+                      <p className="text-xs text-purple-100">Avg Order</p>
+                      <p className="text-2xl font-bold">₹{salesData.totalOrders > 0 ? Math.round(salesData.totalRevenue / salesData.totalOrders) : 0}</p>
+                      <p className="text-xs text-purple-200 mt-0.5">per order</p>
+                    </div>
+                  </div>
+
+                  {/* Order type breakdown */}
+                  <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">By Order Type</p>
+                    <div className="space-y-2">
+                      {Object.entries(salesData.typeMap).map(([type, d]) => (
+                        <div key={type} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{type === 'dine-in' ? '🍽' : type === 'room' ? '🛏' : type === 'takeaway' ? '🥡' : '🛵'}</span>
+                            <span className="text-sm font-medium text-gray-700 capitalize">{type}</span>
+                            <span className="text-xs text-gray-400">{d.count} orders</span>
+                          </div>
+                          <span className="font-bold text-gray-900">₹{d.revenue.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Top items */}
+                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Top Selling Items</p>
+                    <div className="space-y-2">
+                      {salesData.topItems.map(([name, d], i) => (
+                        <div key={name} className="flex items-center gap-3">
+                          <span className="w-5 text-xs font-bold text-gray-400 text-right">{i + 1}</span>
+                          <div className="flex-1">
+                            <div className="flex justify-between mb-0.5">
+                              <span className="text-sm font-medium text-gray-800">{name}</span>
+                              <span className="text-xs font-semibold text-gray-600">×{d.qty} · ₹{d.revenue}</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-red-400 rounded-full" style={{ width: `${Math.min(100, (d.qty / salesData.topItems[0][1].qty) * 100)}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {salesData.topItems.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No data for this period</p>}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
         </div>{/* end content area */}
         </div>{/* end md:flex + main content */}
 
@@ -1014,6 +1158,7 @@ export default function StaffDashboard() {
             { id: 'tables', label: 'Tables', icon: UtensilsCrossed },
             { id: 'running', label: 'Orders', icon: ClipboardList, badge: totalRunningCount },
             { id: 'history', label: 'History', icon: History },
+            { id: 'sales', label: 'Sales', icon: TrendingUp },
             { id: 'profile', label: 'Profile', icon: User },
             { id: 'settings', label: 'Settings', icon: Settings },
           ].map(tab => {
@@ -1024,6 +1169,7 @@ export default function StaffDashboard() {
                 setActiveView(tab.id);
                 setSelectedTable(null);
                 if (tab.id === 'history') fetchHistory();
+                if (tab.id === 'sales') fetchSales(salesPeriod);
               }}
                 className={`flex-1 py-3 flex flex-col items-center gap-0.5 relative ${active ? 'text-red-500' : 'text-gray-400'}`}>
                 <div className="relative">
