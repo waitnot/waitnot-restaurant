@@ -251,6 +251,20 @@ export default function StaffDashboard() {
     fetchOrders(staff.restaurant_id);
   };
 
+  const cancelOrders = async (ordersToCancel, label) => {
+    if (!window.confirm(`Cancel order for ${label}? It will be removed with no record in history.`)) return;
+    try {
+      await Promise.all(ordersToCancel.map(o =>
+        axios.delete(`${API}/api/orders/${o._id}`)
+      ));
+      showToast(`${label} cancelled`);
+      setSelectedTable(null);
+      fetchOrders(staff.restaurant_id);
+    } catch {
+      showToast('Failed to cancel', 'error');
+    }
+  };
+
   // Print KOT
   const printKOT = (order) => {
     const d = new Date().toLocaleDateString('en-IN'), t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -560,7 +574,7 @@ export default function StaffDashboard() {
                 )}
 
                 {/* Cart items */}
-                <div className="flex-1 overflow-y-auto px-3 py-1 min-h-0">
+                <div className="overflow-y-auto px-3 py-1 min-h-0" style={{ maxHeight: '40vh' }}>
                   {orderCart.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-300">
                       <ShoppingCart size={32} className="mb-1 opacity-30" />
@@ -615,10 +629,16 @@ export default function StaffDashboard() {
                       </button>
                     </div>
                     {getActiveOrdersForSlot().length > 0 && (
-                      <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)}
-                        className="w-full mt-1.5 bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">
-                        Clear / Pay
-                      </button>
+                      <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                        <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)}
+                          className="bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">
+                          Clear / Pay
+                        </button>
+                        <button onClick={() => cancelOrders(getActiveOrdersForSlot(), selectedTable?.label)}
+                          className="bg-gray-100 text-gray-500 py-2 rounded-lg text-xs font-bold hover:bg-red-50 hover:text-red-500">
+                          Cancel Order
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -629,6 +649,9 @@ export default function StaffDashboard() {
                       <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
                       <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
                       <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600">Clear</button>
+                    </div>
+                    <div className="mt-1.5">
+                      <button onClick={() => cancelOrders(getActiveOrdersForSlot(), selectedTable?.label)} className="w-full bg-gray-100 text-gray-500 py-2 rounded-lg text-xs font-bold hover:bg-red-50 hover:text-red-500">Cancel Order</button>
                     </div>
                   </div>
                 )}
@@ -701,6 +724,7 @@ export default function StaffDashboard() {
                           <div className="flex border-t border-gray-100">
                             <button onClick={() => tableOrders.forEach(o => printKOT(o))} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill(tableOrders, tableNum, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
+                            <button onClick={() => cancelOrders(tableOrders, `Table ${tableNum}`)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
                             <button onClick={() => clearTable(tableOrders, parseInt(tableNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
                           </div>
                         </div>
@@ -745,6 +769,7 @@ export default function StaffDashboard() {
                           <div className="flex border-t border-gray-100">
                             <button onClick={() => roomOrders.forEach(o => printKOT(o))} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill(roomOrders, label, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
+                            <button onClick={() => cancelOrders(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
                             <button onClick={() => clearTable(roomOrders, parseInt(roomNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
                           </div>
                         </div>
@@ -783,6 +808,7 @@ export default function StaffDashboard() {
                           <div className="flex border-t border-gray-100">
                             <button onClick={() => printKOT(order)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill([order], order.customerName || 'Guest', order.totalAmount)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
+                            <button onClick={() => cancelOrders([order], order.customerName || 'Guest')} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
                             <button onClick={() => clearTable([order], order.customerName || 'Guest')} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
                           </div>
                         </div>
