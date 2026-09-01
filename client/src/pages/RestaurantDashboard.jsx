@@ -350,10 +350,10 @@ export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
 
-  // Smart print helper: uses Electron silent print or QZ Tray, falls back to browser dialog
+  // Smart print helper: uses Electron ESC/POS → silent HTML → QZ Tray → browser fallback
   const openPrintWindow = (html, type = 'bill', orderData = null) => {
     smartPrint(html, type, orderData).then(r => {
-      if (r.method !== 'browser') console.log(`Printed via ${r.method}`);
+      if (r.method !== 'browser') console.log('Printed via ' + r.method);
     });
   };
 
@@ -1799,19 +1799,54 @@ export default function RestaurantDashboard() {
     `;
 
     // Create a new window for printing
-    const fullKotHtml = '<!DOCTYPE html><html><head><title>KOT</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
-    smartPrint(fullKotHtml, 'kitchen', {
-      order: {
-        _id: tableOrders[0]?._id || 'N/A',
-        tableNumber: tableOrders[0]?.tableNumber,
-        roomNumber: tableOrders[0]?.roomNumber,
-        orderType: tableOrders[0]?.orderType || 'dine-in',
-        items: unprintedItems.map(i => ({ name: i.name, quantity: i.quantity })),
-      },
-      restaurantName: restaurant.name,
-    }).then(() => {
-      markItemsAsPrintedToKitchen(tableOrders);
-    });
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>KOT - ${slotLabel}</title>
+          <style>
+            @media print {
+              @page {
+                size: ${receiptWidth} auto;
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+          </style>
+        </head>
+        <body>
+          ${kotHTML}
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+      // Wait for content to load then print
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+          
+          // Mark items as printed to kitchen after successful print
+          markItemsAsPrintedToKitchen(tableOrders);
+        }, 250);
+      };
+    } else {
+      showToast('Please allow popups to print', 'error');
+    }
+  };
 
   const printKitchenOrderIndividual = (order) => {
     const settings = getPrinterSettings();
@@ -2274,17 +2309,49 @@ export default function RestaurantDashboard() {
     `;
 
     // Create and print
-    const fullKotHtml = '<!DOCTYPE html><html><head><title>KOT</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
-    smartPrint(fullKotHtml, 'kitchen', {
-      order: {
-        _id: order._id,
-        tableNumber: order.tableNumber,
-        roomNumber: order.roomNumber,
-        orderType: order.orderType,
-        items: order.items.map(i => ({ name: i.name, quantity: i.quantity })),
-      },
-      restaurantName: restaurant.name,
-    });
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>KOT - ${order.customerName}</title>
+          <style>
+            @media print {
+              @page {
+                size: ${receiptWidth} auto;
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+          </style>
+        </head>
+        <body>
+          ${kotHTML}
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      printWindow.focus();
+      
+      setTimeout(() => {
+        printWindow.print();
+        setTimeout(() => {
+          printWindow.close();
+        }, 250);
+      }, 500);
+    } else {
+      showToast('Please allow popups to print', 'error');
+    }
   };
 
   // Print Customer Bill for Staff orders
@@ -2421,13 +2488,49 @@ export default function RestaurantDashboard() {
     `;
 
     // Create and print
-    const fullBillHtml = '<!DOCTYPE html><html><head><title>Bill</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + billHTML + '</body></html>';
-    smartPrint(fullBillHtml, 'bill', {
-      orders: [order],
-      tableLabel: order.tableNumber ? `Table ${order.tableNumber}` : (order.customerName || 'Guest'),
-      total: order.totalAmount,
-      restaurantName: restaurant.name,
-    });
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Bill - ${order.customerName}</title>
+          <style>
+            @media print {
+              @page {
+                size: ${receiptWidth} auto;
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+          </style>
+        </head>
+        <body>
+          ${billHTML}
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      printWindow.focus();
+      
+      setTimeout(() => {
+        printWindow.print();
+        setTimeout(() => {
+          printWindow.close();
+        }, 250);
+      }, 500);
+    } else {
+      showToast('Please allow popups to print', 'error');
+    }
   };
 
   // Edit Order Functions (for completed staff orders only)
