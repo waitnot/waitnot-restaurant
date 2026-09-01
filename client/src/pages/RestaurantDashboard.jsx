@@ -1799,7 +1799,7 @@ export default function RestaurantDashboard() {
     `;
 
     // Create a new window for printing
-    const fullKotHtml = `<!DOCTYPE html><html><head><title>KOT - ${slotLabel}</title><style>@page{size:${receiptWidth} auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>${kotHTML}</body></html>`;
+    const fullKotHtml = '<!DOCTYPE html><html><head><title>KOT</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
     smartPrint(fullKotHtml, 'kitchen', {
       order: {
         _id: tableOrders[0]?._id || 'N/A',
@@ -2274,7 +2274,7 @@ export default function RestaurantDashboard() {
     `;
 
     // Create and print
-    const fullKotHtml = `<!DOCTYPE html><html><head><title>KOT - ${order.customerName}</title><style>@page{size:${receiptWidth} auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>${kotHTML}</body></html>`;
+    const fullKotHtml = '<!DOCTYPE html><html><head><title>KOT</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
     smartPrint(fullKotHtml, 'kitchen', {
       order: {
         _id: order._id,
@@ -2421,7 +2421,7 @@ export default function RestaurantDashboard() {
     `;
 
     // Create and print
-    const fullBillHtml = `<!DOCTYPE html><html><head><title>Bill - ${order.customerName}</title><style>@page{size:${receiptWidth} auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>${billHTML}</body></html>`;
+    const fullBillHtml = '<!DOCTYPE html><html><head><title>Bill</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + billHTML + '</body></html>';
     smartPrint(fullBillHtml, 'bill', {
       orders: [order],
       tableLabel: order.tableNumber ? `Table ${order.tableNumber}` : (order.customerName || 'Guest'),
