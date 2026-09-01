@@ -67,8 +67,24 @@ export default function StaffDashboard() {
     const s = JSON.parse(staffData);
     setStaff(s);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    fetchRestaurantData(s.restaurant_id);
-    fetchOrders(s.restaurant_id);
+
+    // Restore cached restaurant data instantly to avoid blank screen
+    const cached = localStorage.getItem(`restaurant_cache_${s.restaurant_id}`);
+    if (cached) {
+      setRestaurant(JSON.parse(cached));
+      setLoading(false);
+    }
+
+    // Fetch restaurant + orders in parallel
+    Promise.all([
+      axios.get(`${API}/api/restaurants/${s.restaurant_id}`),
+      axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`)
+    ]).then(([resRes, ordersRes]) => {
+      setRestaurant(resRes.data);
+      localStorage.setItem(`restaurant_cache_${s.restaurant_id}`, JSON.stringify(resRes.data));
+      setOrders(ordersRes.data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
 
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);
@@ -132,6 +148,7 @@ export default function StaffDashboard() {
   const fetchRestaurantData = async (id) => {
     const { data } = await axios.get(`${API}/api/restaurants/${id}`);
     setRestaurant(data);
+    localStorage.setItem(`restaurant_cache_${id}`, JSON.stringify(data));
   };
 
   const fetchOrders = async (id) => {
