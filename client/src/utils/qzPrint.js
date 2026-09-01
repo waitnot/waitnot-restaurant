@@ -120,10 +120,13 @@ export async function smartPrint(html, type = 'bill') {
   if (w) {
     w.document.write(html);
     w.document.close();
-    setTimeout(() => {
+    w.onload = () => {
+      w.focus();
       w.print();
-      setTimeout(() => w.close(), 300);
-    }, 400);
+      w.onafterprint = () => w.close();
+      // Safety close in case onafterprint doesn't fire (some browsers)
+      setTimeout(() => { try { w.close(); } catch(e) {} }, 3000);
+    };
   }
   return { method: 'browser' };
 }
