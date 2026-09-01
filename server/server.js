@@ -1,0 +1,154 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import { initDB } from './db.js';
+import { ensureStartupData } from './startup-check.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import restaurantRoutes from './routes/restaurants.js';
+import orderRoutes from './routes/orders.js';
+import authRoutes from './routes/auth.js';
+import analyticsRoutes from './routes/analytics.js';
+import adminRoutes from './routes/admin.js';
+import feedbackRoutes from './routes/feedback.js';
+
+import printerSettingsRoutes from './routes/printerSettings.js';
+import discountRoutes from './routes/discounts.js';
+import staffRoutes from './routes/staff.js';
+
+dotenv.config();
+
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: '*' }
+});
+
+// CORS configuration with Edge browser support and Vercel domains
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [
+      'https://waitnot-restaurant.onrender.com',
+      'https://waitnot-restaurant-app.vercel.app',
+      'https://your-domain.com',
+      'https://localhost',
+      'http://localhost',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+    ] 
+  : [
+      'http://localhost:3000', 
+      'http://localhost:3001', 
+      'http://localhost:3002',
+      'https://localhost',
+      'http://localhost'
+    ];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    // Allow any localhost port for development
+    if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+    console.log('❌ CORS blocked origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // For legacy browser support (IE11, various SmartTVs)
+}));
+app.use(express.json({ limit: '10mb' })); // Increase payload limit for base64 videos
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Health check endpoint for Render and monitoring services
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Basic API status endpoint
+app.get('/api/status', (req, res) => {
+  res.status(200).json({ 
+    status: 'API is running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Initialize database and ensure startup data
+try {
+  await initDB();
+  await ensureStartupData();
+  console.log('✅ Server initialization completed');
+} catch (error) {
+  console.error('❌ Server initialization failed:', error);
+  // Continue anyway - might be connection issue that resolves
+}
+
+// Routes
+app.use('/api/restaurants', restaurantRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/printer-settings', printerSettingsRoutes);
+app.use('/api/discounts', discountRoutes);
+app.use('/api/staff', staffRoutes);
+
+// Serve React app in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from React build
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  
+  // Handle React routing - send all non-API requests to React
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
+}
+
+// Socket.IO for real-time orders
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+  
+  socket.on('join-restaurant', (restaurantId) => {
+    socket.join(`restaurant-${restaurantId}`);
+    console.log(`Client ${socket.id} joined restaurant room: restaurant-${restaurantId}`);
+  });
+  
+  socket.on('leave-restaurant', (restaurantId) => {
+    socket.leave(`restaurant-${restaurantId}`);
+    console.log(`Client ${socket.id} left restaurant room: restaurant-${restaurantId}`);
+  });
+
+  socket.on('join-admin', () => {
+    socket.join('admin-room');
+    console.log('Admin joined admin room:', socket.id);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+// Make io accessible to routes
+app.set('io', io);
+
+const PORT = process.env.PORT || 5000;
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

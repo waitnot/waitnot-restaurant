@@ -1,0 +1,44 @@
+{
+  "name": "waitnot-client",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:captain": "vite build --config vite.captain.config.js",
+    "preview": "vite preview",
+    "cap:captain": "npx cap sync --capacitorconfig capacitor.captain.json"
+  },
+  "dependencies": {
+    "@ascentio-it/capacitor-bluetooth-serial": "^8.0.1",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitalets/google-translate-api": "^9.2.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "axios": "^1.6.2",
+    "es6-promise": "^4.2.8",
+    "i18next": "^25.6.3",
+    "i18next-browser-languagedetector": "^8.2.0",
+    "lucide-react": "^0.294.0",
+    "postcss": "^8.4.32",
+    "qrcode.react": "^3.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-helmet-async": "^2.0.5",
+    "react-i18next": "^16.3.5",
+    "react-router-dom": "^6.20.0",
+    "recharts": "^3.6.0",
+    "socket.io-client": "^4.5.4",
+    "tailwindcss": "^3.3.6",
+    "vite": "^5.0.8",
+    "whatwg-fetch": "^3.6.20"
+  },
+  "devDependencies": {
+    "terser": "^5.46.0"
+  }
+}

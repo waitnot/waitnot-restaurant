@@ -1,0 +1,12 @@
+{
+  "name": "Test Restaurant",
+  "description": "A test restaurant created by admin",
+  "email": "test@restaurant.com",
+  "password": "password123",
+  "phone": "9876543210",
+  "address": "123 Test Street, City",
+  "deliveryTime": "30-40 min",
+  "cuisine": ["Italian", "Mexican"],
+  "isDeliveryAvailable": true,
+  "tables": 10
+}

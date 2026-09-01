@@ -1,0 +1,168 @@
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { restaurantDB } from '../db.js';
+
+const router = express.Router();
+
+// Change password
+router.post('/change-password', async (req, res) => {
+  try {
+    console.log('Password change request received');
+    
+    const { restaurantId, currentPassword, newPassword } = req.body;
+    
+    if (!restaurantId || !currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    }
+    
+    // Get restaurant
+    const restaurant = await restaurantDB.findById(restaurantId);
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    
+    console.log('Verifying current password for restaurant:', restaurant.name);
+    
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, restaurant.password);
+    if (!isCurrentPasswordValid) {
+      console.log('Current password verification failed');
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    
+    console.log('Current password verified, updating to new password');
+    
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update password
+    const updatedRestaurant = await restaurantDB.update(restaurantId, { 
+      password: hashedNewPassword 
+    });
+    
+    if (updatedRestaurant) {
+      console.log('Password updated successfully for:', restaurant.name);
+      res.json({ message: 'Password changed successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to update password' });
+    }
+    
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Debug endpoint to check database contents
+router.get('/debug', async (req, res) => {
+  try {
+    const restaurants = await restaurantDB.findAll();
+    console.log('Debug: Found restaurants:', restaurants.length);
+    
+    const restaurantsWithoutPasswords = restaurants.map(r => ({
+      _id: r._id,
+      name: r.name,
+      email: r.email,
+      hasPassword: !!r.password,
+      passwordLength: r.password ? r.password.length : 0,
+      createdAt: r.createdAt
+    }));
+    
+    res.json({
+      count: restaurants.length,
+      restaurants: restaurantsWithoutPasswords
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Diagnostic endpoint - check password hash state for a restaurant
+router.post('/debug-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+
+    const restaurant = await restaurantDB.findOne({ email });
+    if (!restaurant) return res.json({ found: false, email });
+
+    const isValid = await bcrypt.compare(password, restaurant.password);
+    const passwordHash = restaurant.password ? restaurant.password.substring(0, 7) : null;
+    const isHashed = restaurant.password ? restaurant.password.startsWith('$2') : false;
+
+    res.json({
+      found: true,
+      name: restaurant.name,
+      email: restaurant.email,
+      isHashed,
+      passwordHashPrefix: passwordHash,
+      passwordLength: restaurant.password ? restaurant.password.length : 0,
+      bcryptMatch: isValid
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Restaurant login - v2
+router.post('/login', async (req, res) => {
+  try {
+    console.log('Login attempt for email:', req.body.email);
+    
+    const { email, password } = req.body;
+    const restaurant = await restaurantDB.findOne({ email });
+    
+    console.log('Restaurant found:', !!restaurant);
+    if (restaurant) {
+      console.log('Restaurant details:', {
+        id: restaurant._id,
+        name: restaurant.name,
+        email: restaurant.email,
+        hasPassword: !!restaurant.password
+      });
+    }
+    
+    if (!restaurant) {
+      console.log('No restaurant found with email:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('Comparing passwords...');
+    const isValid = await bcrypt.compare(password, restaurant.password);
+    console.log('Password valid:', isValid);
+    
+    if (!isValid) {
+      console.log('Password comparison failed');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const token = jwt.sign(
+      { id: restaurant._id },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '7d' }
+    );
+    
+    console.log('Login successful for:', restaurant.name);
+    const { password: _, ...restaurantData } = restaurant;
+    res.json({ token, restaurant: restaurantData });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Restaurant register - DISABLED: Only admins can create restaurants
+router.post('/register', async (req, res) => {
+  res.status(403).json({ 
+    error: 'Public registration is disabled. Please contact an administrator to create a restaurant account.',
+    adminLoginUrl: '/admin-login'
+  });
+});
+
+export default router;
