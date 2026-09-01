@@ -350,14 +350,13 @@ export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
 
-  // Smart print helper: uses Electron ESC/POS → silent HTML → QZ Tray → browser fallback
+  // Smart print helper: uses Electron silent print or QZ Tray, falls back to browser dialog
   const openPrintWindow = (html, type = 'bill', orderData = null) => {
     smartPrint(html, type, orderData).then(r => {
       if (r.method !== 'browser') console.log(`Printed via ${r.method}`);
     });
   };
 
-  // Legacy alias
   const doPrint = (fullHtml, type = 'bill', orderData = null) => {
     smartPrint(fullHtml, type, orderData);
   };
@@ -1800,24 +1799,19 @@ export default function RestaurantDashboard() {
     `;
 
     // Create a new window for printing
-    const fullHtml = `<!DOCTYPE html><html><head><title>KOT - ${slotLabel}</title><style>@page{size:${receiptWidth} auto;margin:0}body{margin:0;padding:0;background:white;font-family:'Courier New',monospace;}</style></head><body>${kotHTML}</body></html>`;
-
-    // Build structured data for Electron ESC/POS path
-    const orderData = {
+    const fullKotHtml = `<!DOCTYPE html><html><head><title>KOT - ${slotLabel}</title><style>@page{size:${receiptWidth} auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>${kotHTML}</body></html>`;
+    smartPrint(fullKotHtml, 'kitchen', {
       order: {
-        _id: unprintedItems[0]._id || tableOrders[0]?._id || 'N/A',
+        _id: tableOrders[0]?._id || 'N/A',
         tableNumber: tableOrders[0]?.tableNumber,
         roomNumber: tableOrders[0]?.roomNumber,
         orderType: tableOrders[0]?.orderType || 'dine-in',
         items: unprintedItems.map(i => ({ name: i.name, quantity: i.quantity })),
       },
       restaurantName: restaurant.name,
-    };
-
-    smartPrint(fullHtml, 'kitchen', orderData).then(() => {
+    }).then(() => {
       markItemsAsPrintedToKitchen(tableOrders);
     });
-  };
 
   const printKitchenOrderIndividual = (order) => {
     const settings = getPrinterSettings();
@@ -2291,6 +2285,7 @@ export default function RestaurantDashboard() {
       },
       restaurantName: restaurant.name,
     });
+  };
 
   // Print Customer Bill for Staff orders
   const printStaffCustomerBill = (order) => {
@@ -2429,7 +2424,7 @@ export default function RestaurantDashboard() {
     const fullBillHtml = `<!DOCTYPE html><html><head><title>Bill - ${order.customerName}</title><style>@page{size:${receiptWidth} auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>${billHTML}</body></html>`;
     smartPrint(fullBillHtml, 'bill', {
       orders: [order],
-      tableLabel: order.tableNumber ? `Table ${order.tableNumber}` : order.customerName,
+      tableLabel: order.tableNumber ? `Table ${order.tableNumber}` : (order.customerName || 'Guest'),
       total: order.totalAmount,
       restaurantName: restaurant.name,
     });
