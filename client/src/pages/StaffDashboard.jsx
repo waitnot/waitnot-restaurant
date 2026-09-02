@@ -344,7 +344,58 @@ export default function StaffDashboard() {
     }
   };
 
-  // Print KOT — same approach as RestaurantDashboard
+  // Shared print helper — works in Electron (silent) and browser (popup)
+  const doPrintHTML = (html, title) => {
+    // In Electron desktop app, use silent print
+    if (window.electronAPI?.silentPrint) {
+      const saved = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
+      const printerName = title === 'KOT'
+        ? (saved.qzKitchenPrinter || saved.kitchenPrinterName || '')
+        : (saved.qzBillPrinter || saved.cashCounterPrinterName || '');
+      window.electronAPI.silentPrint(html, printerName);
+      return;
+    }
+    // Browser: try popup, fallback to iframe
+    const w = window.open('', '_blank', 'width=420,height=700');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 4000); }, 350);
+    } else {
+      // Popup blocked — use hidden iframe
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:none;opacity:0;';
+      document.body.appendChild(iframe);
+      iframe.contentDocument.write(html);
+      iframe.contentDocument.close();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 2000);
+      }, 300);
+    }
+  };
+
+  // Iframe-based print — works even when browser blocks popups
+  const printViaIframe = (html) => {
+    if (window.electronAPI?.silentPrint) {
+      const saved = JSON.parse(localStorage.getItem('printer_settings_' + (staff?.restaurant_id || '')) || '{}');
+      window.electronAPI.silentPrint(html, saved.qzKitchenPrinter || saved.kitchenPrinterName || '');
+      return;
+    }
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    setTimeout(() => {
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { console.error('iframe print error:', e); }
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 3000);
+    }, 400);
+  };
+
   const printKOT = (order) => {
     const d = new Date().toLocaleDateString('en-IN');
     const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -372,9 +423,7 @@ export default function StaffDashboard() {
       + '</div>';
 
     const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title><style>@page{size:80mm auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
-
-    const w = window.open('', '_blank', 'width=400,height=600');
-    if (w) { w.document.write(fullHtml); w.document.close(); setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 4000); }, 350); }
+    printViaIframe(fullHtml);
   };
 
   // Print Bill — same approach as RestaurantDashboard printReceipt
@@ -428,9 +477,7 @@ export default function StaffDashboard() {
       + '</div></div>';
 
     const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title><style>@page{size:80mm auto;margin:0}body{margin:0;padding:0;background:white;font-family:Courier New,monospace;font-weight:bold;}</style></head><body>' + receiptHTML + '</body></html>';
-
-    const w = window.open('', '_blank', 'width=400,height=600');
-    if (w) { w.document.write(fullHtml); w.document.close(); setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 4000); }, 350); }
+    printViaIframe(fullHtml);
   };
 
   const clearTable = (tableOrders, tableNum) => {
