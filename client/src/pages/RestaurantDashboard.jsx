@@ -426,6 +426,7 @@ export default function RestaurantDashboard() {
     orderType: 'takeaway',
     deliveryAddress: '',
     tableNumber: '',
+    roomNumber: '',
     items: [],
     specialInstructions: '',
     waiterId: '',
@@ -2066,6 +2067,7 @@ export default function RestaurantDashboard() {
       source: 'staff',
       deliveryAddress: receptionistOrder.deliveryAddress,
       tableNumber: receptionistOrder.tableNumber ? parseInt(receptionistOrder.tableNumber) : null,
+      roomNumber: receptionistOrder.roomNumber ? parseInt(receptionistOrder.roomNumber) : null,
       createdAt: new Date().toISOString()
     });
   };
@@ -2135,7 +2137,8 @@ export default function RestaurantDashboard() {
           packagingCharge: receptionistOrder.packagingCharge || 0,
           deliveryCharge: receptionistOrder.deliveryCharge || 0,
           ...(receptionistOrder.orderType === 'delivery' && { deliveryAddress: receptionistOrder.deliveryAddress }),
-          ...(receptionistOrder.orderType === 'dine-in' && { tableNumber: parseInt(receptionistOrder.tableNumber) })
+          ...(receptionistOrder.orderType === 'dine-in' && { tableNumber: parseInt(receptionistOrder.tableNumber) }),
+          ...(receptionistOrder.orderType === 'room' && { roomNumber: parseInt(receptionistOrder.roomNumber) })
         };
 
         const response = await axios.post('/api/orders', orderData);
@@ -2152,7 +2155,7 @@ export default function RestaurantDashboard() {
 
         setReceptionistOrder({
           customerName: '', customerPhone: '', orderType: 'takeaway',
-          deliveryAddress: '', tableNumber: '', items: [],
+          deliveryAddress: '', tableNumber: '', roomNumber: '', items: [],
           specialInstructions: '', waiterId: '', waiterNumber: '',
           packagingCharge: 0, deliveryCharge: 0,
         });
@@ -4178,6 +4181,33 @@ export default function RestaurantDashboard() {
                   )}
                 </div>
 
+                {/* Rooms — if configured */}
+                {(restaurant?.rooms || 0) > 0 && (
+                  <>
+                    <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-4">Rooms</h2>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-2">
+                      {Array.from({ length: restaurant.rooms }, (_, i) => i + 1).map(n => {
+                        const roomLabel = restaurant?.features?.roomNames?.[n] || ('R' + n);
+                        const rOrders = activeRoomOrders.filter(o => parseInt(o.roomNumber) === n);
+                        const isOccupied = rOrders.length > 0;
+                        const rTotal = rOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+                        return (
+                          <button
+                            key={n}
+                            onClick={() => { setStaffSelectedTable(n); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'room', tableNumber: '', roomNumber: String(n) })); }}
+                            className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-orange-50 border-orange-300 hover:border-orange-500' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}
+                          >
+                            <span className="text-base leading-none">🛏</span>
+                            <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{roomLabel}</span>
+                            {isOccupied ? <span className="text-xs font-medium text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs text-blue-400 leading-none">Free</span>}
+                            {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
                 {/* Takeaway & Delivery — same grid, full names */}
                 <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Quick Order</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
@@ -4224,7 +4254,12 @@ export default function RestaurantDashboard() {
                   <div className="flex flex-col flex-1 overflow-hidden">
                     {/* Top bar */}
                     <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center shrink-0">
-                      {staffSelectedTable ? (
+                      {staffSelectedTable && receptionistOrder.orderType === 'room' ? (
+                        <>
+                          <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
+                          <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🛏 {restaurant?.features?.roomNames?.[staffSelectedTable] || ('Room ' + staffSelectedTable)}</span>
+                        </>
+                      ) : staffSelectedTable ? (
                         <>
                           <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }} className="text-xs text-primary font-semibold">← Table {staffSelectedTable}</button>
                           <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">Dine-In · T{staffSelectedTable}</span>
