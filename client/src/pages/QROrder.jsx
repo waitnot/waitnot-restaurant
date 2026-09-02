@@ -601,7 +601,7 @@ export default function QROrder({ orderMode }) {
   const menuEnabled = restaurant.features?.menuEnabled !== false;
   const hiddenCategories = restaurant.features?.hiddenCategories || [];
   const visibleMenu = menuEnabled
-    ? (restaurant.menu || []).filter(item => !hiddenCategories.includes(item.category))
+    ? (restaurant.menu || []).filter(item => item.available !== false && !hiddenCategories.includes(item.category))
     : [];
 
   const uniqueCategories = [...new Set(visibleMenu.map(item => item.category))];
