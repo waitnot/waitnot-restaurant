@@ -3467,54 +3467,91 @@ export default function RestaurantDashboard() {
               <p className="text-sm text-gray-500 mb-6">Control what customers see on the ordering page in real time.</p>
 
               {/* Master toggle */}
-              <div className="flex items-center justify-between p-4 rounded-xl border-2 mb-6 ${restaurant?.features?.menuEnabled === false ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}">
-                <div>
-                  <p className="font-bold text-gray-800">Entire Menu</p>
-                  <p className="text-xs text-gray-500">
-                    {restaurant?.features?.menuEnabled === false
-                      ? 'Menu is hidden — customers cannot see any items'
-                      : 'Menu is visible to customers'}
-                  </p>
+              <div className={`p-4 rounded-xl border-2 mb-3 ${restaurant?.features?.menuEnabled === false ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-gray-800">Entire Menu</p>
+                    <p className="text-xs text-gray-500">
+                      {restaurant?.features?.menuEnabled === false
+                        ? 'Menu is hidden — customers cannot see any items'
+                        : 'Menu is visible to customers'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const newVal = restaurant?.features?.menuEnabled !== false ? false : true;
+                      saveMenuVisibility({ ...restaurant.features, menuEnabled: newVal });
+                    }}
+                    className={`relative w-14 h-7 rounded-full transition-colors shrink-0 ${restaurant?.features?.menuEnabled === false ? 'bg-red-400' : 'bg-green-500'}`}
+                  >
+                    <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${restaurant?.features?.menuEnabled === false ? 'left-0.5' : 'left-7'}`} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    const newVal = restaurant?.features?.menuEnabled !== false ? false : true;
-                    saveMenuVisibility({ ...restaurant.features, menuEnabled: newVal });
-                  }}
-                  className={`relative w-14 h-7 rounded-full transition-colors shrink-0 ${restaurant?.features?.menuEnabled === false ? 'bg-red-400' : 'bg-green-500'}`}
-                >
-                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${restaurant?.features?.menuEnabled === false ? 'left-0.5' : 'left-7'}`} />
-                </button>
+                {/* Custom message when menu is OFF */}
+                {restaurant?.features?.menuEnabled === false && (
+                  <div className="mt-3">
+                    <label className="text-xs font-medium text-red-700 block mb-1">Message shown to customers</label>
+                    <input
+                      type="text"
+                      defaultValue={restaurant?.features?.menuOffMessage || ''}
+                      placeholder="e.g. We are closed right now. Please visit us tomorrow!"
+                      className="w-full text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white"
+                      onBlur={e => {
+                        if (e.target.value !== (restaurant?.features?.menuOffMessage || '')) {
+                          saveMenuVisibility({ ...restaurant.features, menuOffMessage: e.target.value });
+                        }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Per-category toggles */}
-              <p className="text-sm font-semibold text-gray-700 mb-3">Category Visibility</p>
+              <p className="text-sm font-semibold text-gray-700 mb-3 mt-6">Category Visibility</p>
               <div className="space-y-2">
                 {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => {
                   const hidden = (restaurant?.features?.hiddenCategories || []).includes(cat);
                   const menuOff = restaurant?.features?.menuEnabled === false;
+                  const catMessages = restaurant?.features?.categoryMessages || {};
                   return (
-                    <div key={cat} className={`flex items-center justify-between px-4 py-3 rounded-lg border ${hidden || menuOff ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-                      <div className="flex items-center gap-3">
-                        <span className={`text-sm font-medium ${hidden || menuOff ? 'text-gray-400' : 'text-gray-800'}`}>{cat}</span>
-                        <span className="text-xs text-gray-400">
-                          ({(restaurant?.menu || []).filter(i => i.category === cat && i.available).length} items)
-                        </span>
-                        {hidden && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium">Hidden</span>}
+                    <div key={cat} className={`rounded-lg border ${hidden || menuOff ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className={`text-sm font-medium ${hidden || menuOff ? 'text-gray-400' : 'text-gray-800'}`}>{cat}</span>
+                          <span className="text-xs text-gray-400">
+                            ({(restaurant?.menu || []).filter(i => i.category === cat && i.available).length} items)
+                          </span>
+                          {hidden && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium">Hidden</span>}
+                        </div>
+                        <button
+                          disabled={menuOff}
+                          onClick={() => {
+                            const current = restaurant?.features?.hiddenCategories || [];
+                            const updated = hidden
+                              ? current.filter(c => c !== cat)
+                              : [...current, cat];
+                            saveMenuVisibility({ ...restaurant.features, hiddenCategories: updated });
+                          }}
+                          className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${menuOff ? 'bg-gray-300 cursor-not-allowed' : hidden ? 'bg-gray-300' : 'bg-green-500'}`}
+                        >
+                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hidden ? 'left-0.5' : 'left-6'}`} />
+                        </button>
                       </div>
-                      <button
-                        disabled={menuOff}
-                        onClick={() => {
-                          const current = restaurant?.features?.hiddenCategories || [];
-                          const updated = hidden
-                            ? current.filter(c => c !== cat)
-                            : [...current, cat];
-                          saveMenuVisibility({ ...restaurant.features, hiddenCategories: updated });
-                        }}
-                        className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${menuOff ? 'bg-gray-300 cursor-not-allowed' : hidden ? 'bg-gray-300' : 'bg-green-500'}`}
-                      >
-                        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hidden ? 'left-0.5' : 'left-6'}`} />
-                      </button>
+                      {/* Custom message when category is hidden */}
+                      {hidden && !menuOff && (
+                        <div className="px-4 pb-3">
+                          <input
+                            type="text"
+                            defaultValue={catMessages[cat] || ''}
+                            placeholder={`e.g. ${cat} is not available right now`}
+                            className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
+                            onBlur={e => {
+                              const updated = { ...(restaurant?.features?.categoryMessages || {}), [cat]: e.target.value };
+                              saveMenuVisibility({ ...restaurant.features, categoryMessages: updated });
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
