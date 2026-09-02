@@ -730,7 +730,7 @@ export default function QROrder({ orderMode }) {
                 <h1 className="text-2xl font-bold tracking-tight">{restaurant.name}</h1>
                 <div className="flex items-center space-x-2 text-red-100">
                   <MapPin size={16} />
-                  <span className="text-sm">{slotLabel}{isTakeawayMode || isDeliveryMode ? '' : ` ${slotNumber}`}</span>
+                  <span className="text-sm">{slotLabel}{isTakeawayMode || isDeliveryMode ? '' : ''}</span>
                 </div>
               </div>
             </div>
@@ -865,6 +865,18 @@ export default function QROrder({ orderMode }) {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Menu Off Message */}
+            {!menuEnabled && restaurant.features?.menuOffMessage && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-2xl p-5 text-center">
+                <p className="text-red-700 font-medium text-base">{restaurant.features.menuOffMessage}</p>
+              </div>
+            )}
+            {!menuEnabled && !restaurant.features?.menuOffMessage && (
+              <div className="mb-6 bg-gray-50 border border-gray-200 rounded-2xl p-5 text-center">
+                <p className="text-gray-500 text-sm">Menu is currently unavailable. Please check back later.</p>
               </div>
             )}
 

@@ -3492,17 +3492,24 @@ export default function RestaurantDashboard() {
                 {restaurant?.features?.menuEnabled === false && (
                   <div className="mt-3">
                     <label className="text-xs font-medium text-red-700 block mb-1">Message shown to customers</label>
-                    <input
-                      type="text"
-                      defaultValue={restaurant?.features?.menuOffMessage || ''}
-                      placeholder="e.g. We are closed right now. Please visit us tomorrow!"
-                      className="w-full text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white"
-                      onBlur={e => {
-                        if (e.target.value !== (restaurant?.features?.menuOffMessage || '')) {
-                          saveMenuVisibility({ ...restaurant.features, menuOffMessage: e.target.value });
-                        }
-                      }}
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        id="menuOffMessageInput"
+                        type="text"
+                        defaultValue={restaurant?.features?.menuOffMessage || ''}
+                        placeholder="e.g. We are closed right now. Please visit us tomorrow!"
+                        className="flex-1 text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white"
+                      />
+                      <button
+                        onClick={() => {
+                          const val = document.getElementById('menuOffMessageInput')?.value || '';
+                          saveMenuVisibility({ ...restaurant.features, menuOffMessage: val });
+                        }}
+                        className="px-3 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 whitespace-nowrap"
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
