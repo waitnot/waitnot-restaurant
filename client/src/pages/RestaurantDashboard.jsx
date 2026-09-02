@@ -347,7 +347,8 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
 }
 
 // Collapsible category accordion with per-item toggles
-function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibleCount, open, onToggleOpen, onToggleCategory, onSaveCatMessage, onToggleItem }) {
+function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibleCount, onToggleCategory, onSaveCatMessage, onToggleItem }) {
+  const [open, setOpen] = useState(false);
   const [msgVal, setMsgVal] = useState(catMessages[cat] || '');
 
   return (
@@ -355,7 +356,7 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
       {/* Category header row */}
       <div className={`flex items-center gap-3 px-4 py-3 ${hidden || menuOff ? 'bg-red-50' : 'bg-white'}`}>
         {/* Expand arrow */}
-        <button onClick={onToggleOpen} className="p-0.5 text-gray-400 hover:text-gray-600 shrink-0">
+        <button onClick={() => setOpen(o => !o)} className="p-0.5 text-gray-400 hover:text-gray-600 shrink-0">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             {open
               ? <path d="M3 6l5 5 5-5" />
@@ -365,7 +366,7 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
         </button>
 
         {/* Category name + count — clicking also toggles expand */}
-        <button onClick={onToggleOpen} className="flex-1 flex items-center gap-2 text-left min-w-0">
+        <button onClick={() => setOpen(o => !o)} className="flex-1 flex items-center gap-2 text-left min-w-0">
           <span className={`text-sm font-semibold truncate ${hidden || menuOff ? 'text-red-500' : 'text-gray-800'}`}>{cat}</span>
           <span className="text-xs text-gray-400 shrink-0">{visibleCount}/{catItems.length} visible</span>
           {hidden && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium shrink-0">Category Hidden</span>}
@@ -520,7 +521,6 @@ export default function RestaurantDashboard() {
   const [newOccasional, setNewOccasional] = useState({ label: '', date: '', openTime: '', closeTime: '' });
   const [orderWorkflowTab, setOrderWorkflowTab] = useState('all');
   const [activeBottomTab, setActiveBottomTab] = useState('orders');
-  const [openCategories, setOpenCategories] = useState({});
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [historySearch, setHistorySearch] = useState('');
   const [clearTableModal, setClearTableModal] = useState(null); // { tableNumber, tableOrders, totalAmount }
