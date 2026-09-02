@@ -399,55 +399,66 @@ export default function StaffDashboard() {
   const printKOT = (order) => {
     const d = new Date().toLocaleDateString('en-IN');
     const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-    const slotLabel = order.orderType === 'room'
-      ? ('ROOM ' + (order.roomNumber || ''))
-      : order.tableNumber ? ('TABLE ' + order.tableNumber) : order.orderType?.toUpperCase();
+    const slot = order.orderType === 'room'
+      ? 'ROOM ' + (order.roomNumber || '')
+      : order.tableNumber ? 'TABLE ' + order.tableNumber
+      : (order.orderType || 'ORDER').toUpperCase();
 
-    const kotHTML = `
-      <div style="width:80mm;max-width:302px;font-family:'Courier New',monospace;font-size:12px;line-height:1.4;color:#000;background:white;padding:10px;">
-        <div style="text-align:center;margin-bottom:15px;border-bottom:2px solid #000;padding-bottom:10px;">
-          <div style="font-size:16px;font-weight:bold;margin-bottom:5px;">${restaurant?.name?.toUpperCase() || ''}</div>
-          <div style="font-size:14px;font-weight:bold;">=== KITCHEN ORDER TICKET ===</div>
-          <div style="font-size:10px;margin-top:5px;">Staff ORDER</div>
-        </div>
-        <div style="margin-bottom:15px;font-size:11px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Order ID:</strong></span><span>${order._id.slice(-8).toUpperCase()}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Date:</strong></span><span>${d} ${t}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Customer:</strong></span><span>${order.customerName || 'Guest'}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Type:</strong></span><span>${(order.orderType || 'dine-in').toUpperCase()}</span></div>
-          ${order.tableNumber ? `<div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Table:</strong></span><span><strong>TABLE ${order.tableNumber}</strong></span></div>` : ''}
-          ${order.roomNumber ? `<div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Room:</strong></span><span><strong>ROOM ${order.roomNumber}</strong></span></div>` : ''}
-          ${order.deliveryAddress ? `<div style="margin-bottom:2px;"><strong>Address:</strong><div style="margin-left:10px;word-wrap:break-word;">${order.deliveryAddress}</div></div>` : ''}
-        </div>
-        <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:10px 0;margin-bottom:15px;">
-          <div style="font-weight:bold;margin-bottom:8px;text-align:center;">ITEMS TO PREPARE</div>
-          ${(order.items || []).map(i => `
-            <div style="margin-bottom:8px;padding:5px;background:#f5f5f5;">
-              <div style="display:flex;justify-content:space-between;font-weight:bold;">
-                <span>${i.name}</span><span>x ${i.quantity}</span>
-              </div>
-              ${i.category ? `<div style="font-size:10px;color:#666;margin-top:2px;">Category: ${i.category}</div>` : ''}
-            </div>
-          `).join('')}
-        </div>
-        ${order.specialInstructions ? `<div style="margin-bottom:15px;padding:8px;border:1px dashed #000;"><strong>Special Instructions:</strong><div style="margin-top:5px;font-size:11px;">${order.specialInstructions}</div></div>` : ''}
-        <div style="text-align:center;border-top:2px solid #000;padding-top:10px;">
-          <div style="font-size:11px;font-weight:bold;">PREPARE WITH CARE</div>
-          <div style="font-size:10px;margin-top:3px;">Staff Order - Priority Service</div>
-          <div style="font-size:9px;margin-top:8px;color:#666;">Printed: ${d} ${t}</div>
-        </div>
-      </div>`;
+    const itemRows = (order.items || []).map(i =>
+      `<tr>
+        <td style="padding:4px 2px;font-size:13px;font-weight:900;border-bottom:1px dotted #000;">${i.name}</td>
+        <td style="padding:4px 2px;font-size:15px;font-weight:900;text-align:right;border-bottom:1px dotted #000;">x${i.quantity}</td>
+      </tr>`
+    ).join('');
 
-    const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title><style>@page{size:80mm auto;margin:0}html,body{margin:0;padding:0;background:white;}</style></head><body>${kotHTML}</body></html>`;
-    printViaIframe(fullHtml);
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>KOT</title>
+<style>
+  @page { size: 80mm auto; margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; background:#fff; font-family:'Courier New',Courier,monospace; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .wrap { width:100%; max-width:302px; margin:0 auto; }
+  .center { text-align:center; }
+  .bold { font-weight:900; }
+  .sep { border:none; border-top:2px solid #000; margin:6px 0; }
+  .dsep { border:none; border-top:1px dashed #000; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="center" style="margin-bottom:8px;">
+    <div style="font-size:18px;font-weight:900;letter-spacing:1px;">${(restaurant?.name || '').toUpperCase()}</div>
+    <div style="font-size:13px;font-weight:900;margin-top:3px;">*** KITCHEN ORDER TICKET ***</div>
+    <div style="font-size:11px;margin-top:2px;">Staff Order</div>
+  </div>
+  <hr class="sep">
+  <table style="font-size:12px;margin-bottom:6px;">
+    <tr><td class="bold">Order ID</td><td style="text-align:right;font-weight:900;">${order._id.slice(-8).toUpperCase()}</td></tr>
+    <tr><td class="bold">Date</td><td style="text-align:right;">${d}</td></tr>
+    <tr><td class="bold">Time</td><td style="text-align:right;font-weight:900;">${t}</td></tr>
+    ${slot ? `<tr><td class="bold">Slot</td><td style="text-align:right;font-size:14px;font-weight:900;">${slot}</td></tr>` : ''}
+    <tr><td class="bold">Type</td><td style="text-align:right;font-weight:900;">${(order.orderType || 'DINE-IN').toUpperCase()}</td></tr>
+    ${order.customerName ? `<tr><td class="bold">Customer</td><td style="text-align:right;">${order.customerName}</td></tr>` : ''}
+    ${order.deliveryAddress ? `<tr><td class="bold" colspan="2">Address: ${order.deliveryAddress}</td></tr>` : ''}
+  </table>
+  <hr class="sep">
+  <div class="center bold" style="font-size:13px;margin:6px 0;">ITEMS TO PREPARE</div>
+  <hr class="dsep">
+  <table>${itemRows}</table>
+  <hr class="sep">
+  ${order.specialInstructions ? `<div style="font-size:12px;font-weight:900;margin:6px 0;">NOTE: ${order.specialInstructions}</div><hr class="sep">` : ''}
+  <div class="center" style="font-size:12px;font-weight:900;margin-top:6px;">-- PREPARE WITH CARE --</div>
+  <div class="center" style="font-size:10px;margin-top:4px;">Printed: ${d} ${t}</div>
+</div>
+</body></html>`;
+    printViaIframe(html);
   };
 
-  // Print Bill — same approach as RestaurantDashboard printReceipt
+  // Print Bill — thermal-safe table layout
   const printBill = async (tableOrders, tableLabel, total) => {
     const d = new Date().toLocaleDateString('en-IN');
     const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-    // If items are missing from in-memory orders, fetch fresh from API
     let ordersToUse = tableOrders;
     const hasItems = tableOrders.some(o => o.items && o.items.length > 0);
     if (!hasItems && tableOrders.length > 0) {
@@ -455,10 +466,9 @@ export default function StaffDashboard() {
         const { data } = await axios.get(`${API}/api/orders/restaurant/${staff.restaurant_id}?status=active`);
         const ids = new Set(tableOrders.map(o => o._id));
         ordersToUse = data.filter(o => ids.has(o._id));
-      } catch(e) { /* fallback to original */ }
+      } catch(e) {}
     }
 
-    // Merge items from all orders
     const allItems = {};
     ordersToUse.forEach(o => (o.items || []).forEach(i => {
       if (allItems[i.name]) { allItems[i.name].qty += i.quantity; allItems[i.name].total += i.price * i.quantity; }
@@ -466,34 +476,62 @@ export default function StaffDashboard() {
     }));
     const realTotal = Object.values(allItems).reduce((s, v) => s + v.total, 0) || total;
 
-    const receiptHTML = '<div style="width:80mm;max-width:302px;font-family:Courier New,monospace;font-size:12px;font-weight:bold;line-height:1.3;color:#000;background:white;padding:8px;">'
-      + '<div style="text-align:center;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:8px;">'
-      + '<div style="font-size:18px;font-weight:900;">' + (restaurant?.name?.toUpperCase() || '') + '</div>'
-      + '<div style="font-size:12px;font-weight:bold;">RESTAURANT RECEIPT</div>'
-      + '</div>'
-      + '<div style="margin-bottom:10px;font-size:12px;font-weight:bold;">'
-      + '<div style="display:flex;justify-content:space-between;"><span>REF:</span><span style="font-weight:900;">' + tableLabel + '</span></div>'
-      + '<div style="display:flex;justify-content:space-between;"><span>DATE:</span><span>' + d + '</span></div>'
-      + '<div style="display:flex;justify-content:space-between;"><span>TIME:</span><span>' + t + '</span></div>'
-      + '</div>'
-      + '<div style="border-top:2px solid #000;border-bottom:2px solid #000;padding:5px 0;margin-bottom:8px;">'
-      + '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:12px;"><span style="width:55%;">ITEM</span><span style="width:15%;text-align:center;">QTY</span><span style="width:30%;text-align:right;">AMT</span></div>'
-      + '</div>'
-      + '<div style="margin-bottom:10px;">'
-      + Object.entries(allItems).map(([n, v]) => '<div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;font-weight:bold;"><span style="width:55%;word-wrap:break-word;">' + n + '</span><span style="width:15%;text-align:center;">' + v.qty + '</span><span style="width:30%;text-align:right;">&#8377;' + v.total + '</span></div>').join('')
-      + '</div>'
-      + '<div style="border-top:2px solid #000;padding-top:8px;margin-bottom:10px;">'
-      + '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid #000;padding-top:5px;"><span>TOTAL:</span><span>&#8377;' + realTotal + '</span></div>'
-      + '</div>'
-      + '<div style="text-align:center;border-top:2px solid #000;padding-top:8px;font-size:11px;font-weight:bold;">'
-      + '<div style="margin-bottom:4px;">THANK YOU FOR DINING WITH US!</div>'
-      + '<div style="margin-bottom:4px;">PLEASE VISIT AGAIN</div>'
-      + '<div style="font-size:14px;margin-bottom:6px;">&#9733;&#9733;&#9733;&#9733;&#9733;</div>'
-      + '<div style="font-size:9px;font-weight:normal;">Printed: ' + d + ' ' + t + '</div>'
-      + '</div></div>';
+    const itemRows = Object.entries(allItems).map(([name, v]) =>
+      `<tr>
+        <td style="padding:4px 2px;font-size:12px;font-weight:900;border-bottom:1px dotted #000;width:55%;word-break:break-word;">${name}</td>
+        <td style="padding:4px 2px;font-size:12px;font-weight:900;text-align:center;border-bottom:1px dotted #000;width:15%;">${v.qty}</td>
+        <td style="padding:4px 2px;font-size:12px;font-weight:900;text-align:right;border-bottom:1px dotted #000;width:30%;">&#8377;${v.total}</td>
+      </tr>`
+    ).join('');
 
-    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title><style>@page{size:80mm auto;margin:0}html,body{margin:0;padding:0;height:fit-content;overflow:hidden;background:white;font-family:Courier New,monospace;font-weight:bold;}</style></head><body>' + receiptHTML + '</body></html>';
-    printViaIframe(fullHtml);
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Bill</title>
+<style>
+  @page { size: 80mm auto; margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; background:#fff; font-family:'Courier New',Courier,monospace; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .wrap { width:100%; max-width:302px; margin:0 auto; }
+  .center { text-align:center; }
+  .sep { border:none; border-top:2px solid #000; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="center" style="margin-bottom:8px;">
+    <div style="font-size:20px;font-weight:900;letter-spacing:1px;">${(restaurant?.name || '').toUpperCase()}</div>
+    <div style="font-size:12px;font-weight:900;margin-top:3px;">RESTAURANT RECEIPT</div>
+  </div>
+  <hr class="sep">
+  <table style="font-size:12px;margin-bottom:6px;">
+    <tr><td style="font-weight:900;">REF</td><td style="text-align:right;font-size:14px;font-weight:900;">${tableLabel || ''}</td></tr>
+    <tr><td style="font-weight:900;">DATE</td><td style="text-align:right;">${d}</td></tr>
+    <tr><td style="font-weight:900;">TIME</td><td style="text-align:right;">${t}</td></tr>
+    ${ordersToUse[0]?.customerName ? `<tr><td style="font-weight:900;">CUSTOMER</td><td style="text-align:right;">${ordersToUse[0].customerName}</td></tr>` : ''}
+  </table>
+  <hr class="sep">
+  <table style="margin-bottom:6px;">
+    <tr>
+      <th style="text-align:left;font-size:12px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:55%;">ITEM</th>
+      <th style="text-align:center;font-size:12px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:15%;">QTY</th>
+      <th style="text-align:right;font-size:12px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:30%;">AMT</th>
+    </tr>
+    ${itemRows}
+  </table>
+  <hr class="sep">
+  <table style="margin-bottom:6px;">
+    <tr>
+      <td style="font-size:16px;font-weight:900;">TOTAL</td>
+      <td style="text-align:right;font-size:18px;font-weight:900;">&#8377;${realTotal}</td>
+    </tr>
+  </table>
+  <hr class="sep">
+  <div class="center" style="font-size:12px;font-weight:900;margin-top:6px;">THANK YOU FOR DINING WITH US!</div>
+  <div class="center" style="font-size:12px;font-weight:900;margin-top:3px;">PLEASE VISIT AGAIN</div>
+  <div class="center" style="font-size:16px;margin-top:4px;">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+  <div class="center" style="font-size:10px;margin-top:6px;">Printed: ${d} ${t}</div>
+</div>
+</body></html>`;
+    printViaIframe(html);
   };
 
   const clearTable = (tableOrders, tableNum) => {

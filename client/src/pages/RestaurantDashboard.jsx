@@ -1232,10 +1232,9 @@ export default function RestaurantDashboard() {
     const settings = getPrinterSettings();
     const firstOrderType = tableOrders[0]?.orderType || 'dine-in';
     const slotLabel = firstOrderType === 'room' ? 'ROOM' : 'TABLE';
-    
-    // Try to use custom bill first if enabled
+
+    // Try custom bill first if enabled
     if (settings.billCustomization.enableCustomBill) {
-      // Create a combined order object for custom bill printing
       const combinedOrder = {
         _id: `table-${tableNumber}-${Date.now()}`,
         customerName: tableOrders[0]?.customerName || 'Table Customer',
@@ -1246,225 +1245,94 @@ export default function RestaurantDashboard() {
         createdAt: new Date().toISOString(),
         items: []
       };
-      
-      // Combine all items from all orders
-      const allItems = {};
-      tableOrders.forEach(order => {
-        order.items.forEach(item => {
-          const key = item.name;
-          if (allItems[key]) {
-            allItems[key].quantity += item.quantity;
-            allItems[key].total += item.price * item.quantity;
-          } else {
-            allItems[key] = {
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-              total: item.price * item.quantity
-            };
-          }
-        });
-      });
-      
-      // Convert to items array for custom bill
-      combinedOrder.items = Object.values(allItems);
-      
+      const allItemsCustom = {};
+      tableOrders.forEach(order => { order.items.forEach(item => {
+        if (allItemsCustom[item.name]) { allItemsCustom[item.name].quantity += item.quantity; allItemsCustom[item.name].total += item.price * item.quantity; }
+        else allItemsCustom[item.name] = { name: item.name, price: item.price, quantity: item.quantity, total: item.price * item.quantity };
+      }); });
+      combinedOrder.items = Object.values(allItemsCustom);
       const customPrintSuccess = printCustomBill(combinedOrder, restaurant, settings.billCustomization);
-      if (customPrintSuccess) {
-        return; // Custom bill printed successfully
-      }
+      if (customPrintSuccess) return;
     }
-    
-    // Enhanced thermal printer optimized bill format
-    // Create bill summary
+
     const allItems = {};
-    tableOrders.forEach(order => {
-      order.items.forEach(item => {
-        const key = item.name;
-        if (allItems[key]) {
-          allItems[key].quantity += item.quantity;
-          allItems[key].total += item.price * item.quantity;
-        } else {
-          allItems[key] = {
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            total: item.price * item.quantity
-          };
-        }
-      });
-    });
+    tableOrders.forEach(order => { order.items.forEach(item => {
+      if (allItems[item.name]) { allItems[item.name].quantity += item.quantity; allItems[item.name].total += item.price * item.quantity; }
+      else allItems[item.name] = { name: item.name, price: item.price, quantity: item.quantity, total: item.price * item.quantity };
+    }); });
 
     const firstOrder = tableOrders[0];
-    const orderId = firstOrder.orderNumber
-      ? `#${String(firstOrder.orderNumber).padStart(3, '0')}`
-      : `ORD-${Date.now().toString().slice(-6)}`;
-    const currentDate = new Date();
-    const dateStr = currentDate.toLocaleDateString('en-IN');
-    const timeStr = currentDate.toLocaleTimeString('en-IN', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    const orderId = firstOrder.orderNumber ? `#${String(firstOrder.orderNumber).padStart(3,'0')}` : `ORD-${Date.now().toString().slice(-6)}`;
+    const dateStr = new Date().toLocaleDateString('en-IN');
+    const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-    // Create receipt HTML with enhanced thermal printer styling
-    const receiptHTML = `
-      <div id="receipt-content" style="
-        width: 80mm;
-        max-width: 302px;
-        font-family: 'Courier New', 'Lucida Console', monospace;
-        font-size: 14px;
-        font-weight: bold;
-        line-height: 1.3;
-        color: #000;
-        background: white;
-        padding: 8px;
-        margin: 0;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      ">
-        <!-- Restaurant Header -->
-        <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
-          <div style="font-size: 18px; font-weight: 900; margin-bottom: 4px; letter-spacing: 1px;">
-            ${restaurant.name.toUpperCase()}
-          </div>
-          <div style="font-size: 12px; font-weight: bold;">
-            RESTAURANT RECEIPT
-          </div>
-        </div>
+    const itemRows = Object.values(allItems).map(item =>
+      `<tr>
+        <td style="padding:4px 2px;font-size:12px;font-weight:900;border-bottom:1px dotted #000;width:55%;word-break:break-word;">${item.name}</td>
+        <td style="padding:4px 2px;font-size:12px;font-weight:900;text-align:center;border-bottom:1px dotted #000;width:15%;">${item.quantity}</td>
+        <td style="padding:4px 2px;font-size:12px;font-weight:900;text-align:right;border-bottom:1px dotted #000;width:30%;">&#8377;${item.total}</td>
+      </tr>`
+    ).join('');
 
-        <!-- Order Info -->
-        <div style="margin-bottom: 12px; font-size: 12px; font-weight: bold;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>${slotLabel}:</span>
-            <span style="font-weight: 900; font-size: 14px;">${tableNumber}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>ORDER ID:</span>
-            <span>${orderId}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>DATE:</span>
-            <span>${dateStr}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>TIME:</span>
-            <span>${timeStr}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span>CUSTOMER:</span>
-            <span>${firstOrder.customerName}</span>
-          </div>
-        </div>
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Receipt</title>
+<style>
+  @page { size: 80mm auto; margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; background:#fff; font-family:'Courier New',Courier,monospace; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .wrap { width:100%; max-width:302px; margin:0 auto; }
+  .center { text-align:center; }
+  .sep { border:none; border-top:2px solid #000; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="center" style="margin-bottom:8px;">
+    <div style="font-size:20px;font-weight:900;letter-spacing:1px;">${restaurant.name.toUpperCase()}</div>
+    <div style="font-size:12px;font-weight:900;margin-top:3px;">RESTAURANT RECEIPT</div>
+  </div>
+  <hr class="sep">
+  <table style="font-size:12px;margin-bottom:6px;">
+    <tr><td style="font-weight:900;">${slotLabel}</td><td style="text-align:right;font-size:14px;font-weight:900;">${tableNumber}</td></tr>
+    <tr><td style="font-weight:900;">ORDER ID</td><td style="text-align:right;">${orderId}</td></tr>
+    <tr><td style="font-weight:900;">DATE</td><td style="text-align:right;">${dateStr}</td></tr>
+    <tr><td style="font-weight:900;">TIME</td><td style="text-align:right;">${timeStr}</td></tr>
+    <tr><td style="font-weight:900;">CUSTOMER</td><td style="text-align:right;">${firstOrder.customerName || 'Guest'}</td></tr>
+  </table>
+  <hr class="sep">
+  <table style="margin-bottom:6px;">
+    <tr>
+      <th style="text-align:left;font-size:12px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:55%;">ITEM</th>
+      <th style="text-align:center;font-size:12px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:15%;">QTY</th>
+      <th style="text-align:right;font-size:12px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:30%;">AMT</th>
+    </tr>
+    ${itemRows}
+  </table>
+  <hr class="sep">
+  <table style="margin-bottom:6px;">
+    <tr>
+      <td style="font-size:16px;font-weight:900;">TOTAL</td>
+      <td style="text-align:right;font-size:18px;font-weight:900;">&#8377;${totalAmount}</td>
+    </tr>
+  </table>
+  <hr class="sep">
+  <div class="center" style="font-size:12px;font-weight:900;margin-top:6px;">THANK YOU FOR DINING WITH US!</div>
+  <div class="center" style="font-size:12px;font-weight:900;margin-top:3px;">PLEASE VISIT AGAIN</div>
+  <div class="center" style="font-size:16px;margin-top:4px;">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+  <div class="center" style="font-size:10px;margin-top:6px;">Printed: ${dateStr} ${timeStr}</div>
+</div>
+<script>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close();},300);},300);}</script>
+</body></html>`;
 
-        <!-- Items Header -->
-        <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 12px;">
-            <span style="width: 55%;">ITEM</span>
-            <span style="width: 15%; text-align: center;">QTY</span>
-            <span style="width: 30%; text-align: right;">AMOUNT</span>
-          </div>
-        </div>
-
-        <!-- Items List -->
-        <div style="margin-bottom: 12px;">
-          ${Object.values(allItems).map(item => `
-            <div style="margin-bottom: 6px; font-size: 12px; font-weight: bold;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                <span style="width: 55%; word-wrap: break-word;">${item.name}</span>
-                <span style="width: 15%; text-align: center;">${item.quantity}</span>
-                <span style="width: 30%; text-align: right;">₹${item.total}</span>
-              </div>
-              <div style="font-size: 10px; color: #333; margin-left: 0; font-weight: normal;">
-                @ ₹${item.price} each
-              </div>
-            </div>
-          `).join('')}
-        </div>
-
-        <!-- Total Section -->
-        <div style="border-top: 2px solid #000; padding-top: 8px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 4px;">
-            <span>SUBTOTAL:</span>
-            <span>₹${totalAmount}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; border-top: 2px solid #000; padding-top: 6px; background: #f0f0f0; padding: 6px 4px;">
-            <span>TOTAL:</span>
-            <span>₹${totalAmount}</span>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="text-align: center; font-size: 11px; border-top: 2px solid #000; padding-top: 8px; font-weight: bold;">
-          <div style="margin-bottom: 4px;">THANK YOU FOR DINING WITH US!</div>
-          <div style="margin-bottom: 4px;">PLEASE VISIT AGAIN</div>
-          <div style="margin-bottom: 8px; font-size: 14px;">★★★★★</div>
-          <div style="font-size: 9px; color: #333; font-weight: normal;">
-            Printed: ${dateStr} ${timeStr}
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Create a new window for printing with enhanced print styles
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    
-    if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Receipt - ${slotLabel} ${tableNumber}</title>
-          <style>
-            @media print {
-              @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              * {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-                font-weight: bold !important;
-              }
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              background: white;
-              font-family: 'Courier New', 'Lucida Console', monospace;
-              font-weight: bold;
-            }
-            @font-face {
-              font-family: 'ThermalPrint';
-              src: local('Courier New'), local('Lucida Console'), local('monospace');
-              font-weight: bold;
-            }
-          </style>
-        </head>
-        <body>
-          ${receiptHTML}
-        </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      
-      // Wait for content to load then print
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-          setTimeout(() => {
-            printWindow.close();
-          }, 250);
-        }, 500);
-      };
-    } else {
-      showToast('Please allow popups to print', 'error');
+    const w = window.open('', '_blank', 'width=420,height=700');
+    if (w) { w.document.write(html); w.document.close(); }
+    else {
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open(); doc.write(html); doc.close();
+      setTimeout(() => { try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e){} setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 3000); }, 400);
     }
   };
 
