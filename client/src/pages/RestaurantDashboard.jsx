@@ -3642,7 +3642,7 @@ export default function RestaurantDashboard() {
                   const visibleCount = catItems.filter(i => i.available).length;
                   return (
                     <CategoryAccordion
-                      key={cat}
+                      key={cat + '-' + catItems.map(i => i.available ? '1' : '0').join('')}
                       cat={cat}
                       hidden={hidden}
                       menuOff={menuOff}
@@ -3661,13 +3661,18 @@ export default function RestaurantDashboard() {
                       onToggleItem={async (item) => {
                         const restaurantId = localStorage.getItem('restaurantId');
                         const newAvail = !item.available;
+                        // Optimistic update
                         setRestaurant(prev => ({
                           ...prev,
                           menu: prev.menu.map(m => m._id === item._id ? { ...m, available: newAvail } : m)
                         }));
                         try {
-                          await axios.put(`/api/restaurants/${restaurantId}/menu/${item._id}`, { available: newAvail });
+                          const res = await axios.put(`/api/restaurants/${restaurantId}/menu/${item._id}`, { available: newAvail });
+                          if (res.data?.menu) {
+                            setRestaurant(res.data);
+                          }
                         } catch(e) {
+                          console.error('Toggle item failed:', e.response?.data || e.message);
                           fetchRestaurant(restaurantId);
                           showToast('Failed to update item', 'error');
                         }
