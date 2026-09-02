@@ -389,6 +389,7 @@ export default function RestaurantDashboard() {
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
   const [menuVisibilitySaving, setMenuVisibilitySaving] = useState(false);
+  const [menuOffMsgDraft, setMenuOffMsgDraft] = useState('');
   const [feedback, setFeedback] = useState([]);
   const [feedbackStats, setFeedbackStats] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
