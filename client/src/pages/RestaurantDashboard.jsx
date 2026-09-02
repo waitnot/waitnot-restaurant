@@ -357,8 +357,11 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
       <div className={`flex items-center gap-3 px-4 py-3 ${hidden || menuOff ? 'bg-red-50' : 'bg-white'}`}>
         {/* Expand arrow */}
         <button onClick={() => setOpen(o => !o)} className="p-0.5 text-gray-400 hover:text-gray-600 shrink-0">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d={open ? 'M3 6l5 5 5-5' : 'M6 3l5 5-5 5'} stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            {open
+              ? <path d="M3 6l5 5 5-5" />
+              : <path d="M6 3l5 5-5 5" />
+            }
           </svg>
         </button>
 
@@ -3672,16 +3675,6 @@ export default function RestaurantDashboard() {
                     />
                   );
                 })}
-              </div>
-            </div>
-          </div>
-        )}
-                    ))}
-                  </div>
-                ))}
-                {(restaurant?.menu || []).length === 0 && (
-                  <p className="text-sm text-gray-400 text-center py-6">No menu items yet</p>
-                )}
               </div>
             </div>
           </div>
