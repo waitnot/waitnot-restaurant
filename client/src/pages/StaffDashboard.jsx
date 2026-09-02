@@ -403,26 +403,42 @@ export default function StaffDashboard() {
       ? ('ROOM ' + (order.roomNumber || ''))
       : order.tableNumber ? ('TABLE ' + order.tableNumber) : order.orderType?.toUpperCase();
 
-    const kotHTML = '<div style="width:80mm;max-width:302px;font-family:Courier New,monospace;font-size:12px;line-height:1.3;color:#000;background:white;padding:8px;">'
-      + '<div style="text-align:center;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:8px;">'
-      + '<div style="font-size:16px;font-weight:900;">' + (restaurant?.name?.toUpperCase() || '') + '</div>'
-      + '<div style="font-size:13px;font-weight:bold;">** KITCHEN ORDER (KOT) **</div>'
-      + '</div>'
-      + '<div style="margin-bottom:10px;font-size:11px;font-weight:bold;">'
-      + '<div style="display:flex;justify-content:space-between;"><span>SLOT:</span><span>' + slotLabel + '</span></div>'
-      + '<div style="display:flex;justify-content:space-between;"><span>ORDER:</span><span>' + order._id.slice(-6).toUpperCase() + '</span></div>'
-      + '<div style="display:flex;justify-content:space-between;"><span>TIME:</span><span>' + d + ' ' + t + '</span></div>'
-      + '</div>'
-      + '<div style="border-top:2px solid #000;border-bottom:1px solid #000;padding:4px 0;margin-bottom:8px;">'
-      + '<div style="display:flex;justify-content:space-between;font-weight:900;"><span style="width:70%;">ITEM</span><span style="width:30%;text-align:center;">QTY</span></div>'
-      + '</div>'
-      + '<div style="margin-bottom:12px;">'
-      + (order.items || []).map(i => '<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;font-weight:bold;"><span style="width:70%;word-wrap:break-word;">' + i.name + '</span><span style="width:30%;text-align:center;font-size:15px;">' + i.quantity + '</span></div>').join('')
-      + '</div>'
-      + '<div style="text-align:center;border-top:2px solid #000;padding-top:8px;font-size:11px;font-weight:bold;">-- PREPARE WITH CARE --</div>'
-      + '</div>';
+    const kotHTML = `
+      <div style="width:80mm;max-width:302px;font-family:'Courier New',monospace;font-size:12px;line-height:1.4;color:#000;background:white;padding:10px;">
+        <div style="text-align:center;margin-bottom:15px;border-bottom:2px solid #000;padding-bottom:10px;">
+          <div style="font-size:16px;font-weight:bold;margin-bottom:5px;">${restaurant?.name?.toUpperCase() || ''}</div>
+          <div style="font-size:14px;font-weight:bold;">=== KITCHEN ORDER TICKET ===</div>
+          <div style="font-size:10px;margin-top:5px;">Staff ORDER</div>
+        </div>
+        <div style="margin-bottom:15px;font-size:11px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Order ID:</strong></span><span>${order._id.slice(-8).toUpperCase()}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Date:</strong></span><span>${d} ${t}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Customer:</strong></span><span>${order.customerName || 'Guest'}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Type:</strong></span><span>${(order.orderType || 'dine-in').toUpperCase()}</span></div>
+          ${order.tableNumber ? `<div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Table:</strong></span><span><strong>TABLE ${order.tableNumber}</strong></span></div>` : ''}
+          ${order.roomNumber ? `<div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span><strong>Room:</strong></span><span><strong>ROOM ${order.roomNumber}</strong></span></div>` : ''}
+          ${order.deliveryAddress ? `<div style="margin-bottom:2px;"><strong>Address:</strong><div style="margin-left:10px;word-wrap:break-word;">${order.deliveryAddress}</div></div>` : ''}
+        </div>
+        <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:10px 0;margin-bottom:15px;">
+          <div style="font-weight:bold;margin-bottom:8px;text-align:center;">ITEMS TO PREPARE</div>
+          ${(order.items || []).map(i => `
+            <div style="margin-bottom:8px;padding:5px;background:#f5f5f5;">
+              <div style="display:flex;justify-content:space-between;font-weight:bold;">
+                <span>${i.name}</span><span>x ${i.quantity}</span>
+              </div>
+              ${i.category ? `<div style="font-size:10px;color:#666;margin-top:2px;">Category: ${i.category}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        ${order.specialInstructions ? `<div style="margin-bottom:15px;padding:8px;border:1px dashed #000;"><strong>Special Instructions:</strong><div style="margin-top:5px;font-size:11px;">${order.specialInstructions}</div></div>` : ''}
+        <div style="text-align:center;border-top:2px solid #000;padding-top:10px;">
+          <div style="font-size:11px;font-weight:bold;">PREPARE WITH CARE</div>
+          <div style="font-size:10px;margin-top:3px;">Staff Order - Priority Service</div>
+          <div style="font-size:9px;margin-top:8px;color:#666;">Printed: ${d} ${t}</div>
+        </div>
+      </div>`;
 
-    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title><style>@page{size:80mm auto;margin:0}html,body{margin:0;padding:0;height:fit-content;overflow:hidden;background:white;}body{font-family:Courier New,monospace;}</style></head><body>' + kotHTML + '</body></html>';
+    const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title><style>@page{size:80mm auto;margin:0}html,body{margin:0;padding:0;background:white;}</style></head><body>${kotHTML}</body></html>`;
     printViaIframe(fullHtml);
   };
 
