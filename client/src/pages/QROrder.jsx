@@ -534,11 +534,21 @@ export default function QROrder({ orderMode }) {
                 <AlertTriangle size={40} className="text-white" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-3">QR Ordering Unavailable</h2>
-            <p className="text-gray-600 mb-6 leading-relaxed">
-              QR ordering has been temporarily disabled for <span className="font-semibold text-red-600">{restaurant.name}</span>. 
-              Please contact the restaurant directly to place your order.
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">Store Currently Offline</h2>
+            <p className="text-gray-600 mb-4 leading-relaxed">
+              <span className="font-semibold text-red-600">{restaurant.name}</span> is not accepting orders right now.
             </p>
+            {restaurant.features?.occasionalHours?.length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4 text-left">
+                <p className="text-xs font-bold text-orange-700 uppercase tracking-wide mb-2">Special Opening Hours</p>
+                {restaurant.features.occasionalHours.map((h, i) => (
+                  <div key={i} className="flex justify-between text-sm text-orange-800 mb-1">
+                    <span className="font-medium">{h.label} · {h.date}</span>
+                    <span>{h.openTime} – {h.closeTime}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
           <div className="space-y-4">

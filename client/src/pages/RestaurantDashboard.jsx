@@ -434,20 +434,15 @@ export default function RestaurantDashboard() {
   const [importingMenu, setImportingMenu] = useState(false);
 
   // ── New feature state ──
-  const [storeOnline, setStoreOnline] = useState(() => {
-    const saved = localStorage.getItem('storeOnline');
-    return saved === null ? true : saved === 'true';
-  });
+  const [storeOnline, setStoreOnline] = useState(true); // will sync from restaurant.features below
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSearch, setDrawerSearch] = useState('');
   const [topSearch, setTopSearch] = useState('');
   const [showOccasionalHours, setShowOccasionalHours] = useState(false);
-  const [occasionalHours, setOccasionalHours] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('occasionalHours') || '[]'); } catch { return []; }
-  });
+  const [occasionalHours, setOccasionalHours] = useState([]);
   const [newOccasional, setNewOccasional] = useState({ label: '', date: '', openTime: '', closeTime: '' });
-  const [orderWorkflowTab, setOrderWorkflowTab] = useState('all'); // 'all'|'preparing'|'ready'|'out-for-delivery'|'scheduled'
-  const [activeBottomTab, setActiveBottomTab] = useState('orders'); // 'orders'|'inventory'|'feedback'|'hub'
+  const [orderWorkflowTab, setOrderWorkflowTab] = useState('all');
+  const [activeBottomTab, setActiveBottomTab] = useState('orders');
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [historySearch, setHistorySearch] = useState('');
   const [clearTableModal, setClearTableModal] = useState(null); // { tableNumber, tableOrders, totalAmount }
@@ -612,9 +607,24 @@ export default function RestaurantDashboard() {
     try {
       const { data } = await axios.get(`/api/restaurants/${id}`);
       setRestaurant(data);
+      setStoreOnline(data.features?.qrOrderingEnabled !== false);
+      setOccasionalHours(data.features?.occasionalHours || []);
     } catch (error) {
       console.error('Error fetching restaurant:', error);
     }
+  };
+
+  const toggleStoreOnline = async () => {
+    const next = !storeOnline;
+    setStoreOnline(next);
+    const updated = { ...restaurant?.features, qrOrderingEnabled: next };
+    await saveMenuVisibility(updated);
+    showToast(next ? '✅ Store is now Online' : '⚠️ Store is now Offline', next ? 'success' : 'error');
+  };
+
+  const saveOccasionalHour = async (updated) => {
+    setOccasionalHours(updated);
+    await saveMenuVisibility({ ...restaurant?.features, occasionalHours: updated });
   };
 
   const fetchOrders = async (id) => {
@@ -2573,7 +2583,7 @@ export default function RestaurantDashboard() {
 
           {/* Online / Offline toggle */}
           <button
-            onClick={() => { const next = !storeOnline; setStoreOnline(next); localStorage.setItem('storeOnline', String(next)); showToast(next ? 'Store is now Online' : 'Store is now Offline', next ? 'success' : 'error'); }}
+            onClick={toggleStoreOnline}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${storeOnline ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}
           >
             {storeOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
@@ -2644,7 +2654,7 @@ export default function RestaurantDashboard() {
                   <p className="text-xs text-gray-400">{storeOnline ? 'Accepting orders' : 'Not accepting orders'}</p>
                 </div>
                 <button
-                  onClick={() => { const next = !storeOnline; setStoreOnline(next); localStorage.setItem('storeOnline', String(next)); showToast(next ? 'Store is now Online' : 'Store is now Offline', next ? 'success' : 'error'); }}
+                  onClick={toggleStoreOnline}
                   className={`relative w-12 h-6 rounded-full transition-colors ${storeOnline ? 'bg-green-500' : 'bg-red-400'}`}>
                   <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${storeOnline ? 'left-6' : 'left-0.5'}`} />
                 </button>
@@ -2673,7 +2683,7 @@ export default function RestaurantDashboard() {
                     <p className="text-sm font-semibold text-gray-800">{h.label}</p>
                     <p className="text-xs text-gray-400">{h.date} · {h.openTime} – {h.closeTime}</p>
                   </div>
-                  <button onClick={() => { const updated = occasionalHours.filter((_, idx) => idx !== i); setOccasionalHours(updated); localStorage.setItem('occasionalHours', JSON.stringify(updated)); }}
+                  <button onClick={() => { const updated = occasionalHours.filter((_, idx) => idx !== i); saveOccasionalHour(updated); }}
                     className="p-1.5 text-red-400 hover:text-red-600"><X size={15} /></button>
                 </div>
               ))}
@@ -2698,8 +2708,7 @@ export default function RestaurantDashboard() {
                   onClick={() => {
                     if (!newOccasional.label || !newOccasional.date) return;
                     const updated = [...occasionalHours, newOccasional];
-                    setOccasionalHours(updated);
-                    localStorage.setItem('occasionalHours', JSON.stringify(updated));
+                    saveOccasionalHour(updated);
                     setNewOccasional({ label: '', date: '', openTime: '', closeTime: '' });
                   }}
                   className="w-full bg-primary text-white py-2 rounded-xl text-sm font-bold hover:opacity-90">
