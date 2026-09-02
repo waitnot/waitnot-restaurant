@@ -2338,7 +2338,7 @@ export default function RestaurantDashboard() {
     `;
 
     // Create and print — iframe fallback for popup-blocked browsers
-    const fullKotHtml = '<!DOCTYPE html><html><head><title>KOT</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
+    const fullKotHtml = '<!DOCTYPE html><html><head><title>KOT</title><style>@page{size:' + receiptWidth + ' auto;margin:0}html,body{margin:0;padding:0;height:fit-content;overflow:hidden;background:white;}</style></head><body>' + kotHTML + '</body></html>';
     openPrintWindow(fullKotHtml, 'kitchen');
   };
 
@@ -2476,7 +2476,7 @@ export default function RestaurantDashboard() {
     `;
 
     // Create and print — iframe fallback for popup-blocked browsers
-    const fullBillHtml = '<!DOCTYPE html><html><head><title>Bill</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + billHTML + '</body></html>';
+    const fullBillHtml = '<!DOCTYPE html><html><head><title>Bill</title><style>@page{size:' + receiptWidth + ' auto;margin:0}html,body{margin:0;padding:0;height:fit-content;overflow:hidden;background:white;}</style></head><body>' + billHTML + '</body></html>';
     openPrintWindow(fullBillHtml, 'bill');
   };
 

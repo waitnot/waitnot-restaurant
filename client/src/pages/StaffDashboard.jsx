@@ -422,7 +422,7 @@ export default function StaffDashboard() {
       + '<div style="text-align:center;border-top:2px solid #000;padding-top:8px;font-size:11px;font-weight:bold;">-- PREPARE WITH CARE --</div>'
       + '</div>';
 
-    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title><style>@page{size:80mm auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
+    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title><style>@page{size:80mm auto;margin:0}html,body{margin:0;padding:0;height:fit-content;overflow:hidden;background:white;}body{font-family:Courier New,monospace;}</style></head><body>' + kotHTML + '</body></html>';
     printViaIframe(fullHtml);
   };
 
@@ -476,7 +476,7 @@ export default function StaffDashboard() {
       + '<div style="font-size:9px;font-weight:normal;">Printed: ' + d + ' ' + t + '</div>'
       + '</div></div>';
 
-    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title><style>@page{size:80mm auto;margin:0}body{margin:0;padding:0;background:white;font-family:Courier New,monospace;font-weight:bold;}</style></head><body>' + receiptHTML + '</body></html>';
+    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title><style>@page{size:80mm auto;margin:0}html,body{margin:0;padding:0;height:fit-content;overflow:hidden;background:white;font-family:Courier New,monospace;font-weight:bold;}</style></head><body>' + receiptHTML + '</body></html>';
     printViaIframe(fullHtml);
   };
 
