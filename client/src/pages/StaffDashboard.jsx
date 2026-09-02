@@ -884,7 +884,7 @@ export default function StaffDashboard() {
                       <span>{orderCart.reduce((s, i) => s + i.quantity, 0)} items</span>
                       <span className="text-base font-bold text-gray-900">₹{cartTotal}</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <button onClick={() => {
                         const fakeOrder = {
                           _id: 'CART-' + Date.now(),
@@ -895,12 +895,8 @@ export default function StaffDashboard() {
                         };
                         printKOT(fakeOrder);
                       }} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
-                      <button onClick={() => {
-                        const fakeOrders = [{ items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) }];
-                        printBill(fakeOrders, selectedTable?.label, cartTotal);
-                      }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
                       <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600 disabled:opacity-50">
-                        {orderPlacing ? '...' : 'Place'}
+                        {orderPlacing ? '...' : 'Place Order'}
                       </button>
                     </div>
                     {getActiveOrdersForSlot().length > 0 && (
@@ -945,10 +941,6 @@ export default function StaffDashboard() {
                     const fakeOrder = { _id: 'CART-' + Date.now(), orderType: orderContext.orderType, tableNumber: orderContext.tableNumber, roomNumber: orderContext.roomNumber, items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) };
                     printKOT(fakeOrder);
                   }} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
-                  <button onClick={() => {
-                    const fakeOrders = [{ items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) }];
-                    printBill(fakeOrders, selectedTable?.label, cartTotal);
-                  }} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
                   <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50">
                     {orderPlacing ? '...' : 'Place'}
                   </button>
