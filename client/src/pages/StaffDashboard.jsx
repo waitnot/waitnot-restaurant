@@ -34,7 +34,7 @@ export default function StaffDashboard() {
   const [menuSearch, setMenuSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [orderPlacing, setOrderPlacing] = useState(false);
-  const [orderContext, setOrderContext] = useState({ orderType: 'dine-in', tableNumber: null, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+  const [orderContext, setOrderContext] = useState({ orderType: 'dine-in', tableNumber: null, roomNumber: null, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
 
   // Modals
   const [confirmModal, setConfirmModal] = useState(null);
@@ -236,7 +236,7 @@ export default function StaffDashboard() {
   const getTableTotal = (tableOrders) => tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
 
   const openTable = (n) => {
-    setOrderContext({ orderType: 'dine-in', tableNumber: n, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setOrderContext({ orderType: 'dine-in', tableNumber: n, roomNumber: null, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
     setSelectedTable({ num: n, label: `Table ${n}` });
     setOrderCart([]);
     setMenuSearch('');
@@ -245,7 +245,7 @@ export default function StaffDashboard() {
 
   const openRoom = (n) => {
     const label = restaurant?.features?.roomNames?.[n] || `Room ${n}`;
-    setOrderContext({ orderType: 'room', tableNumber: null, roomNumber: n, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setOrderContext({ orderType: 'room', tableNumber: null, roomNumber: n, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
     setSelectedTable({ num: n, label });
     setOrderCart([]);
     setMenuSearch('');
@@ -253,7 +253,7 @@ export default function StaffDashboard() {
   };
 
   const openTakeaway = () => {
-    setOrderContext({ orderType: 'takeaway', tableNumber: null, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setOrderContext({ orderType: 'takeaway', tableNumber: null, roomNumber: null, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
     setSelectedTable({ num: null, label: 'Takeaway' });
     setOrderCart([]);
     setMenuSearch('');
@@ -261,7 +261,7 @@ export default function StaffDashboard() {
   };
 
   const openDelivery = () => {
-    setOrderContext({ orderType: 'delivery', tableNumber: null, roomNumber: null, customerName: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+    setOrderContext({ orderType: 'delivery', tableNumber: null, roomNumber: null, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
     setSelectedTable({ num: null, label: 'Delivery' });
     setOrderCart([]);
     setMenuSearch('');
@@ -293,9 +293,14 @@ export default function StaffDashboard() {
 
   const placeOrder = async () => {
     if (!selectedTable || orderCart.length === 0) return;
+    // Validate takeaway requires name and phone
+    if (orderContext.orderType === 'takeaway') {
+      if (!orderContext.customerName.trim()) { showToast('Customer name is required for takeaway', 'error'); return; }
+      if (!orderContext.customerPhone.trim()) { showToast('Phone number is required for takeaway', 'error'); return; }
+    }
     setOrderPlacing(true);
     try {
-      const { orderType, tableNumber, roomNumber, customerName, deliveryAddress, packagingCharge, deliveryCharge } = orderContext;
+      const { orderType, tableNumber, roomNumber, customerName, customerPhone, deliveryAddress, packagingCharge, deliveryCharge } = orderContext;
       const response = await axios.post(`${API}/api/orders`, {
         restaurantId: staff.restaurant_id,
         tableNumber: orderType === 'dine-in' ? tableNumber : undefined,
@@ -304,6 +309,7 @@ export default function StaffDashboard() {
         totalAmount: cartSubtotal + (packagingCharge || 0) + (deliveryCharge || 0),
         orderType,
         customerName: customerName || `Waiter ${staff.waiter_number || staff.name}`,
+        customerPhone: customerPhone || undefined,
         deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
         packagingCharge: orderType === 'takeaway' ? packagingCharge : undefined,
         deliveryCharge: orderType === 'delivery' ? deliveryCharge : undefined,
@@ -734,8 +740,14 @@ export default function StaffDashboard() {
                     {orderContext.orderType === 'delivery' && <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>}
                     <input type="text" value={orderContext.customerName}
                       onChange={e => setOrderContext(prev => ({ ...prev, customerName: e.target.value }))}
-                      placeholder="Customer name"
-                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none min-w-[100px]" />
+                      placeholder={orderContext.orderType === 'takeaway' ? 'Name *' : 'Customer name'}
+                      className={`text-xs border rounded-lg px-2 py-1 focus:outline-none min-w-[100px] ${orderContext.orderType === 'takeaway' && !orderContext.customerName.trim() ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                    {orderContext.orderType === 'takeaway' && (
+                      <input type="tel" value={orderContext.customerPhone}
+                        onChange={e => setOrderContext(prev => ({ ...prev, customerPhone: e.target.value }))}
+                        placeholder="Phone *"
+                        className={`text-xs border rounded-lg px-2 py-1 focus:outline-none w-28 ${!orderContext.customerPhone.trim() ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                    )}
                     {orderContext.orderType === 'delivery' && (
                       <input type="text" value={orderContext.deliveryAddress}
                         onChange={e => setOrderContext(prev => ({ ...prev, deliveryAddress: e.target.value }))}
@@ -874,7 +886,6 @@ export default function StaffDashboard() {
                     </div>
                     <div className="grid grid-cols-3 gap-1.5">
                       <button onClick={() => {
-                        // Print KOT from current cart items
                         const fakeOrder = {
                           _id: 'CART-' + Date.now(),
                           orderType: orderContext.orderType,
@@ -885,7 +896,6 @@ export default function StaffDashboard() {
                         printKOT(fakeOrder);
                       }} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
                       <button onClick={() => {
-                        // Print Bill from current cart items
                         const fakeOrders = [{ items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) }];
                         printBill(fakeOrders, selectedTable?.label, cartTotal);
                       }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
@@ -907,17 +917,22 @@ export default function StaffDashboard() {
                     )}
                   </div>
                 )}
-                {/* Show KOT/Bill/Clear even when cart is empty if slot has orders */}
+                {/* When cart is empty but slot has active orders — show post-place actions */}
                 {orderCart.length === 0 && getActiveOrdersForSlot().length > 0 && (
                   <div className="shrink-0 border-t border-gray-100 px-3 py-2">
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
-                      <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
-                      <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600">Clear</button>
+                    <p className="text-xs text-green-600 font-semibold mb-2 text-center">✅ Order Placed</p>
+                    <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                      <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">🖨 KOT</button>
+                      <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">🖨 Bill</button>
                     </div>
-                    <div className="mt-1.5">
-                      <button onClick={() => cancelOrders(getActiveOrdersForSlot(), selectedTable?.label)} className="w-full bg-gray-100 text-gray-500 py-2 rounded-lg text-xs font-bold hover:bg-red-50 hover:text-red-500">Cancel Order</button>
-                    </div>
+                    <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)}
+                      className="w-full bg-green-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-600 mb-1.5">
+                      Clear Table / Pay
+                    </button>
+                    <button onClick={() => cancelOrders(getActiveOrdersForSlot(), selectedTable?.label)}
+                      className="w-full bg-red-100 text-red-600 py-2 rounded-lg text-xs font-bold hover:bg-red-200">
+                      ✕ Cancel Order (no history)
+                    </button>
                   </div>
                 )}
               </div>
@@ -941,10 +956,10 @@ export default function StaffDashboard() {
               )}
               {orderCart.length === 0 && getActiveOrdersForSlot().length > 0 && (
                 <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
-                  <span className="flex-1 font-bold text-sm">{selectedTable?.label}</span>
-                  <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
-                  <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
-                  <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Clear</button>
+                  <span className="flex-1 font-bold text-xs text-green-600">✅ Order Placed</span>
+                  <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white px-2 py-2 rounded-lg text-xs font-bold">KOT</button>
+                  <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-green-500 text-white px-2 py-2 rounded-lg text-xs font-bold">Clear/Pay</button>
+                  <button onClick={() => cancelOrders(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-red-100 text-red-600 px-2 py-2 rounded-lg text-xs font-bold">Cancel</button>
                 </div>
               )}
             </div>
