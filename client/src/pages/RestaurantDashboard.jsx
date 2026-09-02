@@ -3524,7 +3524,6 @@ export default function RestaurantDashboard() {
                     <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${restaurant?.features?.menuEnabled === false ? 'left-0.5' : 'left-7'}`} />
                   </button>
                 </div>
-                {/* Custom message when menu is OFF */}
                 {restaurant?.features?.menuEnabled === false && (
                   <div className="mt-3">
                     <label className="text-xs font-medium text-red-700 block mb-1">Message shown to customers</label>
@@ -3581,7 +3580,6 @@ export default function RestaurantDashboard() {
                           <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hidden ? 'left-0.5' : 'left-6'}`} />
                         </button>
                       </div>
-                      {/* Custom message when category is hidden */}
                       {hidden && !menuOff && (
                         <div className="px-4 pb-3">
                           <input
@@ -3599,6 +3597,53 @@ export default function RestaurantDashboard() {
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Per-item toggles */}
+              <p className="text-sm font-semibold text-gray-700 mb-3 mt-8">Individual Item Visibility</p>
+              <div className="space-y-1">
+                {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => (
+                  <div key={cat}>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide px-1 py-2">{cat}</p>
+                    {(restaurant?.menu || []).filter(i => i.category === cat).map(item => (
+                      <div key={item._id} className={`flex items-center justify-between px-4 py-2.5 rounded-xl border mb-1 transition-all ${!item.available ? 'bg-gray-50 border-gray-200 opacity-70' : 'bg-white border-gray-200'}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
+                          <div className="min-w-0">
+                            <p className={`text-sm font-medium truncate ${!item.available ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</p>
+                            <p className="text-xs text-gray-400">₹{item.price}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!item.available && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium">Hidden</span>}
+                          <button
+                            onClick={async () => {
+                              const restaurantId = localStorage.getItem('restaurantId');
+                              const newAvail = !item.available;
+                              // Optimistic update
+                              setRestaurant(prev => ({
+                                ...prev,
+                                menu: prev.menu.map(m => m._id === item._id ? { ...m, available: newAvail } : m)
+                              }));
+                              try {
+                                await axios.put(`/api/restaurants/${restaurantId}/menu/${item._id}`, { ...item, available: newAvail });
+                              } catch(e) {
+                                fetchRestaurant(restaurantId);
+                                showToast('Failed to update item', 'error');
+                              }
+                            }}
+                            className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${item.available ? 'bg-green-500' : 'bg-gray-300'}`}
+                          >
+                            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${item.available ? 'left-6' : 'left-0.5'}`} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {(restaurant?.menu || []).length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-6">No menu items yet</p>
+                )}
               </div>
             </div>
           </div>
