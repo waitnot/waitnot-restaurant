@@ -95,12 +95,25 @@ export default function StaffDashboard() {
     const newSocket = io(API, { transports: ['websocket', 'polling'] });
     setSocket(newSocket);
     newSocket.emit('join-restaurant', s.restaurant_id);
-    newSocket.on('order-updated', (o) => setOrders(prev => {
-      const idx = prev.findIndex(x => x._id === o._id);
-      if (idx !== -1) { const n = [...prev]; n[idx] = o; return n.filter(x => x.status !== 'completed'); }
-      return o.status !== 'completed' ? [o, ...prev] : prev;
-    }));
-    newSocket.on('new-order', (o) => { if (o.status !== 'completed') setOrders(prev => [o, ...prev]); });
+    newSocket.on('order-updated', (o) => {
+      // If socket order has no items, do a full fetch to get complete data
+      if (!o.items || o.items.length === 0) {
+        fetchOrders(s.restaurant_id);
+        return;
+      }
+      setOrders(prev => {
+        const idx = prev.findIndex(x => x._id === o._id);
+        if (idx !== -1) { const n = [...prev]; n[idx] = o; return n.filter(x => x.status !== 'completed'); }
+        return o.status !== 'completed' ? [o, ...prev] : prev;
+      });
+    });
+    newSocket.on('new-order', (o) => {
+      if (o.status !== 'completed') {
+        // If items missing, fetch fresh
+        if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
+        setOrders(prev => [o, ...prev]);
+      }
+    });
     return () => { newSocket.emit('leave-restaurant', s.restaurant_id); newSocket.disconnect(); };
   }, [navigate]);
 
@@ -365,16 +378,28 @@ export default function StaffDashboard() {
   };
 
   // Print Bill — same approach as RestaurantDashboard printReceipt
-  const printBill = (tableOrders, tableLabel, total) => {
+  const printBill = async (tableOrders, tableLabel, total) => {
     const d = new Date().toLocaleDateString('en-IN');
     const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
+    // If items are missing from in-memory orders, fetch fresh from API
+    let ordersToUse = tableOrders;
+    const hasItems = tableOrders.some(o => o.items && o.items.length > 0);
+    if (!hasItems && tableOrders.length > 0) {
+      try {
+        const { data } = await axios.get(`${API}/api/orders/restaurant/${staff.restaurant_id}?status=active`);
+        const ids = new Set(tableOrders.map(o => o._id));
+        ordersToUse = data.filter(o => ids.has(o._id));
+      } catch(e) { /* fallback to original */ }
+    }
+
     // Merge items from all orders
     const allItems = {};
-    tableOrders.forEach(o => (o.items || []).forEach(i => {
+    ordersToUse.forEach(o => (o.items || []).forEach(i => {
       if (allItems[i.name]) { allItems[i.name].qty += i.quantity; allItems[i.name].total += i.price * i.quantity; }
       else allItems[i.name] = { qty: i.quantity, price: i.price, total: i.price * i.quantity };
     }));
+    const realTotal = Object.values(allItems).reduce((s, v) => s + v.total, 0) || total;
 
     const receiptHTML = '<div style="width:80mm;max-width:302px;font-family:Courier New,monospace;font-size:12px;font-weight:bold;line-height:1.3;color:#000;background:white;padding:8px;">'
       + '<div style="text-align:center;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:8px;">'
@@ -390,15 +415,15 @@ export default function StaffDashboard() {
       + '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:12px;"><span style="width:55%;">ITEM</span><span style="width:15%;text-align:center;">QTY</span><span style="width:30%;text-align:right;">AMT</span></div>'
       + '</div>'
       + '<div style="margin-bottom:10px;">'
-      + Object.entries(allItems).map(([n, v]) => '<div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;font-weight:bold;"><span style="width:55%;word-wrap:break-word;">' + n + '</span><span style="width:15%;text-align:center;">' + v.qty + '</span><span style="width:30%;text-align:right;">₹' + v.total + '</span></div>').join('')
+      + Object.entries(allItems).map(([n, v]) => '<div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;font-weight:bold;"><span style="width:55%;word-wrap:break-word;">' + n + '</span><span style="width:15%;text-align:center;">' + v.qty + '</span><span style="width:30%;text-align:right;">&#8377;' + v.total + '</span></div>').join('')
       + '</div>'
       + '<div style="border-top:2px solid #000;padding-top:8px;margin-bottom:10px;">'
-      + '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid #000;padding-top:5px;"><span>TOTAL:</span><span>₹' + total + '</span></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid #000;padding-top:5px;"><span>TOTAL:</span><span>&#8377;' + realTotal + '</span></div>'
       + '</div>'
       + '<div style="text-align:center;border-top:2px solid #000;padding-top:8px;font-size:11px;font-weight:bold;">'
       + '<div style="margin-bottom:4px;">THANK YOU FOR DINING WITH US!</div>'
       + '<div style="margin-bottom:4px;">PLEASE VISIT AGAIN</div>'
-      + '<div style="font-size:14px;margin-bottom:6px;">★★★★★</div>'
+      + '<div style="font-size:14px;margin-bottom:6px;">&#9733;&#9733;&#9733;&#9733;&#9733;</div>'
       + '<div style="font-size:9px;font-weight:normal;">Printed: ' + d + ' ' + t + '</div>'
       + '</div></div>';
 
