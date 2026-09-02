@@ -587,14 +587,20 @@ export default function QROrder({ orderMode }) {
     );
   }
 
-  // Get unique categories from menu items
-  const uniqueCategories = [...new Set(restaurant.menu.map(item => item.category))];
+  // Get unique categories from menu items — respecting visibility settings
+  const menuEnabled = restaurant.features?.menuEnabled !== false;
+  const hiddenCategories = restaurant.features?.hiddenCategories || [];
+  const visibleMenu = menuEnabled
+    ? (restaurant.menu || []).filter(item => !hiddenCategories.includes(item.category))
+    : [];
+
+  const uniqueCategories = [...new Set(visibleMenu.map(item => item.category))];
   const categories = ['All', ...uniqueCategories];
   
   // Filter menu based on selected category and search query
   let filteredMenu = selectedCategory === 'All' 
-    ? restaurant.menu 
-    : restaurant.menu.filter(item => item.category === selectedCategory);
+    ? visibleMenu 
+    : visibleMenu.filter(item => item.category === selectedCategory);
   
   // Apply search filter
   if (searchQuery.trim()) {
