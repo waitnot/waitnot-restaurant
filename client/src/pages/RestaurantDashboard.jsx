@@ -944,19 +944,18 @@ export default function RestaurantDashboard() {
 
   // Save a custom name for a room (stored in features.roomNames)
   const saveMenuVisibility = async (updatedFeatures) => {
-    setMenuVisibilitySaving(true);
+    // Optimistic update — change UI instantly, save in background
+    setRestaurant(prev => ({ ...prev, features: updatedFeatures }));
     try {
       const token = localStorage.getItem('restaurantToken');
       const restaurantId = localStorage.getItem('restaurantId');
-      const { data } = await axios.put(`/api/restaurants/${restaurantId}`, { features: updatedFeatures }, {
+      await axios.put(`/api/restaurants/${restaurantId}`, { features: updatedFeatures }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setRestaurant(data);
-      showToast('Menu visibility updated');
     } catch (e) {
+      // Revert on failure
+      fetchRestaurant(localStorage.getItem('restaurantId'));
       showToast('Failed to save', 'error');
-    } finally {
-      setMenuVisibilitySaving(false);
     }
   };
 
@@ -3478,7 +3477,6 @@ export default function RestaurantDashboard() {
                   </p>
                 </div>
                 <button
-                  disabled={menuVisibilitySaving}
                   onClick={() => {
                     const newVal = restaurant?.features?.menuEnabled !== false ? false : true;
                     saveMenuVisibility({ ...restaurant.features, menuEnabled: newVal });
@@ -3505,7 +3503,7 @@ export default function RestaurantDashboard() {
                         {hidden && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium">Hidden</span>}
                       </div>
                       <button
-                        disabled={menuVisibilitySaving || menuOff}
+                        disabled={menuOff}
                         onClick={() => {
                           const current = restaurant?.features?.hiddenCategories || [];
                           const updated = hidden
@@ -3521,7 +3519,6 @@ export default function RestaurantDashboard() {
                   );
                 })}
               </div>
-              {menuVisibilitySaving && <p className="text-xs text-blue-500 mt-3">Saving...</p>}
             </div>
           </div>
         )}
