@@ -346,6 +346,85 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
   );
 }
 
+// Collapsible category accordion with per-item toggles
+function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibleCount, onToggleCategory, onSaveCatMessage, onToggleItem }) {
+  const [open, setOpen] = useState(false);
+  const [msgVal, setMsgVal] = useState(catMessages[cat] || '');
+
+  return (
+    <div className={`rounded-xl border overflow-hidden mb-2 ${hidden || menuOff ? 'border-red-100' : 'border-gray-200'}`}>
+      {/* Category header row */}
+      <div className={`flex items-center gap-3 px-4 py-3 ${hidden || menuOff ? 'bg-red-50' : 'bg-white'}`}>
+        {/* Expand arrow */}
+        <button onClick={() => setOpen(o => !o)} className="p-0.5 text-gray-400 hover:text-gray-600 shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d={open ? 'M3 6l5 5 5-5' : 'M6 3l5 5-5 5'} stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        {/* Category name + count — clicking also toggles expand */}
+        <button onClick={() => setOpen(o => !o)} className="flex-1 flex items-center gap-2 text-left min-w-0">
+          <span className={`text-sm font-semibold truncate ${hidden || menuOff ? 'text-red-500' : 'text-gray-800'}`}>{cat}</span>
+          <span className="text-xs text-gray-400 shrink-0">{visibleCount}/{catItems.length} visible</span>
+          {hidden && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium shrink-0">Category Hidden</span>}
+        </button>
+
+        {/* Category visibility toggle */}
+        <button
+          disabled={menuOff}
+          onClick={onToggleCategory}
+          title={hidden ? 'Show category' : 'Hide category'}
+          className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${menuOff ? 'bg-gray-200 cursor-not-allowed' : hidden ? 'bg-red-300' : 'bg-green-500'}`}
+        >
+          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hidden ? 'left-0.5' : 'left-6'}`} />
+        </button>
+      </div>
+
+      {/* Custom message when category hidden */}
+      {hidden && !menuOff && (
+        <div className="px-4 pb-3 bg-red-50 flex gap-2">
+          <input
+            value={msgVal}
+            onChange={e => setMsgVal(e.target.value)}
+            placeholder={`e.g. ${cat} not available right now`}
+            className="flex-1 text-xs border border-red-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-300 bg-white"
+          />
+          <button onClick={() => onSaveCatMessage(msgVal)} className="px-2 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600">Save</button>
+        </div>
+      )}
+
+      {/* Items list — shown when expanded */}
+      {open && (
+        <div className="border-t border-gray-100 divide-y divide-gray-50 bg-gray-50">
+          {catItems.length === 0 && <p className="text-xs text-gray-400 px-4 py-3">No items</p>}
+          {catItems.map(item => (
+            <div key={item._id} className={`flex items-center gap-3 px-4 py-2.5 ${!item.available ? 'bg-gray-100' : 'bg-white'}`}>
+              {/* Veg dot */}
+              <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
+              {/* Name + price */}
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium truncate ${!item.available ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</p>
+                <p className="text-xs text-gray-400">₹{item.price}</p>
+              </div>
+              {/* Status badge */}
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${item.available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                {item.available ? 'Visible' : 'Hidden'}
+              </span>
+              {/* Item toggle */}
+              <button
+                onClick={() => onToggleItem(item)}
+                className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${item.available ? 'bg-green-500' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${item.available ? 'left-6' : 'left-0.5'}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
@@ -3549,95 +3628,54 @@ export default function RestaurantDashboard() {
                 )}
               </div>
 
-              {/* Per-category toggles */}
-              <p className="text-sm font-semibold text-gray-700 mb-3 mt-6">Category Visibility</p>
-              <div className="space-y-2">
+              {/* Categories with per-item toggles */}
+              <p className="text-sm font-semibold text-gray-700 mb-3 mt-6">Category & Item Visibility</p>
+              <div className="space-y-0">
                 {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => {
                   const hidden = (restaurant?.features?.hiddenCategories || []).includes(cat);
                   const menuOff = restaurant?.features?.menuEnabled === false;
                   const catMessages = restaurant?.features?.categoryMessages || {};
+                  const catItems = (restaurant?.menu || []).filter(i => i.category === cat);
+                  const visibleCount = catItems.filter(i => i.available).length;
                   return (
-                    <div key={cat} className={`rounded-lg border ${hidden || menuOff ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-                      <div className="flex items-center justify-between px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <span className={`text-sm font-medium ${hidden || menuOff ? 'text-gray-400' : 'text-gray-800'}`}>{cat}</span>
-                          <span className="text-xs text-gray-400">
-                            ({(restaurant?.menu || []).filter(i => i.category === cat && i.available).length} items)
-                          </span>
-                          {hidden && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium">Hidden</span>}
-                        </div>
-                        <button
-                          disabled={menuOff}
-                          onClick={() => {
-                            const current = restaurant?.features?.hiddenCategories || [];
-                            const updated = hidden
-                              ? current.filter(c => c !== cat)
-                              : [...current, cat];
-                            saveMenuVisibility({ ...restaurant.features, hiddenCategories: updated });
-                          }}
-                          className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${menuOff ? 'bg-gray-300 cursor-not-allowed' : hidden ? 'bg-gray-300' : 'bg-green-500'}`}
-                        >
-                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hidden ? 'left-0.5' : 'left-6'}`} />
-                        </button>
-                      </div>
-                      {hidden && !menuOff && (
-                        <div className="px-4 pb-3">
-                          <input
-                            type="text"
-                            defaultValue={catMessages[cat] || ''}
-                            placeholder={`e.g. ${cat} is not available right now`}
-                            className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
-                            onBlur={e => {
-                              const updated = { ...(restaurant?.features?.categoryMessages || {}), [cat]: e.target.value };
-                              saveMenuVisibility({ ...restaurant.features, categoryMessages: updated });
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    <CategoryAccordion
+                      key={cat}
+                      cat={cat}
+                      hidden={hidden}
+                      menuOff={menuOff}
+                      catMessages={catMessages}
+                      catItems={catItems}
+                      visibleCount={visibleCount}
+                      onToggleCategory={() => {
+                        const current = restaurant?.features?.hiddenCategories || [];
+                        const updated = hidden ? current.filter(c => c !== cat) : [...current, cat];
+                        saveMenuVisibility({ ...restaurant.features, hiddenCategories: updated });
+                      }}
+                      onSaveCatMessage={val => {
+                        const updated = { ...(restaurant?.features?.categoryMessages || {}), [cat]: val };
+                        saveMenuVisibility({ ...restaurant.features, categoryMessages: updated });
+                      }}
+                      onToggleItem={async (item) => {
+                        const restaurantId = localStorage.getItem('restaurantId');
+                        const newAvail = !item.available;
+                        setRestaurant(prev => ({
+                          ...prev,
+                          menu: prev.menu.map(m => m._id === item._id ? { ...m, available: newAvail } : m)
+                        }));
+                        try {
+                          await axios.put(`/api/restaurants/${restaurantId}/menu/${item._id}`, { available: newAvail });
+                        } catch(e) {
+                          fetchRestaurant(restaurantId);
+                          showToast('Failed to update item', 'error');
+                        }
+                      }}
+                    />
                   );
                 })}
               </div>
-
-              {/* Per-item toggles */}
-              <p className="text-sm font-semibold text-gray-700 mb-3 mt-8">Individual Item Visibility</p>
-              <div className="space-y-1">
-                {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => (
-                  <div key={cat}>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide px-1 py-2">{cat}</p>
-                    {(restaurant?.menu || []).filter(i => i.category === cat).map(item => (
-                      <div key={item._id} className={`flex items-center justify-between px-4 py-2.5 rounded-xl border mb-1 transition-all ${!item.available ? 'bg-gray-50 border-gray-200 opacity-70' : 'bg-white border-gray-200'}`}>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
-                          <div className="min-w-0">
-                            <p className={`text-sm font-medium truncate ${!item.available ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</p>
-                            <p className="text-xs text-gray-400">₹{item.price}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {!item.available && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium">Hidden</span>}
-                          <button
-                            onClick={async () => {
-                              const restaurantId = localStorage.getItem('restaurantId');
-                              const newAvail = !item.available;
-                              // Optimistic update
-                              setRestaurant(prev => ({
-                                ...prev,
-                                menu: prev.menu.map(m => m._id === item._id ? { ...m, available: newAvail } : m)
-                              }));
-                              try {
-                                await axios.put(`/api/restaurants/${restaurantId}/menu/${item._id}`, { ...item, available: newAvail });
-                              } catch(e) {
-                                fetchRestaurant(restaurantId);
-                                showToast('Failed to update item', 'error');
-                              }
-                            }}
-                            className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${item.available ? 'bg-green-500' : 'bg-gray-300'}`}
-                          >
-                            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${item.available ? 'left-6' : 'left-0.5'}`} />
-                          </button>
-                        </div>
-                      </div>
+            </div>
+          </div>
+        )}
                     ))}
                   </div>
                 ))}
