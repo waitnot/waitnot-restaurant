@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Search, GripVertical, ShoppingCart, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, LogOut, X, Settings, Printer, BarChart3, User, Search, GripVertical, ShoppingCart, Upload, Menu, QrCode, Clock, Wifi, WifiOff, Package, MessageSquare, ChevronRight, Bell, Zap, Truck, CheckCircle, Calendar } from 'lucide-react';
 import axios from 'axios';
 import io from 'socket.io-client';
 import FeatureGuard from '../components/FeatureGuard';
@@ -432,6 +432,22 @@ export default function RestaurantDashboard() {
   }, [activeTab, isFeatureEnabled]);
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [importingMenu, setImportingMenu] = useState(false);
+
+  // ── New feature state ──
+  const [storeOnline, setStoreOnline] = useState(() => {
+    const saved = localStorage.getItem('storeOnline');
+    return saved === null ? true : saved === 'true';
+  });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSearch, setDrawerSearch] = useState('');
+  const [topSearch, setTopSearch] = useState('');
+  const [showOccasionalHours, setShowOccasionalHours] = useState(false);
+  const [occasionalHours, setOccasionalHours] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('occasionalHours') || '[]'); } catch { return []; }
+  });
+  const [newOccasional, setNewOccasional] = useState({ label: '', date: '', openTime: '', closeTime: '' });
+  const [orderWorkflowTab, setOrderWorkflowTab] = useState('all'); // 'all'|'preparing'|'ready'|'out-for-delivery'|'scheduled'
+  const [activeBottomTab, setActiveBottomTab] = useState('orders'); // 'orders'|'inventory'|'feedback'|'hub'
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [historySearch, setHistorySearch] = useState('');
   const [clearTableModal, setClearTableModal] = useState(null); // { tableNumber, tableOrders, totalAmount }
@@ -2533,50 +2549,167 @@ export default function RestaurantDashboard() {
       )}
       
       <nav className="bg-white shadow-md p-3 sm:p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-primary truncate">{restaurant.name}</h1>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <FeatureGuard feature="profileEdit">
-              <button 
-                onClick={() => navigate('/restaurant-profile')}
-                className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
-              >
-                <User size={18} className="sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Profile</span>
+        <div className="max-w-7xl mx-auto flex items-center gap-3">
+          {/* Hamburger */}
+          <button onClick={() => setDrawerOpen(true)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 shrink-0">
+            <Menu size={22} />
+          </button>
+
+          {/* Restaurant name */}
+          <h1 className="text-base sm:text-lg font-bold text-primary truncate flex-1">{restaurant.name}</h1>
+
+          {/* Top search */}
+          <div className="hidden sm:flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-1.5 w-48 lg:w-64">
+            <Search size={14} className="text-gray-400 shrink-0" />
+            <input value={topSearch} onChange={e => setTopSearch(e.target.value)} placeholder="Search orders…"
+              className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
+            {topSearch && <button onClick={() => setTopSearch('')}><X size={13} className="text-gray-400" /></button>}
+          </div>
+
+          {/* QR shortcut */}
+          <button onClick={() => setActiveTab('qr')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 shrink-0" title="QR Codes">
+            <QrCode size={20} />
+          </button>
+
+          {/* Online / Offline toggle */}
+          <button
+            onClick={() => { const next = !storeOnline; setStoreOnline(next); localStorage.setItem('storeOnline', String(next)); showToast(next ? 'Store is now Online' : 'Store is now Offline', next ? 'success' : 'error'); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${storeOnline ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}
+          >
+            {storeOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
+            <span className="hidden sm:inline">{storeOnline ? 'Online' : 'Offline'}</span>
+          </button>
+
+          {/* Logout */}
+          <button onClick={logout} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 shrink-0">
+            <LogOut size={18} />
+          </button>
+        </div>
+
+        {/* Offline banner */}
+        {!storeOnline && (
+          <div className="max-w-7xl mx-auto mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2 flex items-center justify-between">
+            <span className="text-sm text-red-700 font-medium">⚠️ Store is Offline — customers cannot place new orders</span>
+            <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-red-600 underline flex items-center gap-1"><Clock size={12} /> Setup occasional timings</button>
+          </div>
+        )}
+        {storeOnline && (
+          <div className="max-w-7xl mx-auto mt-1 flex justify-end">
+            <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-gray-400 hover:text-primary flex items-center gap-1"><Calendar size={11} /> Setup occasional timings</button>
+          </div>
+        )}
+      </nav>
+
+      {/* Side Drawer */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
+          <div className="relative w-72 bg-white h-full shadow-2xl flex flex-col z-10">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
+              <span className="font-bold text-gray-800 text-base">{restaurant.name}</span>
+              <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} /></button>
+            </div>
+            {/* Drawer search */}
+            <div className="px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
+                <Search size={14} className="text-gray-400 shrink-0" />
+                <input value={drawerSearch} onChange={e => setDrawerSearch(e.target.value)} placeholder="Search menu…"
+                  autoFocus className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
+                {drawerSearch && <button onClick={() => setDrawerSearch('')}><X size={13} className="text-gray-400" /></button>}
+              </div>
+            </div>
+            {/* Drawer nav links */}
+            <div className="flex-1 overflow-y-auto py-2">
+              {[
+                { label: 'Profile', icon: User, action: () => { navigate('/restaurant-profile'); setDrawerOpen(false); } },
+                { label: 'Analytics', icon: BarChart3, action: () => { navigate('/analytics'); setDrawerOpen(false); } },
+                { label: 'Printer Settings', icon: Printer, action: () => { navigate('/printer-settings'); setDrawerOpen(false); } },
+                { label: 'Setup Occasional Timings', icon: Clock, action: () => { setShowOccasionalHours(true); setDrawerOpen(false); } },
+                { label: 'QR Codes', icon: QrCode, action: () => { setActiveTab('qr'); setDrawerOpen(false); } },
+              ].filter(item => !drawerSearch || item.label.toLowerCase().includes(drawerSearch.toLowerCase()))
+               .map(item => (
+                <button key={item.label} onClick={item.action}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <item.icon size={18} className="text-gray-400 shrink-0" />
+                  {item.label}
+                  <ChevronRight size={14} className="text-gray-300 ml-auto" />
+                </button>
+              ))}
+            </div>
+            {/* Store online toggle in drawer */}
+            <div className="border-t border-gray-100 px-4 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Store Status</p>
+                  <p className="text-xs text-gray-400">{storeOnline ? 'Accepting orders' : 'Not accepting orders'}</p>
+                </div>
+                <button
+                  onClick={() => { const next = !storeOnline; setStoreOnline(next); localStorage.setItem('storeOnline', String(next)); showToast(next ? 'Store is now Online' : 'Store is now Offline', next ? 'success' : 'error'); }}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${storeOnline ? 'bg-green-500' : 'bg-red-400'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${storeOnline ? 'left-6' : 'left-0.5'}`} />
+                </button>
+              </div>
+              <button onClick={logout} className="mt-3 w-full flex items-center gap-2 text-sm text-gray-500 hover:text-red-600">
+                <LogOut size={16} /> Logout
               </button>
-            </FeatureGuard>
-            <FeatureGuard feature="analytics">
-              <button 
-                onClick={() => navigate('/analytics')}
-                className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
-              >
-                <BarChart3 size={18} className="sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Analytics</span>
-              </button>
-            </FeatureGuard>
-            <FeatureGuard feature="printerSettings">
-              <button 
-                onClick={() => navigate('/printer-settings')}
-                className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
-              >
-                <Settings size={18} className="sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Settings</span>
-              </button>
-            </FeatureGuard>
-            <button 
-              onClick={() => setShowNotificationSettings(true)}
-              className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base"
-              title="Notification sound settings"
-            >
-              <span className="hidden sm:inline">Notifications</span>
-            </button>
-            <button onClick={logout} className="flex items-center gap-1 sm:gap-2 text-gray-700 hover:text-primary text-sm sm:text-base">
-              <LogOut size={18} className="sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            </div>
           </div>
         </div>
-      </nav>
+      )}
+
+      {/* Occasional Hours Modal */}
+      {showOccasionalHours && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-800">Setup Occasional Timings</h2>
+              <button onClick={() => setShowOccasionalHours(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {occasionalHours.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No special timings set yet</p>}
+              {occasionalHours.map((h, i) => (
+                <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{h.label}</p>
+                    <p className="text-xs text-gray-400">{h.date} · {h.openTime} – {h.closeTime}</p>
+                  </div>
+                  <button onClick={() => { const updated = occasionalHours.filter((_, idx) => idx !== i); setOccasionalHours(updated); localStorage.setItem('occasionalHours', JSON.stringify(updated)); }}
+                    className="p-1.5 text-red-400 hover:text-red-600"><X size={15} /></button>
+                </div>
+              ))}
+              {/* Add new */}
+              <div className="bg-primary/5 rounded-xl p-4 space-y-2 border border-primary/20">
+                <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add Special Day</p>
+                <input placeholder="Label (e.g. Diwali Special)" value={newOccasional.label}
+                  onChange={e => setNewOccasional(p => ({ ...p, label: e.target.value }))}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary" />
+                <input type="date" value={newOccasional.date}
+                  onChange={e => setNewOccasional(p => ({ ...p, date: e.target.value }))}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary" />
+                <div className="flex gap-2">
+                  <input type="time" value={newOccasional.openTime}
+                    onChange={e => setNewOccasional(p => ({ ...p, openTime: e.target.value }))}
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary" />
+                  <input type="time" value={newOccasional.closeTime}
+                    onChange={e => setNewOccasional(p => ({ ...p, closeTime: e.target.value }))}
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!newOccasional.label || !newOccasional.date) return;
+                    const updated = [...occasionalHours, newOccasional];
+                    setOccasionalHours(updated);
+                    localStorage.setItem('occasionalHours', JSON.stringify(updated));
+                    setNewOccasional({ label: '', date: '', openTime: '', closeTime: '' });
+                  }}
+                  className="w-full bg-primary text-white py-2 rounded-xl text-sm font-bold hover:opacity-90">
+                  Add Timing
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar">
@@ -2768,17 +2901,43 @@ export default function RestaurantDashboard() {
           </button>
         </div>
 
+        {/* Order Workflow Tabs — shown for order-related tabs */}
+        {(activeTab === 'delivery' || activeTab === 'dine-in' || activeTab === 'rooms' || activeTab === 'Staff') && (
+          <div className="flex gap-2 mb-3 overflow-x-auto hide-scrollbar pb-1">
+            {[
+              { id: 'all', label: 'All Orders', icon: '📋' },
+              { id: 'preparing', label: 'Preparing', icon: '🍳' },
+              { id: 'ready', label: 'Ready', icon: '✅' },
+              { id: 'out-for-delivery', label: 'Out for Delivery', icon: '🛵' },
+              { id: 'scheduled', label: 'Scheduled', icon: '🕐' },
+            ].map(wt => (
+              <button key={wt.id} onClick={() => setOrderWorkflowTab(wt.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
+                  orderWorkflowTab === wt.id
+                    ? 'bg-primary text-white border-primary shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-primary/40'
+                }`}>
+                <span>{wt.icon}</span> {wt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Tab Content */}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-gray-700">Delivery & Takeaway <span className="text-gray-400 font-normal">({activeDeliveryOrders.length} active)</span></h2>
             </div>
-            {activeDeliveryOrders.length === 0 && (
-              <div className="text-center py-12 text-gray-400 bg-white rounded-xl">No active delivery orders</div>
+            {activeDeliveryOrders.filter(o => orderWorkflowTab === 'all' || o.status === orderWorkflowTab).length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl text-center">
+                <span className="text-5xl mb-4">🛵</span>
+                <p className="text-gray-500 font-semibold text-base">No {orderWorkflowTab === 'all' ? 'active' : orderWorkflowTab} orders</p>
+                <p className="text-xs text-gray-400 mt-1">Orders will appear here when placed</p>
+              </div>
             )}
             <div className="space-y-2">
-              {activeDeliveryOrders.map((order) => (
+              {activeDeliveryOrders.filter(o => orderWorkflowTab === 'all' || o.status === orderWorkflowTab).map((order) => (
                 <div key={order._id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                   {/* Compact header row */}
                   <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-50">
@@ -4910,6 +5069,41 @@ export default function RestaurantDashboard() {
           </div>
         </div>
       )}
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-30 pb-safe">
+        {[
+          { id: 'orders', label: 'Orders', icon: Package, badge: validOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length },
+          { id: 'inventory', label: 'Inventory', icon: Zap, badge: 0 },
+          { id: 'feedback', label: 'Feedback', icon: MessageSquare, badge: feedback.length },
+          { id: 'hub', label: 'To Hub', icon: Truck, badge: 0 },
+        ].map(tab => {
+          const Icon = tab.icon;
+          const active = activeBottomTab === tab.id;
+          return (
+            <button key={tab.id}
+              onClick={() => {
+                setActiveBottomTab(tab.id);
+                if (tab.id === 'orders') setActiveTab('Staff');
+                if (tab.id === 'feedback') setActiveTab('feedback');
+                if (tab.id === 'inventory') setActiveTab('menu');
+              }}
+              className={`flex-1 py-2.5 flex flex-col items-center gap-0.5 relative transition-colors ${active ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
+              <div className="relative">
+                <Icon size={22} />
+                {tab.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2 bg-primary text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none">{tab.badge > 9 ? '9+' : tab.badge}</span>
+                )}
+              </div>
+              <span className="text-xs font-medium">{tab.label}</span>
+              {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Spacer for bottom nav */}
+      <div className="h-16" />
     </div>
   );
 }
