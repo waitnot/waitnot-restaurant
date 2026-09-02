@@ -319,10 +319,6 @@ export default function StaffDashboard() {
       const newOrder = response.data;
       setOrderCart([]);
       showToast('Order placed!');
-
-      const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
-      if (savedSettings.autoPrintKitchenBill) printKOT(newOrder);
-
       fetchOrders(staff.restaurant_id);
     } catch (err) {
       showToast('Failed to place order', 'error');
@@ -389,15 +385,22 @@ export default function StaffDashboard() {
       window.electronAPI.silentPrint(html, saved.qzKitchenPrinter || saved.kitchenPrinterName || '');
       return;
     }
+    // Open in new popup window so user sees receipt before printing
+    const w = window.open('', '_blank', 'width=420,height=700');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 4000); }, 350);
+      return;
+    }
+    // Fallback: hidden iframe silent print
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;visibility:hidden;';
     document.body.appendChild(iframe);
     const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
+    doc.open(); doc.write(html); doc.close();
     setTimeout(() => {
-      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { console.error('iframe print error:', e); }
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) {}
       setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 3000);
     }, 400);
   };
@@ -884,7 +887,10 @@ export default function StaffDashboard() {
                       <span>{orderCart.reduce((s, i) => s + i.quantity, 0)} items</span>
                       <span className="text-base font-bold text-gray-900">₹{cartTotal}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="flex flex-col gap-1.5">
+                      <button onClick={placeOrder} disabled={orderPlacing} className="w-full bg-red-500 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-red-600 disabled:opacity-50">
+                        {orderPlacing ? 'Placing...' : `Place Order · ₹${cartTotal}`}
+                      </button>
                       <button onClick={() => {
                         const fakeOrder = {
                           _id: 'CART-' + Date.now(),
@@ -894,10 +900,7 @@ export default function StaffDashboard() {
                           items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
                         };
                         printKOT(fakeOrder);
-                      }} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
-                      <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600 disabled:opacity-50">
-                        {orderPlacing ? '...' : 'Place Order'}
-                      </button>
+                      }} className="w-full bg-orange-100 text-orange-700 py-2 rounded-lg text-xs font-bold hover:bg-orange-200">Print KOT</button>
                     </div>
                     {getActiveOrdersForSlot().length > 0 && (
                       <div className="grid grid-cols-2 gap-1.5 mt-1.5">
@@ -937,12 +940,8 @@ export default function StaffDashboard() {
               {orderCart.length > 0 && (
                 <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
                   <span className="flex-1 font-bold text-sm">₹{cartTotal}</span>
-                  <button onClick={() => {
-                    const fakeOrder = { _id: 'CART-' + Date.now(), orderType: orderContext.orderType, tableNumber: orderContext.tableNumber, roomNumber: orderContext.roomNumber, items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) };
-                    printKOT(fakeOrder);
-                  }} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
-                  <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50">
-                    {orderPlacing ? '...' : 'Place'}
+                  <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white px-5 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
+                    {orderPlacing ? '...' : 'Place Order'}
                   </button>
                 </div>
               )}
