@@ -819,8 +819,22 @@ export default function StaffDashboard() {
                       <span className="text-base font-bold text-gray-900">₹{cartTotal}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-1.5">
-                      <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
-                      <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
+                      <button onClick={() => {
+                        // Print KOT from current cart items
+                        const fakeOrder = {
+                          _id: 'CART-' + Date.now(),
+                          orderType: orderContext.orderType,
+                          tableNumber: orderContext.tableNumber,
+                          roomNumber: orderContext.roomNumber,
+                          items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
+                        };
+                        printKOT(fakeOrder);
+                      }} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
+                      <button onClick={() => {
+                        // Print Bill from current cart items
+                        const fakeOrders = [{ items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) }];
+                        printBill(fakeOrders, selectedTable?.label, cartTotal);
+                      }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
                       <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600 disabled:opacity-50">
                         {orderPlacing ? '...' : 'Place'}
                       </button>
@@ -858,8 +872,14 @@ export default function StaffDashboard() {
               {orderCart.length > 0 && (
                 <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
                   <span className="flex-1 font-bold text-sm">₹{cartTotal}</span>
-                  <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
-                  <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
+                  <button onClick={() => {
+                    const fakeOrder = { _id: 'CART-' + Date.now(), orderType: orderContext.orderType, tableNumber: orderContext.tableNumber, roomNumber: orderContext.roomNumber, items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) };
+                    printKOT(fakeOrder);
+                  }} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
+                  <button onClick={() => {
+                    const fakeOrders = [{ items: orderCart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })) }];
+                    printBill(fakeOrders, selectedTable?.label, cartTotal);
+                  }} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
                   <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50">
                     {orderPlacing ? '...' : 'Place'}
                   </button>

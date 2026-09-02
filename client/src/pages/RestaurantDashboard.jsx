@@ -351,14 +351,40 @@ export default function RestaurantDashboard() {
   const { isFeatureEnabled } = useFeatures();
 
   // Smart print helper: uses Electron ESC/POS → silent HTML → QZ Tray → browser fallback
+  // Print via iframe — works even when browser/Electron blocks popups
+  const printViaIframeRD = (html) => {
+    if (window.electronAPI?.silentPrint) {
+      const restaurantId = localStorage.getItem('restaurantId');
+      const saved = JSON.parse(localStorage.getItem('printer_settings_' + restaurantId) || '{}');
+      window.electronAPI.silentPrint(html, saved.qzKitchenPrinter || saved.qzBillPrinter || saved.kitchenPrinterName || '');
+      return;
+    }
+    // Try popup first
+    const w = window.open('', '_blank', 'width=420,height=700');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 5000); }, 350);
+      return;
+    }
+    // Fallback: hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+    setTimeout(() => {
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) {}
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 3000);
+    }, 400);
+  };
+
   const openPrintWindow = (html, type = 'bill', orderData = null) => {
-    smartPrint(html, type, orderData).then(r => {
-      if (r.method !== 'browser') console.log('Printed via ' + r.method);
-    });
+    printViaIframeRD(html);
   };
 
   const doPrint = (fullHtml, type = 'bill', orderData = null) => {
-    smartPrint(fullHtml, type, orderData);
+    printViaIframeRD(fullHtml);
   };
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -2311,50 +2337,9 @@ export default function RestaurantDashboard() {
       </div>
     `;
 
-    // Create and print
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>KOT - ${order.customerName}</title>
-          <style>
-            @media print {
-              @page {
-                size: ${receiptWidth} auto;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-              }
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              background: white;
-            }
-          </style>
-        </head>
-        <body>
-          ${kotHTML}
-        </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      printWindow.focus();
-      
-      setTimeout(() => {
-        printWindow.print();
-        setTimeout(() => {
-          printWindow.close();
-        }, 250);
-      }, 500);
-    } else {
-      showToast('Please allow popups to print', 'error');
-    }
+    // Create and print — iframe fallback for popup-blocked browsers
+    const fullKotHtml = '<!DOCTYPE html><html><head><title>KOT</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + kotHTML + '</body></html>';
+    openPrintWindow(fullKotHtml, 'kitchen');
   };
 
   // Print Customer Bill for Staff orders
@@ -2490,50 +2475,9 @@ export default function RestaurantDashboard() {
       </div>
     `;
 
-    // Create and print
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Bill - ${order.customerName}</title>
-          <style>
-            @media print {
-              @page {
-                size: ${receiptWidth} auto;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-              }
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              background: white;
-            }
-          </style>
-        </head>
-        <body>
-          ${billHTML}
-        </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      printWindow.focus();
-      
-      setTimeout(() => {
-        printWindow.print();
-        setTimeout(() => {
-          printWindow.close();
-        }, 250);
-      }, 500);
-    } else {
-      showToast('Please allow popups to print', 'error');
-    }
+    // Create and print — iframe fallback for popup-blocked browsers
+    const fullBillHtml = '<!DOCTYPE html><html><head><title>Bill</title><style>@page{size:' + receiptWidth + ' auto;margin:0}body{margin:0;padding:0;background:white;}</style></head><body>' + billHTML + '</body></html>';
+    openPrintWindow(fullBillHtml, 'bill');
   };
 
   // Edit Order Functions (for completed staff orders only)
