@@ -158,7 +158,6 @@ async function qzPrintHTML(html, printerName) {
 function browserPrint(html) {
   const w = window.open('', '_blank', 'width=420,height=700');
   if (!w) {
-    // Popup blocked — try iframe approach
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden';
     document.body.appendChild(iframe);
@@ -171,10 +170,8 @@ function browserPrint(html) {
     }, 300);
     return;
   }
-  w.document.open();
   w.document.write(html);
   w.document.close();
-  // Use setTimeout instead of onload — more reliable after document.write
   setTimeout(() => {
     w.focus();
     w.print();
