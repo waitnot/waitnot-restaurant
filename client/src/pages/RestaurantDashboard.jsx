@@ -351,6 +351,11 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
   const [open, setOpen] = useState(false);
   const [msgVal, setMsgVal] = useState(catMessages[cat] || '');
 
+  // Sync message when prop changes (e.g. after save)
+  useEffect(() => {
+    setMsgVal(catMessages[cat] || '');
+  }, [catMessages, cat]);
+
   return (
     <div className={`rounded-xl border overflow-hidden mb-2 ${hidden || menuOff ? 'border-red-100' : 'border-gray-200'}`}>
       {/* Category header row */}

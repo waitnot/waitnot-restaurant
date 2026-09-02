@@ -890,6 +890,23 @@ export default function QROrder({ orderMode }) {
               </div>
             )}
 
+            {/* Category Hidden Messages — show banners for hidden categories that have custom messages */}
+            {menuEnabled && (() => {
+              const msgs = Object.entries(restaurant.features?.categoryMessages || {})
+                .filter(([cat, msg]) => hiddenCategories.includes(cat) && msg);
+              if (msgs.length === 0) return null;
+              return (
+                <div className="mb-4 space-y-2">
+                  {msgs.map(([cat, msg]) => (
+                    <div key={cat} className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center gap-2">
+                      <span className="text-orange-500 text-base">⚠️</span>
+                      <p className="text-orange-700 text-sm font-medium">{msg}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* Enhanced Menu List */}
             <div className="space-y-4 mb-24">
               {filteredMenu.map((item, index) => {
