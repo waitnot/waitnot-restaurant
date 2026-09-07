@@ -2674,6 +2674,17 @@ export default function RestaurantDashboard() {
   const sidebarTabs = tabLayout.filter(t => t.position === 'sidebar' && (t.feature ? isFeatureEnabled(t.feature) : true));
   const topbarTabs = tabLayout.filter(t => t.position === 'topbar' && (t.feature ? isFeatureEnabled(t.feature) : true));
 
+  if (!restaurant) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mx-auto mb-3"></div>
+          <p className="text-gray-500 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Success Message Banner */}
