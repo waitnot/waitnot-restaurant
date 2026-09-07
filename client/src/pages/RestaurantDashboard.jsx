@@ -2998,28 +2998,6 @@ export default function RestaurantDashboard() {
           </button>
         </div>
 
-        {/* Order Workflow Tabs — shown for order-related tabs */}
-        {(activeTab === 'delivery' || activeTab === 'dine-in' || activeTab === 'rooms' || activeTab === 'Staff') && (
-          <div className="flex gap-2 mb-3 overflow-x-auto hide-scrollbar pb-1">
-            {[
-              { id: 'all', label: 'All Orders', icon: '📋' },
-              { id: 'preparing', label: 'Preparing', icon: '🍳' },
-              { id: 'ready', label: 'Ready', icon: '✅' },
-              { id: 'out-for-delivery', label: 'Out for Delivery', icon: '🛵' },
-              { id: 'scheduled', label: 'Scheduled', icon: '🕐' },
-            ].map(wt => (
-              <button key={wt.id} onClick={() => setOrderWorkflowTab(wt.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
-                  orderWorkflowTab === wt.id
-                    ? 'bg-primary text-white border-primary shadow-sm'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-primary/40'
-                }`}>
-                <span>{wt.icon}</span> {wt.label}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Tab Content */}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
           <div>
