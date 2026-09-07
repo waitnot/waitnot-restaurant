@@ -429,6 +429,20 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
   );
 }
 
+const DEFAULT_TAB_LAYOUT = [
+  { id: 'Staff', label: 'Staff Order', position: 'topbar', feature: 'staffOrders' },
+  { id: 'delivery', label: 'Delivery Orders', position: 'topbar', feature: 'deliveryOrders' },
+  { id: 'dine-in', label: 'Table Orders', position: 'topbar', feature: 'orderManagement' },
+  { id: 'rooms', label: 'Room Orders', position: 'topbar', feature: null },
+  { id: 'menu', label: 'Menu', position: 'topbar', feature: 'menuManagement' },
+  { id: 'menu-visibility', label: 'Menu Visibility', position: 'topbar', feature: 'menuManagement' },
+  { id: 'qr', label: 'QR Codes', position: 'topbar', feature: 'qrCodeGeneration' },
+  { id: 'history', label: 'Order History', position: 'topbar', feature: 'orderHistory' },
+  { id: 'feedback', label: 'Feedback', position: 'topbar', feature: 'customerFeedback' },
+  { id: 'staff-management', label: 'Staff', position: 'topbar', feature: 'staffManagement' },
+  { id: 'discounts', label: 'Discounts', position: 'topbar', feature: null },
+];
+
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
@@ -2626,20 +2640,7 @@ export default function RestaurantDashboard() {
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
   // Tab layout customizer
-  const DEFAULT_TAB_LAYOUT = [
-    { id: 'Staff', label: 'Staff Order', position: 'topbar', feature: 'staffOrders' },
-    { id: 'delivery', label: 'Delivery Orders', position: 'topbar', feature: 'deliveryOrders' },
-    { id: 'dine-in', label: 'Table Orders', position: 'topbar', feature: 'orderManagement' },
-    { id: 'rooms', label: 'Room Orders', position: 'topbar', feature: null },
-    { id: 'menu', label: 'Menu', position: 'topbar', feature: 'menuManagement' },
-    { id: 'menu-visibility', label: 'Menu Visibility', position: 'topbar', feature: 'menuManagement' },
-    { id: 'qr', label: 'QR Codes', position: 'topbar', feature: 'qrCodeGeneration' },
-    { id: 'history', label: 'Order History', position: 'topbar', feature: 'orderHistory' },
-    { id: 'feedback', label: 'Feedback', position: 'topbar', feature: 'customerFeedback' },
-    { id: 'staff-management', label: 'Staff', position: 'topbar', feature: 'staffManagement' },
-    { id: 'discounts', label: 'Discounts', position: 'topbar', feature: null },
-  ];
-  const [tabLayout, setTabLayout] = React.useState(() => {
+  const [tabLayout, setTabLayout] = useState(() => {
     try {
       const saved = localStorage.getItem('tab_layout');
       if (saved) {
@@ -2650,7 +2651,7 @@ export default function RestaurantDashboard() {
     } catch {}
     return DEFAULT_TAB_LAYOUT;
   });
-  const [showLayoutEditor, setShowLayoutEditor] = React.useState(false);
+  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
 
   const saveTabLayout = (layout) => { setTabLayout(layout); localStorage.setItem('tab_layout', JSON.stringify(layout)); };
   const moveTab = (idx, dir) => { const n = [...tabLayout]; const to = idx + dir; if (to < 0 || to >= n.length) return; [n[idx], n[to]] = [n[to], n[idx]]; saveTabLayout(n); };
