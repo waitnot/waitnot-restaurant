@@ -2670,9 +2670,25 @@ export default function RestaurantDashboard() {
   const activeDeliveryOrders = deliveryOrders.filter(order => order.status !== 'completed');
   const activeDineInOrders = dineInOrders.filter(order => order.status !== 'completed');
   const activeRoomOrders = roomOrders.filter(order => order.status !== 'completed');
-  // Unique busy table/room counts for badges
   const activeDineInTableCount = new Set(activeDineInOrders.map(o => o.tableNumber).filter(Boolean)).size;
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
+
+  // Tab layout helpers
+  const sidebarTabs = tabLayout.filter(t => t.position === 'sidebar' && (t.feature ? isFeatureEnabled(t.feature) : true));
+  const getTabBadge = (id) => {
+    if (id === 'delivery') return activeDeliveryOrders.length || null;
+    if (id === 'dine-in') return activeDineInTableCount || null;
+    if (id === 'rooms') return activeRoomOrderCount || null;
+    if (id === 'menu') return restaurant?.menu?.filter(i => i.available).length || null;
+    if (id === 'history') return validOrders.filter(o => o.status === 'completed').length || null;
+    if (id === 'feedback') return feedback.length || null;
+    if (id === 'qr') return ((restaurant?.tables || 0) + (restaurant?.rooms || 0)) || null;
+    return null;
+  };
+  const handleTabClick = (id) => {
+    if (id === 'Staff') { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }
+    else setActiveTab(id);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -2860,30 +2876,9 @@ export default function RestaurantDashboard() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
 
         {/* Dynamic layout: sidebar tabs on left, content on right */}
-        {(() => {
-          const sidebarTabs = tabLayout.filter(t => t.position === 'sidebar' && (t.feature ? isFeatureEnabled(t.feature) : true));
-          const hasSidebar = sidebarTabs.length > 0;
-
-          const getTabBadge = (id) => {
-            if (id === 'delivery') return activeDeliveryOrders.length || null;
-            if (id === 'dine-in') return activeDineInTableCount || null;
-            if (id === 'rooms') return activeRoomOrderCount || null;
-            if (id === 'menu') return restaurant?.menu?.filter(i => i.available).length || null;
-            if (id === 'history') return validOrders.filter(o => o.status === 'completed').length || null;
-            if (id === 'feedback') return feedback.length || null;
-            if (id === 'qr') return ((restaurant?.tables || 0) + (restaurant?.rooms || 0)) || null;
-            return null;
-          };
-
-          const handleTabClick = (id) => {
-            if (id === 'Staff') { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }
-            else setActiveTab(id);
-          };
-
-          return (
-            <div className={`flex gap-0 ${hasSidebar ? 'items-start' : ''}`}>
+        <div className={`flex gap-0 ${sidebarTabs.length > 0 ? 'items-start' : ''}`}>
               {/* Left sidebar */}
-              {hasSidebar && (
+              {sidebarTabs.length > 0 && (
                 <div className="hidden md:flex flex-col w-44 shrink-0 bg-white border border-gray-200 rounded-xl mr-4 overflow-hidden">
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wide px-4 pt-3 pb-2">Menu</p>
                   {sidebarTabs.map(tab => {
@@ -4569,8 +4564,7 @@ export default function RestaurantDashboard() {
             )}
           </div>
         </div>
-        );
-      })()}
+        </div>
       </div>
 
       {/* Layout Editor Modal */}
