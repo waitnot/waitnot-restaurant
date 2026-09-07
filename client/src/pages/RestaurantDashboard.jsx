@@ -4564,7 +4564,6 @@ export default function RestaurantDashboard() {
             )}
           </div>
         </div>
-        </div>
       </div>
 
       {/* Layout Editor Modal */}
