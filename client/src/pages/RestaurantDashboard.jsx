@@ -794,55 +794,6 @@ export default function RestaurantDashboard() {
   const [notificationEnabled, setNotificationEnabled] = useState(() => notificationSound.getEnabled());
   const [notificationVolume, setNotificationVolume] = useState(() => notificationSound.getVolume());
 
-  // Tab Layout Customizer
-  const DEFAULT_TAB_LAYOUT = [
-    { id: 'Staff', label: 'Staff Order', position: 'topbar', feature: 'staffOrders' },
-    { id: 'delivery', label: 'Delivery Orders', position: 'topbar', feature: 'deliveryOrders' },
-    { id: 'dine-in', label: 'Table Orders', position: 'topbar', feature: 'orderManagement' },
-    { id: 'rooms', label: 'Room Orders', position: 'topbar', feature: null },
-    { id: 'menu', label: 'Menu', position: 'topbar', feature: 'menuManagement' },
-    { id: 'menu-visibility', label: 'Menu Visibility', position: 'topbar', feature: 'menuManagement' },
-    { id: 'qr', label: 'QR Codes', position: 'topbar', feature: 'qrCodeGeneration' },
-    { id: 'history', label: 'Order History', position: 'topbar', feature: 'orderHistory' },
-    { id: 'feedback', label: 'Feedback', position: 'topbar', feature: 'customerFeedback' },
-    { id: 'staff-management', label: 'Staff', position: 'topbar', feature: 'staffManagement' },
-    { id: 'discounts', label: 'Discounts', position: 'topbar', feature: null },
-  ];
-  const [tabLayout, setTabLayout] = useState(() => {
-    try {
-      const saved = localStorage.getItem('tab_layout');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Merge saved with defaults to catch new tabs
-        const savedIds = parsed.map(t => t.id);
-        const merged = [
-          ...parsed,
-          ...DEFAULT_TAB_LAYOUT.filter(t => !savedIds.includes(t.id))
-        ];
-        return merged;
-      }
-    } catch {}
-    return DEFAULT_TAB_LAYOUT;
-  });
-  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
-
-  const saveTabLayout = (layout) => {
-    setTabLayout(layout);
-    localStorage.setItem('tab_layout', JSON.stringify(layout));
-  };
-
-  const moveTab = (idx, dir) => {
-    const next = [...tabLayout];
-    const to = idx + dir;
-    if (to < 0 || to >= next.length) return;
-    [next[idx], next[to]] = [next[to], next[idx]];
-    saveTabLayout(next);
-  };
-
-  const setTabPosition = (id, position) => {
-    saveTabLayout(tabLayout.map(t => t.id === id ? { ...t, position } : t));
-  };
-
   const handleNotificationToggle = (enabled) => {
     setNotificationEnabled(enabled);
     notificationSound.setEnabled(enabled);
@@ -2670,11 +2621,41 @@ export default function RestaurantDashboard() {
   const activeDeliveryOrders = deliveryOrders.filter(order => order.status !== 'completed');
   const activeDineInOrders = dineInOrders.filter(order => order.status !== 'completed');
   const activeRoomOrders = roomOrders.filter(order => order.status !== 'completed');
+  // Unique busy table/room counts for badges
   const activeDineInTableCount = new Set(activeDineInOrders.map(o => o.tableNumber).filter(Boolean)).size;
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
-  // Tab layout helpers
-  const sidebarTabs = tabLayout.filter(t => t.position === 'sidebar' && (t.feature ? isFeatureEnabled(t.feature) : true));
+  // Tab layout customizer
+  const DEFAULT_TAB_LAYOUT = [
+    { id: 'Staff', label: 'Staff Order', position: 'topbar', feature: 'staffOrders' },
+    { id: 'delivery', label: 'Delivery Orders', position: 'topbar', feature: 'deliveryOrders' },
+    { id: 'dine-in', label: 'Table Orders', position: 'topbar', feature: 'orderManagement' },
+    { id: 'rooms', label: 'Room Orders', position: 'topbar', feature: null },
+    { id: 'menu', label: 'Menu', position: 'topbar', feature: 'menuManagement' },
+    { id: 'menu-visibility', label: 'Menu Visibility', position: 'topbar', feature: 'menuManagement' },
+    { id: 'qr', label: 'QR Codes', position: 'topbar', feature: 'qrCodeGeneration' },
+    { id: 'history', label: 'Order History', position: 'topbar', feature: 'orderHistory' },
+    { id: 'feedback', label: 'Feedback', position: 'topbar', feature: 'customerFeedback' },
+    { id: 'staff-management', label: 'Staff', position: 'topbar', feature: 'staffManagement' },
+    { id: 'discounts', label: 'Discounts', position: 'topbar', feature: null },
+  ];
+  const [tabLayout, setTabLayout] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem('tab_layout');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const savedIds = parsed.map(t => t.id);
+        return [...parsed, ...DEFAULT_TAB_LAYOUT.filter(t => !savedIds.includes(t.id))];
+      }
+    } catch {}
+    return DEFAULT_TAB_LAYOUT;
+  });
+  const [showLayoutEditor, setShowLayoutEditor] = React.useState(false);
+
+  const saveTabLayout = (layout) => { setTabLayout(layout); localStorage.setItem('tab_layout', JSON.stringify(layout)); };
+  const moveTab = (idx, dir) => { const n = [...tabLayout]; const to = idx + dir; if (to < 0 || to >= n.length) return; [n[idx], n[to]] = [n[to], n[idx]]; saveTabLayout(n); };
+  const setTabPosition = (id, pos) => saveTabLayout(tabLayout.map(t => t.id === id ? { ...t, position: pos } : t));
+
   const getTabBadge = (id) => {
     if (id === 'delivery') return activeDeliveryOrders.length || null;
     if (id === 'dine-in') return activeDineInTableCount || null;
@@ -2685,10 +2666,12 @@ export default function RestaurantDashboard() {
     if (id === 'qr') return ((restaurant?.tables || 0) + (restaurant?.rooms || 0)) || null;
     return null;
   };
-  const handleTabClick = (id) => {
+  const doTabClick = (id) => {
     if (id === 'Staff') { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }
     else setActiveTab(id);
   };
+  const sidebarTabs = tabLayout.filter(t => t.position === 'sidebar' && (t.feature ? isFeatureEnabled(t.feature) : true));
+  const topbarTabs = tabLayout.filter(t => t.position === 'topbar' && (t.feature ? isFeatureEnabled(t.feature) : true));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -2874,55 +2857,45 @@ export default function RestaurantDashboard() {
       )}
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
-
-        {/* Dynamic layout: sidebar tabs on left, content on right */}
-        <div className={`flex gap-0 ${sidebarTabs.length > 0 ? 'items-start' : ''}`}>
-              {/* Left sidebar */}
-              {sidebarTabs.length > 0 && (
-                <div className="hidden md:flex flex-col w-44 shrink-0 bg-white border border-gray-200 rounded-xl mr-4 overflow-hidden">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide px-4 pt-3 pb-2">Menu</p>
-                  {sidebarTabs.map(tab => {
-                    const badge = getTabBadge(tab.id);
-                    return (
-                      <button key={tab.id} onClick={() => handleTabClick(tab.id)}
-                        className={`flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors text-left border-l-2 ${
-                          activeTab === tab.id ? 'bg-primary/10 text-primary border-primary' : 'text-gray-600 border-transparent hover:bg-gray-50'
-                        }`}>
-                        <span>{tab.label}</span>
-                        {badge ? <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${activeTab === tab.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'}`}>{badge}</span> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Main content area */}
-              <div className="flex-1 min-w-0">
-                {/* Top bar */}
-                <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar items-center">
-                  {tabLayout.filter(t => t.position === 'topbar' && (t.feature ? isFeatureEnabled(t.feature) : true)).map(tab => {
-                    const badge = getTabBadge(tab.id);
-                    return (
-                      <button key={tab.id} onClick={() => handleTabClick(tab.id)}
-                        className={`relative px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                          activeTab === tab.id ? 'bg-primary text-white' : 'bg-white text-gray-700'
-                        }`}>
-                        {tab.label}
-                        {badge ? <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${activeTab === tab.id ? 'bg-white text-primary' : 'bg-primary text-white'}`}>{badge}</span> : null}
-                        {tab.id === 'menu-visibility' && restaurant?.features?.menuEnabled === false && (
-                          <span className="ml-2 px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white">OFF</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                  {/* Customize button */}
-                  <button onClick={() => setShowLayoutEditor(true)}
-                    className="ml-auto shrink-0 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Customize layout">
-                    <GripVertical size={16} />
+        {/* Sidebar layout */}
+        <div className="flex gap-4 items-start">
+          {sidebarTabs.length > 0 && (
+            <div className="hidden md:flex flex-col w-44 shrink-0 bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide px-4 pt-3 pb-2">Menu</p>
+              {sidebarTabs.map(tab => {
+                const badge = getTabBadge(tab.id);
+                return (
+                  <button key={tab.id} onClick={() => doTabClick(tab.id)}
+                    className={"flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors text-left border-l-2 " + (activeTab === tab.id ? "bg-primary/10 text-primary border-primary" : "text-gray-600 border-transparent hover:bg-gray-50")}>
+                    <span>{tab.label}</span>
+                    {badge ? <span className={"text-xs px-1.5 py-0.5 rounded-full font-bold " + (activeTab === tab.id ? "bg-primary text-white" : "bg-gray-100 text-gray-600")}>{badge}</span> : null}
                   </button>
-                </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar items-center">
+          {topbarTabs.map(tab => {
+            const badge = getTabBadge(tab.id);
+            return (
+              <button key={tab.id} onClick={() => doTabClick(tab.id)}
+                className={"relative px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base " + (activeTab === tab.id ? "bg-primary text-white" : "bg-white text-gray-700")}>
+                {tab.label}
+                {badge ? <span className={"ml-2 px-2 py-0.5 text-xs font-bold rounded-full " + (activeTab === tab.id ? "bg-white text-primary" : "bg-primary text-white")}>{badge}</span> : null}
+                {tab.id === "menu-visibility" && restaurant?.features?.menuEnabled === false && (
+                  <span className="ml-2 px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white">OFF</span>
+                )}
+              </button>
+            );
+          })}
+          <button onClick={() => setShowLayoutEditor(true)}
+            className="ml-auto shrink-0 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="Customize layout">
+            <GripVertical size={16} />
+          </button>
+        </div>
 
-        {/* Tab Content */}
+        {/* Tab Content */}}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -4563,40 +4536,33 @@ export default function RestaurantDashboard() {
               </div>
             )}
           </div>
+        )}
+          </div>
         </div>
       </div>
 
       {/* Layout Editor Modal */}
       {showLayoutEditor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" style={{maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900 text-lg">Customize Layout</h2>
               <button onClick={() => setShowLayoutEditor(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-3">
-              <p className="text-xs text-gray-500 mb-3">Reorder tabs and choose where each appears.</p>
+            <div className="overflow-y-auto px-5 py-3" style={{flex:1}}>
+              <p className="text-xs text-gray-500 mb-3">Reorder tabs and set position.</p>
               <div className="space-y-2">
                 {tabLayout.map((tab, idx) => (
                   <div key={tab.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
-                    {/* Up/Down */}
                     <div className="flex flex-col gap-0.5">
-                      <button onClick={() => moveTab(idx, -1)} disabled={idx === 0}
-                        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▲</button>
-                      <button onClick={() => moveTab(idx, 1)} disabled={idx === tabLayout.length - 1}
-                        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▼</button>
+                      <button onClick={() => moveTab(idx, -1)} disabled={idx === 0} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▲</button>
+                      <button onClick={() => moveTab(idx, 1)} disabled={idx === tabLayout.length - 1} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▼</button>
                     </div>
-                    {/* Label */}
                     <span className="flex-1 text-sm font-medium text-gray-800">{tab.label}</span>
-                    {/* Position selector */}
                     <div className="flex gap-1">
-                      {[
-                        { val: 'topbar', icon: '⬆', title: 'Top bar' },
-                        { val: 'sidebar', icon: '◀', title: 'Left sidebar' },
-                        { val: 'hidden', icon: '✕', title: 'Hidden' },
-                      ].map(opt => (
+                      {[{val:"topbar",icon:"⬆",title:"Top bar"},{val:"sidebar",icon:"◀",title:"Left sidebar"},{val:"hidden",icon:"✕",title:"Hidden"}].map(opt => (
                         <button key={opt.val} onClick={() => setTabPosition(tab.id, opt.val)} title={opt.title}
-                          className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${tab.position === opt.val ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-500 hover:border-primary'}`}>
+                          className={"w-7 h-7 rounded-lg text-xs font-bold transition-colors " + (tab.position === opt.val ? "bg-primary text-white" : "bg-white border border-gray-200 text-gray-500 hover:border-primary")}>
                           {opt.icon}
                         </button>
                       ))}
@@ -4606,8 +4572,8 @@ export default function RestaurantDashboard() {
               </div>
             </div>
             <div className="px-5 py-3 border-t border-gray-100 flex justify-between">
-              <button onClick={() => { saveTabLayout(DEFAULT_TAB_LAYOUT); }} className="text-xs text-gray-400 hover:text-red-500">Reset to default</button>
-              <button onClick={() => setShowLayoutEditor(false)} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90">Done</button>
+              <button onClick={() => saveTabLayout(DEFAULT_TAB_LAYOUT)} className="text-xs text-gray-400 hover:text-red-500">Reset</button>
+              <button onClick={() => setShowLayoutEditor(false)} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold">Done</button>
             </div>
           </div>
         </div>
