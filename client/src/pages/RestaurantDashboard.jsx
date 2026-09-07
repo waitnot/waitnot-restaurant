@@ -2896,7 +2896,7 @@ export default function RestaurantDashboard() {
           </button>
         </div>
 
-        {/* Tab Content */}}
+        {/* Tab Content */}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -4538,7 +4538,7 @@ export default function RestaurantDashboard() {
             )}
           </div>
         )}
-          </div>
+        </div>
         </div>
       </div>
 
