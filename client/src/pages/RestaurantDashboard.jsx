@@ -4567,12 +4567,12 @@ export default function RestaurantDashboard() {
                 })()}
               </div>
             )}
-          </div>{/* end Tab Content */}
-        </div>{/* end flex-1 main content */}
-      </div>{/* end sidebar+content flex */}
+          </div>
+        </div>
+      </div>
           );
         })()}
-      </div>{/* end max-w-7xl */}
+      </div>
 
       {/* Layout Editor Modal */}
       {showLayoutEditor && (
