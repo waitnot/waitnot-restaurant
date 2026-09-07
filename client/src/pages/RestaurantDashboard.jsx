@@ -606,12 +606,12 @@ export default function RestaurantDashboard() {
     console.log('🔌 WebSocket Configuration:', getEnvironmentInfo());
     
     const socket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      timeout: 20000,
+      transports: ['polling', 'websocket'],
+      timeout: 60000,
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
-      maxReconnectionAttempts: 5
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
     });
     
     socket.emit('join-restaurant', restaurantId);
