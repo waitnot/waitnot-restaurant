@@ -2127,6 +2127,11 @@ export default function RestaurantDashboard() {
           setTimeout(() => setSuccessMessage(''), 3000);
           return;
         }
+        if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.customerName) {
+          setSuccessMessage('⚠️ Please enter customer name for delivery orders.');
+          setTimeout(() => setSuccessMessage(''), 3000);
+          return;
+        }
         if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
           setSuccessMessage('⚠️ Please select a table number before saving dine-in orders.');
           setTimeout(() => setSuccessMessage(''), 3000);
@@ -4595,7 +4600,7 @@ export default function RestaurantDashboard() {
                   </div>
 
                   {/* Sticky bottom — notes, charges, total, action buttons */}
-                  <div className="shrink-0 border-t border-gray-100">
+                  <div className="shrink-0 border-t border-gray-100 bg-white">
                     <div className="px-3 py-1.5 space-y-1">
                       <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder(prev => ({...prev, specialInstructions: e.target.value}))}
                         placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary" />
@@ -4607,10 +4612,16 @@ export default function RestaurantDashboard() {
                         </div>
                       )}
                       {receptionistOrder.orderType === 'delivery' && (
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
-                          <input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))}
-                            placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
+                            <input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))}
+                              placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
+                          </div>
+                          <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))}
+                            placeholder="Customer name *" className={`w-full text-xs border rounded px-2 py-1 focus:outline-none ${!receptionistOrder.customerName ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                          <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))}
+                            placeholder="Delivery address *" className={`w-full text-xs border rounded px-2 py-1 focus:outline-none ${!receptionistOrder.deliveryAddress ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
                         </div>
                       )}
                     </div>
