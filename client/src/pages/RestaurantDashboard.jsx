@@ -4339,7 +4339,7 @@ export default function RestaurantDashboard() {
         {/* Staff Order Tab */}
         {/* Staff Order Tab */}
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
-          <div className="flex gap-0 h-[calc(100vh-110px)] overflow-hidden -mx-3 sm:-mx-6 -mt-3 sm:-mt-4">
+          <div className="flex gap-0 overflow-hidden -mx-3 sm:-mx-6 -mt-3 sm:-mt-4" style={{height:'calc(100vh - 110px)'}}>
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
               <div className="w-full px-4 sm:px-6 py-4 overflow-y-auto bg-gray-50">
@@ -4603,24 +4603,25 @@ export default function RestaurantDashboard() {
                         </div>
                       )}
                     </div>
-                    {receptionistOrder.items.length > 0 && (() => {
-                      const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
-                      const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
-                      const grandTotal = subtotal + extraCharge;
-                      return (
-                        <div className="px-3 pb-2">
-                          <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
-                            <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items{extraCharge > 0 ? ` + ₹${extraCharge}` : ''}</span>
-                            <span className="text-base font-bold text-gray-900">₹{grandTotal}</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
-                            <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
-                            <button onClick={clearReceptionistOrder} className="bg-green-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-600">Save</button>
-                          </div>
+                    <div className="px-3 pb-2">
+                      {receptionistOrder.items.length > 0 && (
+                        <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
+                          {(() => {
+                            const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+                            const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
+                            return <>
+                              <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items{extraCharge > 0 ? ` + ₹${extraCharge}` : ''}</span>
+                              <span className="text-base font-bold text-gray-900">₹{subtotal + extraCharge}</span>
+                            </>;
+                          })()}
                         </div>
-                      );
-                    })()}
+                      )}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
+                        <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
+                        <button onClick={clearReceptionistOrder} className="bg-green-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-600">Save</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 {/* Mobile bottom bar */}
