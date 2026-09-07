@@ -429,20 +429,6 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
   );
 }
 
-const DEFAULT_TAB_LAYOUT = [
-  { id: 'Staff', label: 'Staff Order', position: 'topbar', feature: 'staffOrders' },
-  { id: 'delivery', label: 'Delivery Orders', position: 'topbar', feature: 'deliveryOrders' },
-  { id: 'dine-in', label: 'Table Orders', position: 'topbar', feature: 'orderManagement' },
-  { id: 'rooms', label: 'Room Orders', position: 'topbar', feature: null },
-  { id: 'menu', label: 'Menu', position: 'topbar', feature: 'menuManagement' },
-  { id: 'menu-visibility', label: 'Menu Visibility', position: 'topbar', feature: 'menuManagement' },
-  { id: 'qr', label: 'QR Codes', position: 'topbar', feature: 'qrCodeGeneration' },
-  { id: 'history', label: 'Order History', position: 'topbar', feature: 'orderHistory' },
-  { id: 'feedback', label: 'Feedback', position: 'topbar', feature: 'customerFeedback' },
-  { id: 'staff-management', label: 'Staff', position: 'topbar', feature: 'staffManagement' },
-  { id: 'discounts', label: 'Discounts', position: 'topbar', feature: null },
-];
-
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
@@ -620,12 +606,12 @@ export default function RestaurantDashboard() {
     console.log('🔌 WebSocket Configuration:', getEnvironmentInfo());
     
     const socket = io(socketUrl, {
-      transports: ['polling', 'websocket'],
-      timeout: 60000,
+      transports: ['websocket', 'polling'],
+      timeout: 20000,
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
-      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      maxReconnectionAttempts: 5
     });
     
     socket.emit('join-restaurant', restaurantId);
@@ -2639,52 +2625,6 @@ export default function RestaurantDashboard() {
   const activeDineInTableCount = new Set(activeDineInOrders.map(o => o.tableNumber).filter(Boolean)).size;
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
-  // Tab layout customizer
-  const [tabLayout, setTabLayout] = useState(() => {
-    try {
-      const saved = localStorage.getItem('tab_layout');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const savedIds = parsed.map(t => t.id);
-        return [...parsed, ...DEFAULT_TAB_LAYOUT.filter(t => !savedIds.includes(t.id))];
-      }
-    } catch {}
-    return DEFAULT_TAB_LAYOUT;
-  });
-  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
-
-  const saveTabLayout = (layout) => { setTabLayout(layout); localStorage.setItem('tab_layout', JSON.stringify(layout)); };
-  const moveTab = (idx, dir) => { const n = [...tabLayout]; const to = idx + dir; if (to < 0 || to >= n.length) return; [n[idx], n[to]] = [n[to], n[idx]]; saveTabLayout(n); };
-  const setTabPosition = (id, pos) => saveTabLayout(tabLayout.map(t => t.id === id ? { ...t, position: pos } : t));
-
-  const getTabBadge = (id) => {
-    if (id === 'delivery') return activeDeliveryOrders.length || null;
-    if (id === 'dine-in') return activeDineInTableCount || null;
-    if (id === 'rooms') return activeRoomOrderCount || null;
-    if (id === 'menu') return restaurant?.menu?.filter(i => i.available).length || null;
-    if (id === 'history') return validOrders.filter(o => o.status === 'completed').length || null;
-    if (id === 'feedback') return feedback.length || null;
-    if (id === 'qr') return ((restaurant?.tables || 0) + (restaurant?.rooms || 0)) || null;
-    return null;
-  };
-  const doTabClick = (id) => {
-    if (id === 'Staff') { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }
-    else setActiveTab(id);
-  };
-  const sidebarTabs = tabLayout.filter(t => t.position === 'sidebar' && (t.feature ? isFeatureEnabled(t.feature) : true));
-  const topbarTabs = tabLayout.filter(t => t.position === 'topbar' && (t.feature ? isFeatureEnabled(t.feature) : true));
-
-  if (!restaurant) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mx-auto mb-3"></div>
-          <p className="text-gray-500 text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Success Message Banner */}
@@ -2869,41 +2809,192 @@ export default function RestaurantDashboard() {
       )}
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
-        {/* Sidebar layout */}
-        <div className="flex gap-4 items-start">
-          {sidebarTabs.length > 0 && (
-            <div className="hidden md:flex flex-col w-44 shrink-0 bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide px-4 pt-3 pb-2">Menu</p>
-              {sidebarTabs.map(tab => {
-                const badge = getTabBadge(tab.id);
-                return (
-                  <button key={tab.id} onClick={() => doTabClick(tab.id)}
-                    className={"flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors text-left border-l-2 " + (activeTab === tab.id ? "bg-primary/10 text-primary border-primary" : "text-gray-600 border-transparent hover:bg-gray-50")}>
-                    <span>{tab.label}</span>
-                    {badge ? <span className={"text-xs px-1.5 py-0.5 rounded-full font-bold " + (activeTab === tab.id ? "bg-primary text-white" : "bg-gray-100 text-gray-600")}>{badge}</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar items-center">
-          {topbarTabs.map(tab => {
-            const badge = getTabBadge(tab.id);
-            return (
-              <button key={tab.id} onClick={() => doTabClick(tab.id)}
-                className={"relative px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base " + (activeTab === tab.id ? "bg-primary text-white" : "bg-white text-gray-700")}>
-                {tab.label}
-                {badge ? <span className={"ml-2 px-2 py-0.5 text-xs font-bold rounded-full " + (activeTab === tab.id ? "bg-white text-primary" : "bg-primary text-white")}>{badge}</span> : null}
-                {tab.id === "menu-visibility" && restaurant?.features?.menuEnabled === false && (
-                  <span className="ml-2 px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white">OFF</span>
-                )}
-              </button>
-            );
-          })}
-          <button onClick={() => setShowLayoutEditor(true)}
-            className="ml-auto shrink-0 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="Customize layout">
-            <GripVertical size={16} />
+        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar">
+          {/* Staff Ordering Tab - Moved to first position */}
+          <FeatureGuard feature="staffOrders">
+            <button
+              onClick={() => { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'Staff' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Staff Order</span>
+              <span className="sm:hidden">Staff</span>
+            </button>
+          </FeatureGuard>
+
+          <FeatureGuard feature="deliveryOrders">
+            <button
+              onClick={() => setActiveTab('delivery')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'delivery' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Delivery Orders</span>
+              <span className="sm:hidden">Delivery</span>
+              {activeDeliveryOrders.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'delivery' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {activeDeliveryOrders.length}
+                </span>
+              )}
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="orderManagement">
+            <button
+              onClick={() => setActiveTab('dine-in')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'dine-in' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Table Orders</span>
+              <span className="sm:hidden">Tables</span>
+              {activeDineInOrders.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'dine-in' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {activeDineInTableCount}
+                </span>
+              )}
+            </button>
+          </FeatureGuard>
+          <button
+            onClick={() => setActiveTab('rooms')}
+            className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              activeTab === 'rooms' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+            }`}
+          >
+            <span className="hidden sm:inline">Room Orders</span>
+            <span className="sm:hidden">Rooms</span>
+            {activeRoomOrders.length > 0 && (
+              <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                activeTab === 'rooms'
+                  ? 'bg-white text-primary'
+                  : 'bg-primary text-white'
+              }`}>
+                {activeRoomOrderCount}
+              </span>
+            )}
+          </button>
+          <FeatureGuard feature="menuManagement">
+            <button
+              onClick={() => setActiveTab('menu')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'menu' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              Menu
+              {restaurant?.menu?.filter(item => item.available).length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'menu' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {restaurant.menu.filter(item => item.available).length}
+                </span>
+              )}
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="menuManagement">
+            <button
+              onClick={() => setActiveTab('menu-visibility')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'menu-visibility' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Menu Visibility</span>
+              <span className="sm:hidden">Visibility</span>
+              {restaurant?.features?.menuEnabled === false && (
+                <span className="ml-2 px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white">OFF</span>
+              )}
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="qrCodeGeneration">
+            <button
+              onClick={() => setActiveTab('qr')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'qr' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">QR Codes</span>
+              <span className="sm:hidden">QR</span>
+              {(restaurant?.tables > 0 || restaurant?.rooms > 0) && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'qr' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {(restaurant.tables || 0) + (restaurant.rooms || 0)}
+                </span>
+              )}
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="orderHistory">
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'history' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Order History</span>
+              <span className="sm:hidden">History</span>
+              {validOrders.filter(o => o.status === 'completed').length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'history' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {validOrders.filter(o => o.status === 'completed').length}
+                </span>
+              )}
+            </button>
+          </FeatureGuard>
+          <FeatureGuard feature="customerFeedback">
+            <button
+              onClick={() => setActiveTab('feedback')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'feedback' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Feedback</span>
+              <span className="sm:hidden">💬</span>
+              {feedback.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                  activeTab === 'feedback' 
+                    ? 'bg-white text-primary' 
+                    : 'bg-primary text-white'
+                }`}>
+                  {feedback.length}
+                </span>
+              )}
+            </button>
+          </FeatureGuard>
+          
+          <FeatureGuard feature="staffManagement">
+            <button
+              onClick={() => setActiveTab('staff-management')}
+              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'staff-management' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">Staff</span>
+              <span className="sm:hidden">Staff</span>
+            </button>
+          </FeatureGuard>
+          
+          <button
+            onClick={() => setActiveTab('discounts')}
+            className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
+              activeTab === 'discounts' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+            }`}
+          >
+            <span className="hidden sm:inline">Discounts</span>
+            <span className="sm:hidden">Discounts</span>
           </button>
         </div>
 
@@ -4549,47 +4640,7 @@ export default function RestaurantDashboard() {
             )}
           </div>
         )}
-        </div>
-        </div>
       </div>
-
-      {/* Layout Editor Modal */}
-      {showLayoutEditor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" style={{maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900 text-lg">Customize Layout</h2>
-              <button onClick={() => setShowLayoutEditor(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
-            </div>
-            <div className="overflow-y-auto px-5 py-3" style={{flex:1}}>
-              <p className="text-xs text-gray-500 mb-3">Reorder tabs and set position.</p>
-              <div className="space-y-2">
-                {tabLayout.map((tab, idx) => (
-                  <div key={tab.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
-                    <div className="flex flex-col gap-0.5">
-                      <button onClick={() => moveTab(idx, -1)} disabled={idx === 0} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▲</button>
-                      <button onClick={() => moveTab(idx, 1)} disabled={idx === tabLayout.length - 1} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▼</button>
-                    </div>
-                    <span className="flex-1 text-sm font-medium text-gray-800">{tab.label}</span>
-                    <div className="flex gap-1">
-                      {[{val:"topbar",icon:"⬆",title:"Top bar"},{val:"sidebar",icon:"◀",title:"Left sidebar"},{val:"hidden",icon:"✕",title:"Hidden"}].map(opt => (
-                        <button key={opt.val} onClick={() => setTabPosition(tab.id, opt.val)} title={opt.title}
-                          className={"w-7 h-7 rounded-lg text-xs font-bold transition-colors " + (tab.position === opt.val ? "bg-primary text-white" : "bg-white border border-gray-200 text-gray-500 hover:border-primary")}>
-                          {opt.icon}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-between">
-              <button onClick={() => saveTabLayout(DEFAULT_TAB_LAYOUT)} className="text-xs text-gray-400 hover:text-red-500">Reset</button>
-              <button onClick={() => setShowLayoutEditor(false)} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold">Done</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Notification Settings Modal */}
       {showNotificationSettings && (
