@@ -4413,209 +4413,159 @@ export default function RestaurantDashboard() {
                 </div>
               </div>
             ) : (
-              /* ── ORDER INTERFACE ── */
-              <div className="flex h-full w-full overflow-hidden">
-                {/* LEFT: Category sidebar + Menu items */}
-                <div className="flex h-full w-full lg:w-[58%] border-r border-gray-200 overflow-hidden bg-gray-50">
+              /* ── ORDER INTERFACE — 3-column POS layout ── */
+              <div style={{display:'flex', width:'100%', height:'100%', overflow:'hidden'}}>
 
-                  {/* Category sidebar */}
-                  <div className="w-28 shrink-0 bg-white border-r border-gray-100 overflow-y-auto flex flex-col">
+                {/* COL 1: Category — fixed width, list scrolls */}
+                <div style={{width:'112px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderRight:'1px solid #f3f4f6'}}>
+                  <div style={{overflowY:'auto', overflowX:'hidden', flex:1}}>
                     {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category) || [])]].map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`px-2 py-3 text-xs font-semibold text-center border-b border-gray-100 transition-all ${
-                          selectedCategory === cat
-                            ? 'bg-primary text-white'
-                            : 'text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
+                      <button key={cat} onClick={() => setSelectedCategory(cat)}
+                        className={"px-2 py-3 text-xs font-semibold text-center border-b border-gray-100 transition-all w-full " + (selectedCategory === cat ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50')}>
                         {cat === 'all' ? 'All Items' : cat}
                       </button>
                     ))}
                   </div>
+                </div>
 
-                  {/* Menu items list (no images, text-only like Pet Pooja) */}
-                  <div className="flex flex-col flex-1 overflow-hidden">
-                    {/* Top bar */}
-                    <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center shrink-0">
-                      {staffSelectedTable && receptionistOrder.orderType === 'room' ? (
-                        <>
-                          <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
-                          <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🛏 {restaurant?.features?.roomNames?.[staffSelectedTable] || ('Room ' + staffSelectedTable)}</span>
-                        </>
-                      ) : staffSelectedTable ? (
-                        <>
-                          <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }} className="text-xs text-primary font-semibold">← Table {staffSelectedTable}</button>
-                          <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">Dine-In · T{staffSelectedTable}</span>
-                        </>
-                      ) : (receptionistOrder.orderType === 'takeaway') ? (
-                        <>
-                          <button onClick={() => { setStaffView('tables'); }} className="text-xs text-primary font-semibold">← Back</button>
-                          <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🥡 Takeaway</span>
-                        </>
-                      ) : (receptionistOrder.orderType === 'delivery') ? (
-                        <>
-                          <button onClick={() => { setStaffView('tables'); }} className="text-xs text-primary font-semibold">← Back</button>
-                          <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>
-                          <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))}
-                            placeholder="Delivery address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[120px]" />
-                        </>
-                      ) : (
-                        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-                          {[{id:'takeaway',label:'TW'},{id:'delivery',label:'DEL'},{id:'dine-in',label:'DI'}].map(t => (
-                            <button key={t.id} onClick={() => setReceptionistOrder(prev => ({...prev, orderType: t.id, deliveryAddress: '', tableNumber: ''}))}
-                              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${receptionistOrder.orderType === t.id ? 'bg-primary text-white' : 'text-gray-500'}`}>{t.label}</button>
-                          ))}
-                        </div>
-                      )}
-                      <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder(prev => ({...prev, waiterId: e.target.value, waiterNumber: w?.waiter_number||''})); }}
-                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
-                        <option value="">Waiter</option>
-                        {availableWaiters.map(w => <option key={w.id} value={w.id}>{w.waiter_number}</option>)}
-                      </select>
-                      <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))}
-                        placeholder="Name" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none min-w-[80px]" />
-                    </div>
-
-                    {/* Search */}
-                    <div className="px-3 py-2 shrink-0 bg-white border-b border-gray-100">
-                      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
-                        <Search size={13} className="text-gray-400 shrink-0" />
-                        <input value={staffSearchQuery} onChange={e => setStaffSearchQuery(e.target.value)} placeholder="Search..."
-                          className="flex-1 text-xs outline-none bg-transparent text-gray-700 placeholder-gray-400" />
-                        {staffSearchQuery && <button onClick={() => setStaffSearchQuery('')}><X size={13} className="text-gray-400" /></button>}
+                {/* COL 2: Menu — flex grows, grid scrolls */}
+                <div style={{flex:1, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#f9fafb'}}>
+                  <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center" style={{flexShrink:0}}>
+                    {staffSelectedTable && receptionistOrder.orderType === 'room' ? (
+                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
+                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🛏 {restaurant?.features?.roomNames?.[staffSelectedTable] || ('Room ' + staffSelectedTable)}</span></>
+                    ) : staffSelectedTable ? (
+                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }} className="text-xs text-primary font-semibold">← Table {staffSelectedTable}</button>
+                      <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">Dine-In · T{staffSelectedTable}</span></>
+                    ) : receptionistOrder.orderType === 'takeaway' ? (
+                      <><button onClick={() => setStaffView('tables')} className="text-xs text-primary font-semibold">← Back</button>
+                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🥡 Takeaway</span></>
+                    ) : receptionistOrder.orderType === 'delivery' ? (
+                      <><button onClick={() => setStaffView('tables')} className="text-xs text-primary font-semibold">← Back</button>
+                      <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>
+                      <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Delivery address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[120px]" /></>
+                    ) : (
+                      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                        {[{id:'takeaway',label:'TW'},{id:'delivery',label:'DEL'},{id:'dine-in',label:'DI'}].map(t => (
+                          <button key={t.id} onClick={() => setReceptionistOrder(prev => ({...prev, orderType: t.id, deliveryAddress: '', tableNumber: ''}))}
+                            className={"px-2.5 py-1 rounded-md text-xs font-semibold transition-all " + (receptionistOrder.orderType === t.id ? 'bg-primary text-white' : 'text-gray-500')}>{t.label}</button>
+                        ))}
                       </div>
+                    )}
+                    <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder(prev => ({...prev, waiterId: e.target.value, waiterNumber: w?.waiter_number||''})); }} className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
+                      <option value="">Waiter</option>
+                      {availableWaiters.map(w => <option key={w.id} value={w.id}>{w.waiter_number}</option>)}
+                    </select>
+                    <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))} placeholder="Name" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none min-w-[80px]" />
+                  </div>
+                  <div className="px-3 py-2 bg-white border-b border-gray-100" style={{flexShrink:0}}>
+                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                      <Search size={13} className="text-gray-400 shrink-0" />
+                      <input value={staffSearchQuery} onChange={e => setStaffSearchQuery(e.target.value)} placeholder="Search..." className="flex-1 text-xs outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+                      {staffSearchQuery && <button onClick={() => setStaffSearchQuery('')}><X size={13} className="text-gray-400" /></button>}
                     </div>
-
-                    {/* Menu grid — bigger boxes, no price shown */}
-                    <div className="flex-1 overflow-y-auto p-2">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {restaurant?.menu?.filter(i => i.available)
-                          .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
-                          .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
-                          .map(item => {
-                            const inOrder = receptionistOrder.items.find(x => x._id === item._id);
-                            return (
-                              <div key={item._id}
-                                className={`relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none ${inOrder ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary'}`}
-                                onClick={() => { if (!inOrder) updateReceptionistOrderItem(item, 1); }}
-                              >
-                                <span className={`absolute top-2 left-2 w-2 h-2 rounded-sm border ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
-                                <div className="pt-4 pb-1 px-0.5 min-h-[3.5rem]">
-                                  <p className="text-xs font-semibold text-gray-800 leading-tight">{item.name}</p>
+                  </div>
+                  <div style={{flex:1, overflowY:'auto', overflowX:'hidden', padding:'8px'}}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {restaurant?.menu?.filter(i => i.available)
+                        .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
+                        .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
+                        .map(item => {
+                          const inOrder = receptionistOrder.items.find(x => x._id === item._id);
+                          return (
+                            <div key={item._id}
+                              className={"relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none " + (inOrder ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary')}
+                              onClick={() => { if (!inOrder) updateReceptionistOrderItem(item, 1); }}>
+                              <span className={"absolute top-2 left-2 w-2 h-2 rounded-sm border " + (item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500')}></span>
+                              <div className="pt-4 pb-1 px-0.5 min-h-[3.5rem]"><p className="text-xs font-semibold text-gray-800 leading-tight">{item.name}</p></div>
+                              {inOrder ? (
+                                <div className="flex items-center justify-between mt-1 gap-1">
+                                  <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700">−</button>
+                                  <span className="text-sm font-bold text-primary">{inOrder.quantity}</span>
+                                  <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, 1); }} className="w-7 h-7 rounded bg-primary text-white flex items-center justify-center text-sm font-bold">+</button>
                                 </div>
-                                {inOrder ? (
-                                  <div className="flex items-center justify-between mt-1 gap-1">
-                        <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700">−</button>
-                            <span className="text-sm font-bold text-primary">{inOrder.quantity}</span>
-                            <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, 1); }} className="w-7 h-7 rounded bg-primary text-white flex items-center justify-center text-sm font-bold">+</button>
-                                  </div>
-                                ) : (
-                                  <div className="flex justify-end mt-1">
-                                    <span className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-lg leading-none">+</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                      </div>
+                              ) : (
+                                <div className="flex justify-end mt-1"><span className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-lg leading-none">+</span></div>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 </div>
 
-                {/* RIGHT: Cart — sticky header + scrollable items + sticky bottom */}
-                <div className="hidden lg:flex lg:flex-col lg:w-[42%] bg-white border-l border-gray-100 h-full overflow-hidden">
-                  {/* Header */}
-                  <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between shrink-0">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-sm">
-                        {receptionistOrder.orderType === 'dine-in' && receptionistOrder.tableNumber
-                          ? `Table ${receptionistOrder.tableNumber}`
-                          : receptionistOrder.orderType === 'takeaway' ? '🥡 Takeaway'
-                          : '🛵 Delivery'}
-                      </h3>
-                      <p className="text-xs text-gray-400">{receptionistOrder.customerName || 'Guest'}</p>
+                {/* COL 3: Order Summary — fixed, overflow hidden, never scrolls as a whole */}
+                <div style={{width:'280px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderLeft:'1px solid #f3f4f6'}}>
+                  {/* Fixed header */}
+                  <div className="px-3 py-2 border-b border-gray-100" style={{flexShrink:0}}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-sm">
+                          {receptionistOrder.orderType === 'dine-in' && receptionistOrder.tableNumber ? `Table ${receptionistOrder.tableNumber}`
+                            : receptionistOrder.orderType === 'room' && receptionistOrder.roomNumber ? (restaurant?.features?.roomNames?.[receptionistOrder.roomNumber] || 'Room ' + receptionistOrder.roomNumber)
+                            : receptionistOrder.orderType === 'takeaway' ? '🥡 Takeaway' : '🛵 Delivery'}
+                        </h3>
+                        <p className="text-xs text-gray-400">{receptionistOrder.customerName || 'Guest'}</p>
+                      </div>
+                      {receptionistOrder.items.length > 0 && <button onClick={() => setReceptionistOrder(prev => ({...prev, items: []}))} className="text-xs text-gray-400 hover:text-red-500">Clear</button>}
                     </div>
-                    {receptionistOrder.items.length > 0 && (
-                      <button onClick={() => setReceptionistOrder(prev => ({...prev, items: []}))} className="text-xs text-gray-400 hover:text-red-500">Clear</button>
-                    )}
                   </div>
-
-                  {/* Scrollable items only — min-h-0 is required for flex overflow scroll */}
-                  <div className="flex-1 overflow-y-auto px-3 py-1 min-h-0">
+                  {/* Scrollable items list */}
+                  <div style={{flex:1, overflowY:'auto', overflowX:'hidden', padding:'4px 12px', minHeight:0}}>
                     {receptionistOrder.items.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-gray-300">
-                        <ShoppingCart size={32} className="mb-1 opacity-30" />
-                        <p className="text-xs">Add items from menu</p>
+                        <ShoppingCart size={32} className="mb-1 opacity-30" /><p className="text-xs">Add items from menu</p>
                       </div>
-                    ) : (
-                      <div className="min-h-0">
-                        {receptionistOrder.items.map((item, idx) => (
-                          <div key={idx} className={`flex items-center gap-2 py-1.5 border-b border-gray-50 ${item.complimentary ? 'opacity-70' : ''}`}>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
-                              {item.complimentary
-                                ? <span className="text-xs text-green-600 font-semibold">Comp</span>
-                                : <p className="text-xs text-gray-400">₹{item.price}</p>}
-                            </div>
-                            <button
-                              onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
-                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 ${item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400'}`}
-                            >✓</button>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
-                              <span className="w-4 text-center text-xs font-bold">{item.quantity}</span>
-                              <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
-                            </div>
-                            <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
-                              {item.complimentary ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span> : `₹${item.price * item.quantity}`}
-                            </p>
-                          </div>
-                        ))}
+                    ) : receptionistOrder.items.map((item, idx) => (
+                      <div key={idx} className={"flex items-center gap-2 py-1.5 border-b border-gray-50 " + (item.complimentary ? 'opacity-70' : '')}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
+                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">₹{item.price}</p>}
+                        </div>
+                        <button onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
+                          className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 " + (item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400')}>✓</button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
+                          <span className="w-4 text-center text-xs font-bold">{item.quantity}</span>
+                          <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
+                        </div>
+                        <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
+                          {item.complimentary ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span> : '₹' + (item.price * item.quantity)}
+                        </p>
                       </div>
-                    )}
+                    ))}
                   </div>
-
-                  {/* Sticky bottom — notes, charges, total, action buttons */}
-                  <div className="shrink-0 border-t border-gray-100 bg-white">
+                  {/* Fixed bottom actions — always visible */}
+                  <div style={{flexShrink:0, borderTop:'1px solid #f3f4f6', background:'#fff'}}>
                     <div className="px-3 py-1.5 space-y-1">
                       <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder(prev => ({...prev, specialInstructions: e.target.value}))}
                         placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary" />
                       {receptionistOrder.orderType === 'takeaway' && (
                         <div className="flex items-center gap-2">
                           <label className="text-xs text-gray-500 shrink-0">Packaging ₹</label>
-                          <input type="number" min="0" value={receptionistOrder.packagingCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, packagingCharge: parseFloat(e.target.value) || 0}))}
-                            placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
+                          <input type="number" min="0" value={receptionistOrder.packagingCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, packagingCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
                         </div>
                       )}
                       {receptionistOrder.orderType === 'delivery' && (
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
-                            <input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))}
-                              placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
+                            <input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
                           </div>
-                          <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))}
-                            placeholder="Customer name *" className={`w-full text-xs border rounded px-2 py-1 focus:outline-none ${!receptionistOrder.customerName ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
-                          <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))}
-                            placeholder="Delivery address *" className={`w-full text-xs border rounded px-2 py-1 focus:outline-none ${!receptionistOrder.deliveryAddress ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                          <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))} placeholder="Customer name *" className={"w-full text-xs border rounded px-2 py-1 focus:outline-none " + (!receptionistOrder.customerName ? 'border-red-300 bg-red-50' : 'border-gray-200')} />
+                          <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Delivery address *" className={"w-full text-xs border rounded px-2 py-1 focus:outline-none " + (!receptionistOrder.deliveryAddress ? 'border-red-300 bg-red-50' : 'border-gray-200')} />
                         </div>
                       )}
                     </div>
-                    <div className="px-3 pb-2">
-                      {receptionistOrder.items.length > 0 && (
-                        <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
-                          {(() => {
-                            const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
-                            const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge || 0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge || 0) : 0;
-                            return <>
-                              <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items{extraCharge > 0 ? ` + ₹${extraCharge}` : ''}</span>
-                              <span className="text-base font-bold text-gray-900">₹{subtotal + extraCharge}</span>
-                            </>;
-                          })()}
-                        </div>
-                      )}
+                    <div className="px-3 pb-3">
+                      {receptionistOrder.items.length > 0 && (() => {
+                        const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+                        const extra = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0;
+                        return <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
+                          <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items{extra > 0 ? ' + ₹'+extra : ''}</span>
+                          <span className="text-base font-bold text-gray-900">₹{subtotal+extra}</span>
+                        </div>;
+                      })()}
                       <div className="grid grid-cols-3 gap-1.5">
                         <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
                         <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
@@ -4624,18 +4574,17 @@ export default function RestaurantDashboard() {
                     </div>
                   </div>
                 </div>
+
                 {/* Mobile bottom bar */}
                 {receptionistOrder.items.length > 0 && (() => {
                   const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s,i) => s+i.price*i.quantity, 0);
-                  const extraCharge = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0;
-                  return (
-                    <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
-                      <span className="flex-1 font-bold text-sm">₹{subtotal+extraCharge}</span>
-                      <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
-                      <button onClick={printStaffBillOnly} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
-                      <button onClick={clearReceptionistOrder} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Save</button>
-                    </div>
-                  );
+                  const extra = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0;
+                  return <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
+                    <span className="flex-1 font-bold text-sm">₹{subtotal+extra}</span>
+                    <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
+                    <button onClick={printStaffBillOnly} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
+                    <button onClick={clearReceptionistOrder} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Save</button>
+                  </div>;
                 })()}
               </div>
             )}
