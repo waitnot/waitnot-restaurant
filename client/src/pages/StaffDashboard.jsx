@@ -289,59 +289,51 @@ export default function StaffDashboard() {
   const updateCartItemPrice = (id, price) =>
     setOrderCart(prev => prev.map(i => i._id === id ? { ...i, price: parseFloat(price) || 0 } : i));
 
-  const cancelRunningItem = async (itemName, skipConfirm = false) => {
-    const activeOrders = getActiveOrdersForSlot();
-    if (!activeOrders.length) return;
-    if (!skipConfirm && !window.confirm(`Remove "${itemName}" from the running order?`)) return;
+  const cancelRunningItem = async (orderId, itemName, skipConfirm = false) => {
+    const targetOrder = orders.find(o => o._id === orderId);
+    if (!targetOrder) return;
+    if (!skipConfirm && !window.confirm(`Remove "${itemName}" from this order?`)) return;
     try {
-      for (const order of activeOrders) {
-        const newItems = order.items.filter(i => i.name !== itemName);
-        if (newItems.length !== order.items.length) {
-          if (newItems.length === 0) {
-            await axios.delete(`${API}/api/orders/${order._id}`);
-          } else {
-            const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
-            await axios.patch(`${API}/api/orders/${order._id}/items`, { items: newItems, totalAmount: newTotal });
-          }
-        }
+      const newItems = targetOrder.items.filter(i => i.name !== itemName);
+      if (newItems.length === 0) {
+        await axios.delete(`${API}/api/orders/${orderId}`);
+        setOrders(prev => prev.filter(o => o._id !== orderId));
+      } else {
+        const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
+        await axios.patch(`${API}/api/orders/${orderId}/items`, { items: newItems, totalAmount: newTotal });
       }
-      await fetchOrders(staff.restaurant_id);
       showToast(`"${itemName}" removed`);
     } catch {
       showToast('Failed to remove item', 'error');
     }
   };
 
-  const updateRunningItemQty = async (itemName, delta) => {
-    // delta: +1 or -1
-    const activeOrders = getActiveOrdersForSlot();
-    if (!activeOrders.length) return;
-
-    // Find the first order that contains this item and apply the delta there
-    const targetOrder = activeOrders.find(o => o.items.some(i => i.name === itemName));
+  const updateRunningItemQty = async (orderId, itemName, delta) => {
+    // Find the specific order by ID
+    const targetOrder = orders.find(o => o._id === orderId);
     if (!targetOrder) return;
 
     const currentItem = targetOrder.items.find(i => i.name === itemName);
+    if (!currentItem) return;
     const newQty = currentItem.quantity + delta;
 
     try {
       if (newQty <= 0) {
-        // Remove item from this order
         const newItems = targetOrder.items.filter(i => i.name !== itemName);
         if (newItems.length === 0) {
-          await axios.delete(`${API}/api/orders/${targetOrder._id}`);
+          await axios.delete(`${API}/api/orders/${orderId}`);
         } else {
           const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
-          await axios.patch(`${API}/api/orders/${targetOrder._id}/items`, { items: newItems, totalAmount: newTotal });
+          await axios.patch(`${API}/api/orders/${orderId}/items`, { items: newItems, totalAmount: newTotal });
         }
       } else {
         const newItems = targetOrder.items.map(i =>
           i.name === itemName ? { ...i, quantity: newQty } : i
         );
         const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
-        await axios.patch(`${API}/api/orders/${targetOrder._id}/items`, { items: newItems, totalAmount: newTotal });
+        await axios.patch(`${API}/api/orders/${orderId}/items`, { items: newItems, totalAmount: newTotal });
       }
-      await fetchOrders(staff.restaurant_id);
+      // socket 'order-updated' handles state refresh — no fetchOrders needed
     } catch {
       showToast('Failed to update item', 'error');
     }
@@ -889,29 +881,29 @@ export default function StaffDashboard() {
                 {getActiveOrdersForSlot().length > 0 && (
                   <div className="px-3 py-2 bg-amber-50 border-b border-amber-100 shrink-0">
                     <p className="text-xs font-semibold text-amber-700 mb-1">Running Order</p>
-                    {(() => {
-                      const items = {};
-                      getActiveOrdersForSlot().forEach(o => o.items.forEach(i => {
-                        if (items[i.name]) items[i.name].qty += i.quantity;
-                        else items[i.name] = { qty: i.quantity, price: i.price };
-                      }));
-                      return Object.entries(items).map(([name, d]) => (
-                        <div key={name} className="flex justify-between items-center text-xs text-gray-600 py-0.5 gap-2">
-                          <span className="flex-1 truncate">{name}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => updateRunningItemQty(name, -1)}
-                              className="w-5 h-5 rounded bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700">−</button>
-                            <span className="w-5 text-center font-bold">{d.qty}</span>
-                            <button
-                              onClick={() => updateRunningItemQty(name, +1)}
-                              className="w-5 h-5 rounded bg-amber-200 hover:bg-amber-300 flex items-center justify-center text-xs font-bold text-amber-800">+</button>
+                    {getActiveOrdersForSlot().map((order, oi) => (
+                      <div key={order._id}>
+                        {getActiveOrdersForSlot().length > 1 && (
+                          <p className="text-xs text-amber-500 mt-1 mb-0.5">#{oi + 1}</p>
+                        )}
+                        {order.items.map(item => (
+                          <div key={item.name + order._id} className="flex justify-between items-center text-xs text-gray-600 py-0.5 gap-1.5">
+                            <span className="flex-1 truncate">{item.name}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => updateRunningItemQty(order._id, item.name, -1)}
+                                className="w-5 h-5 rounded bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700">−</button>
+                              <span className="w-5 text-center font-bold">{item.quantity}</span>
+                              <button
+                                onClick={() => updateRunningItemQty(order._id, item.name, +1)}
+                                className="w-5 h-5 rounded bg-amber-200 hover:bg-amber-300 flex items-center justify-center text-xs font-bold text-amber-800">+</button>
+                            </div>
+                            <span className="w-10 text-right shrink-0">₹{item.price * item.quantity}</span>
+                            <button onClick={() => cancelRunningItem(order._id, item.name)} className="text-gray-300 hover:text-red-400 shrink-0" title="Remove item"><X size={11} /></button>
                           </div>
-                          <span className="w-10 text-right shrink-0">₹{d.price * d.qty}</span>
-                          <button onClick={() => cancelRunningItem(name)} className="text-gray-300 hover:text-red-400 shrink-0" title="Remove item"><X size={11} /></button>
-                        </div>
-                      ));
-                    })()}
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 )}
 

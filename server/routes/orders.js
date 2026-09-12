@@ -153,14 +153,13 @@ router.patch('/:id/payment', async (req, res) => {
 router.patch('/:id/items', async (req, res) => {
   try {
     const order = await orderDB.update(req.params.id, {
-      items: req.body.items
+      items: req.body.items,
+      totalAmount: req.body.totalAmount
     });
     if (!order) return res.status(404).json({ error: 'Order not found' });
     
     const io = req.app.get('io');
-    // Notify the specific restaurant
     io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
-    // Notify all admins
     io.to('admin-room').emit('order-updated', order);
     
     res.json(order);
