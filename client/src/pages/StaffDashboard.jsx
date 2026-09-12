@@ -74,7 +74,7 @@ export default function StaffDashboard() {
     const cached = localStorage.getItem(`restaurant_cache_${s.restaurant_id}`);
     if (cached) {
       setRestaurant(JSON.parse(cached));
-      setLoading(false);
+      // Don't set loading:false yet — still need orders
     }
 
     // Fetch restaurant + orders in parallel
@@ -115,6 +115,9 @@ export default function StaffDashboard() {
         if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
         setOrders(prev => [o, ...prev]);
       }
+    });
+    newSocket.on('order-deleted', ({ orderId }) => {
+      setOrders(prev => prev.filter(o => o._id !== orderId));
     });
     return () => { newSocket.emit('leave-restaurant', s.restaurant_id); newSocket.disconnect(); };
   }, [navigate]);
