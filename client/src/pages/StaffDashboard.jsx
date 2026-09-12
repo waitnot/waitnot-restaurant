@@ -62,22 +62,44 @@ export default function StaffDashboard() {
     setTimeout(() => setToast(null), 2500);
   };
 
+  // Persist active table/order context across refreshes
+  useEffect(() => {
+    if (selectedTable) {
+      sessionStorage.setItem('staff_selectedTable', JSON.stringify(selectedTable));
+      sessionStorage.setItem('staff_orderContext', JSON.stringify(orderContext));
+    } else {
+      sessionStorage.removeItem('staff_selectedTable');
+      sessionStorage.removeItem('staff_orderContext');
+    }
+  }, [selectedTable, orderContext]);
+
   useEffect(() => {
     const staffData = localStorage.getItem('staffData');
     const token = localStorage.getItem('staffToken');
     if (!staffData || !token) { navigate('/staff-login'); return; }
     const s = JSON.parse(staffData);
     setStaff(s);
+    // Restore active table session after refresh
+    const savedTable = sessionStorage.getItem('staff_selectedTable');
+    const savedContext = sessionStorage.getItem('staff_orderContext');
+    if (savedTable) setSelectedTable(JSON.parse(savedTable));
+    if (savedContext) setOrderContext(JSON.parse(savedContext));
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
     // Show cached restaurant data instantly (blank screen prevention)
     const cached = localStorage.getItem(`restaurant_cache_${s.restaurant_id}`);
-    if (cached) setRestaurant(JSON.parse(cached));
+    if (cached) {
+      setRestaurant(JSON.parse(cached));
+      setLoading(false); // show UI right away with cached data, orders load in background
+    }
 
     let stopped = false;
     let pollTimer = null;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 5;
 
     const loadData = async () => {
+      attempts++;
       try {
         const [resRes, ordersRes] = await Promise.all([
           axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 60000 }),
@@ -90,9 +112,13 @@ export default function StaffDashboard() {
         setLoading(false);
       } catch (err) {
         if (stopped) return;
-        console.warn('Orders fetch failed, retrying in 5s:', err?.message);
-        setLoading(true); // keep loading spinner while retrying
-        pollTimer = setTimeout(loadData, 5000);
+        console.warn(`Orders fetch attempt ${attempts} failed:`, err?.message);
+        if (attempts < MAX_ATTEMPTS) {
+          pollTimer = setTimeout(loadData, 5000);
+        } else {
+          // Give up — show UI with empty orders
+          setLoading(false);
+        }
       }
     };
 
@@ -119,7 +145,11 @@ export default function StaffDashboard() {
       if (o.status !== 'completed') {
         // If items missing, fetch fresh
         if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
-        setOrders(prev => [o, ...prev]);
+        setOrders(prev => {
+          // Deduplicate — don't add if already exists
+          if (prev.find(x => x._id === o._id)) return prev;
+          return [o, ...prev];
+        });
       }
     });
     newSocket.on('order-deleted', ({ orderId }) => {
@@ -395,7 +425,8 @@ export default function StaffDashboard() {
       const newOrder = response.data;
       setOrderCart([]);
       showToast('Order placed!');
-      fetchOrders(staff.restaurant_id);
+      // Add to local orders state immediately — socket will also fire new-order (deduplicated)
+      setOrders(prev => prev.find(x => x._id === newOrder._id) ? prev : [newOrder, ...prev]);
     } catch (err) {
       showToast('Failed to place order', 'error');
     } finally {
