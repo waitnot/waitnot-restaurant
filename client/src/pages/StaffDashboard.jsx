@@ -35,6 +35,8 @@ export default function StaffDashboard() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [orderPlacing, setOrderPlacing] = useState(false);
   const [orderContext, setOrderContext] = useState({ orderType: 'dine-in', tableNumber: null, roomNumber: null, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
+  const [editingPriceId, setEditingPriceId] = useState(null); // id of cart item being price-edited
+  const [extraCharge, setExtraCharge] = useState({ label: '', amount: 0 }); // extra charge at billing
 
   // Modals
   const [confirmModal, setConfirmModal] = useState(null);
@@ -241,6 +243,7 @@ export default function StaffDashboard() {
     setOrderCart([]);
     setMenuSearch('');
     setSelectedCategory('All');
+    setExtraCharge({ label: '', amount: 0 });
   };
 
   const openRoom = (n) => {
@@ -281,8 +284,37 @@ export default function StaffDashboard() {
     else setOrderCart(prev => prev.map(i => i._id === id ? { ...i, quantity: qty } : i));
   };
 
-  const cartSubtotal = orderCart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const cartTotal = cartSubtotal + (orderContext.packagingCharge || 0) + (orderContext.deliveryCharge || 0);
+  const toggleComplimentary = (id) =>
+    setOrderCart(prev => prev.map(i => i._id === id ? { ...i, complimentary: !i.complimentary } : i));
+
+  const updateCartItemPrice = (id, price) =>
+    setOrderCart(prev => prev.map(i => i._id === id ? { ...i, price: parseFloat(price) || 0 } : i));
+
+  const cancelRunningItem = async (itemName) => {
+    const activeOrders = getActiveOrdersForSlot();
+    if (!activeOrders.length) return;
+    if (!window.confirm(`Remove "${itemName}" from the running order?`)) return;
+    try {
+      for (const order of activeOrders) {
+        const newItems = order.items.filter(i => i.name !== itemName);
+        if (newItems.length !== order.items.length) {
+          if (newItems.length === 0) {
+            await axios.delete(`${API}/api/orders/${order._id}`);
+          } else {
+            const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
+            await axios.patch(`${API}/api/orders/${order._id}/items`, { items: newItems, totalAmount: newTotal });
+          }
+        }
+      }
+      await fetchOrders(staff.restaurant_id);
+      showToast(`"${itemName}" removed`);
+    } catch {
+      showToast('Failed to remove item', 'error');
+    }
+  };
+
+  const cartSubtotal = orderCart.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+  const cartTotal = cartSubtotal + (orderContext.packagingCharge || 0) + (orderContext.deliveryCharge || 0) + (extraCharge.amount || 0);
 
   const getActiveOrdersForSlot = () => {
     const { orderType, tableNumber, roomNumber } = orderContext;
@@ -831,8 +863,12 @@ export default function StaffDashboard() {
                         else items[i.name] = { qty: i.quantity, price: i.price };
                       }));
                       return Object.entries(items).map(([name, d]) => (
-                        <div key={name} className="flex justify-between text-xs text-gray-600">
-                          <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
+                        <div key={name} className="flex justify-between items-center text-xs text-gray-600 py-0.5">
+                          <span>{name} × {d.qty}</span>
+                          <div className="flex items-center gap-2">
+                            <span>₹{d.price * d.qty}</span>
+                            <button onClick={() => cancelRunningItem(name)} className="text-gray-300 hover:text-red-400" title="Remove item"><X size={11} /></button>
+                          </div>
                         </div>
                       ));
                     })()}
@@ -848,17 +884,45 @@ export default function StaffDashboard() {
                     </div>
                   ) : (
                     orderCart.map(item => (
-                      <div key={item._id} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                      <div key={item._id} className={`flex items-center gap-1.5 py-1.5 border-b border-gray-50 ${item.complimentary ? 'opacity-70' : ''}`}>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
-                          <p className="text-xs text-gray-400">₹{item.price}</p>
+                          {/* Editable price */}
+                          {editingPriceId === item._id ? (
+                            <input
+                              type="number" min="0" autoFocus
+                              defaultValue={item.price}
+                              onBlur={e => { updateCartItemPrice(item._id, e.target.value); setEditingPriceId(null); }}
+                              onKeyDown={e => { if (e.key === 'Enter') { updateCartItemPrice(item._id, e.target.value); setEditingPriceId(null); } }}
+                              className="text-xs border border-primary rounded px-1 py-0.5 w-16 focus:outline-none"
+                            />
+                          ) : (
+                            <p
+                              className={`text-xs cursor-pointer ${item.complimentary ? 'text-green-600 font-semibold line-through' : 'text-gray-400 hover:text-primary'}`}
+                              onClick={() => !item.complimentary && setEditingPriceId(item._id)}
+                            >
+                              {item.complimentary ? 'Comp' : `₹${item.price} ✎`}
+                            </p>
+                          )}
                         </div>
+                        {/* Complimentary toggle */}
+                        <button
+                          onClick={() => toggleComplimentary(item._id)}
+                          title="Mark complimentary"
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs shrink-0 transition-colors ${item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400'}`}
+                        >✓</button>
                         <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => updateQty(item._id, item.quantity - 1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
                           <span className="w-4 text-center text-xs font-bold">{item.quantity}</span>
                           <button onClick={() => updateQty(item._id, item.quantity + 1)} className="w-5 h-5 rounded bg-red-50 flex items-center justify-center text-xs font-bold text-red-500">+</button>
                         </div>
-                        <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">₹{item.price * item.quantity}</p>
+                        <p className="text-xs font-semibold w-10 text-right shrink-0">
+                          {item.complimentary
+                            ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span>
+                            : `₹${item.price * item.quantity}`}
+                        </p>
+                        {/* Remove item */}
+                        <button onClick={() => updateQty(item._id, 0)} className="text-gray-300 hover:text-red-400 shrink-0 ml-0.5"><X size={12} /></button>
                       </div>
                     ))
                   )}
@@ -883,8 +947,17 @@ export default function StaffDashboard() {
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                       </div>
                     )}
+                    {/* Extra charge */}
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <input type="text" value={extraCharge.label}
+                        onChange={e => setExtraCharge(prev => ({ ...prev, label: e.target.value }))}
+                        placeholder="Extra charge label" className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
+                      <input type="number" min="0" value={extraCharge.amount || ''}
+                        onChange={e => setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                        placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
+                    </div>
                     <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
-                      <span>{orderCart.reduce((s, i) => s + i.quantity, 0)} items</span>
+                      <span>{orderCart.reduce((s, i) => s + i.quantity, 0)} items{orderCart.some(i => i.complimentary) ? ' · some comp' : ''}</span>
                       <span className="text-base font-bold text-gray-900">₹{cartTotal}</span>
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -920,9 +993,23 @@ export default function StaffDashboard() {
                 {orderCart.length === 0 && getActiveOrdersForSlot().length > 0 && (
                   <div className="shrink-0 border-t border-gray-100 px-3 py-2">
                     <p className="text-xs text-green-600 font-semibold mb-2 text-center">✅ Order Placed</p>
+                    {/* Extra charge even after placing */}
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <input type="text" value={extraCharge.label}
+                        onChange={e => setExtraCharge(prev => ({ ...prev, label: e.target.value }))}
+                        placeholder="Extra charge label" className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
+                      <input type="number" min="0" value={extraCharge.amount || ''}
+                        onChange={e => setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                        placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
+                    </div>
+                    {extraCharge.amount > 0 && (
+                      <p className="text-xs text-gray-500 mb-2 text-right">
+                        Order total + {extraCharge.label || 'extra'}: <span className="font-bold text-gray-800">₹{getTableTotal(getActiveOrdersForSlot()) + extraCharge.amount}</span>
+                      </p>
+                    )}
                     <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                       <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">🖨 KOT</button>
-                      <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">🖨 Bill</button>
+                      <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t) + (extraCharge.amount || 0)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">🖨 Bill</button>
                     </div>
                     <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)}
                       className="w-full bg-green-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-600 mb-1.5">
