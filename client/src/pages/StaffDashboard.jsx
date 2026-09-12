@@ -91,19 +91,22 @@ export default function StaffDashboard() {
     if (cached) {
       setRestaurant(JSON.parse(cached));
       setLoading(false); // show UI right away with cached data, orders load in background
+    } else {
+      // No cache — show UI after 2s max so user isn't stuck on spinner
+      setTimeout(() => setLoading(false), 2000);
     }
 
     let stopped = false;
     let pollTimer = null;
     let attempts = 0;
-    const MAX_ATTEMPTS = 5;
+    const MAX_ATTEMPTS = 3;
 
     const loadData = async () => {
       attempts++;
       try {
         const [resRes, ordersRes] = await Promise.all([
-          axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 60000 }),
-          axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 60000 })
+          axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 10000 }),
+          axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 10000 })
         ]);
         if (stopped) return;
         setRestaurant(resRes.data);
@@ -112,11 +115,10 @@ export default function StaffDashboard() {
         setLoading(false);
       } catch (err) {
         if (stopped) return;
-        console.warn(`Orders fetch attempt ${attempts} failed:`, err?.message);
+        console.warn(`Load attempt ${attempts} failed:`, err?.message);
         if (attempts < MAX_ATTEMPTS) {
-          pollTimer = setTimeout(loadData, 5000);
+          pollTimer = setTimeout(loadData, 3000);
         } else {
-          // Give up — show UI with empty orders
           setLoading(false);
         }
       }
@@ -212,7 +214,7 @@ export default function StaffDashboard() {
 
   const fetchOrders = async (id) => {
     try {
-      const { data } = await axios.get(`${API}/api/orders/restaurant/${id}?status=active`);
+      const { data } = await axios.get(`${API}/api/orders/restaurant/${id}?status=active`, { timeout: 10000 });
       setOrders(data);
       setLoading(false);
     } catch (err) {
@@ -747,7 +749,7 @@ export default function StaffDashboard() {
     });
   };
 
-  if (loading || !staff || !restaurant) {
+  if ((loading && !restaurant) || !staff) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
