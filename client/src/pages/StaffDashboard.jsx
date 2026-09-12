@@ -312,19 +312,34 @@ export default function StaffDashboard() {
     }
   };
 
-  const updateRunningItemQty = async (itemName, newQty) => {
+  const updateRunningItemQty = async (itemName, delta) => {
+    // delta: +1 or -1
     const activeOrders = getActiveOrdersForSlot();
     if (!activeOrders.length) return;
-    if (newQty <= 0) { cancelRunningItem(itemName, true); return; }
+
+    // Find the first order that contains this item and apply the delta there
+    const targetOrder = activeOrders.find(o => o.items.some(i => i.name === itemName));
+    if (!targetOrder) return;
+
+    const currentItem = targetOrder.items.find(i => i.name === itemName);
+    const newQty = currentItem.quantity + delta;
+
     try {
-      for (const order of activeOrders) {
-        const hasItem = order.items.some(i => i.name === itemName);
-        if (!hasItem) continue;
-        const newItems = order.items.map(i =>
+      if (newQty <= 0) {
+        // Remove item from this order
+        const newItems = targetOrder.items.filter(i => i.name !== itemName);
+        if (newItems.length === 0) {
+          await axios.delete(`${API}/api/orders/${targetOrder._id}`);
+        } else {
+          const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
+          await axios.patch(`${API}/api/orders/${targetOrder._id}/items`, { items: newItems, totalAmount: newTotal });
+        }
+      } else {
+        const newItems = targetOrder.items.map(i =>
           i.name === itemName ? { ...i, quantity: newQty } : i
         );
         const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
-        await axios.patch(`${API}/api/orders/${order._id}/items`, { items: newItems, totalAmount: newTotal });
+        await axios.patch(`${API}/api/orders/${targetOrder._id}/items`, { items: newItems, totalAmount: newTotal });
       }
       await fetchOrders(staff.restaurant_id);
     } catch {
@@ -885,11 +900,11 @@ export default function StaffDashboard() {
                           <span className="flex-1 truncate">{name}</span>
                           <div className="flex items-center gap-1 shrink-0">
                             <button
-                              onClick={() => updateRunningItemQty(name, d.qty - 1)}
+                              onClick={() => updateRunningItemQty(name, -1)}
                               className="w-5 h-5 rounded bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700">−</button>
                             <span className="w-5 text-center font-bold">{d.qty}</span>
                             <button
-                              onClick={() => updateRunningItemQty(name, d.qty + 1)}
+                              onClick={() => updateRunningItemQty(name, +1)}
                               className="w-5 h-5 rounded bg-amber-200 hover:bg-amber-300 flex items-center justify-center text-xs font-bold text-amber-800">+</button>
                           </div>
                           <span className="w-10 text-right shrink-0">₹{d.price * d.qty}</span>
