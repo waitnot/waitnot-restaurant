@@ -1440,9 +1440,18 @@ export default function StaffDashboard() {
                               <p className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-gray-900">₹{order.totalAmount}</p>
-                            {order.paymentMethod && <p className="text-xs text-green-600 capitalize">{order.paymentMethod}</p>}
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <p className="font-bold text-gray-900">₹{order.totalAmount}</p>
+                              {order.paymentMethod && <p className="text-xs text-green-600 capitalize">{order.paymentMethod}</p>}
+                            </div>
+                            <button
+                              onClick={() => printBill([order], order.orderType === 'dine-in' ? `Table ${order.tableNumber}` : order.orderType === 'room' ? (restaurant?.features?.roomNames?.[order.roomNumber] || `Room ${order.roomNumber}`) : order.orderType, order.totalAmount)}
+                              className="p-1.5 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-100 shrink-0"
+                              title="Print bill"
+                            >
+                              <Printer size={15} />
+                            </button>
                           </div>
                         </div>
                         <div className="px-4 py-2 space-y-0.5">
