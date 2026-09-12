@@ -36,7 +36,7 @@ axiosInstance.interceptors.request.use(
     }
     // Only set token if not already set (staff pages set their own token on axios.defaults)
     if (!config.headers.Authorization) {
-      const token = localStorage.getItem('restaurantToken') || localStorage.getItem('adminToken');
+      const token = localStorage.getItem('staffToken') || localStorage.getItem('restaurantToken') || localStorage.getItem('adminToken');
       if (token) config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -51,9 +51,14 @@ axiosInstance.interceptors.response.use(
       console.error('❌ Response Error:', error.response?.status, error.config?.url, error.message);
     }
     if (error.response?.status === 401) {
-      // Only redirect to restaurant login if NOT on a staff page
       const isStaffPage = window.location.pathname.includes('staff');
-      if (!isStaffPage) {
+      if (isStaffPage) {
+        localStorage.removeItem('staffToken');
+        localStorage.removeItem('staffData');
+        if (!window.location.pathname.includes('login')) {
+          window.location.href = '/staff-login';
+        }
+      } else {
         localStorage.removeItem('restaurantToken');
         localStorage.removeItem('adminToken');
         localStorage.removeItem('restaurantId');

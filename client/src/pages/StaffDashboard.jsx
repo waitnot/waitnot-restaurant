@@ -85,6 +85,7 @@ export default function StaffDashboard() {
     if (savedTable) setSelectedTable(JSON.parse(savedTable));
     if (savedContext) setOrderContext(JSON.parse(savedContext));
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    axios.defaults.headers['Authorization'] = `Bearer ${token}`;
 
     // Show cached restaurant data instantly (blank screen prevention)
     const cached = localStorage.getItem(`restaurant_cache_${s.restaurant_id}`);
@@ -427,10 +428,14 @@ export default function StaffDashboard() {
       const newOrder = response.data;
       setOrderCart([]);
       showToast('Order placed!');
-      // Add to local orders state immediately — socket will also fire new-order (deduplicated)
+      // Add to local state immediately for instant feedback
       setOrders(prev => prev.find(x => x._id === newOrder._id) ? prev : [newOrder, ...prev]);
+      // Also fetch from server to ensure DB sync
+      fetchOrders(staff.restaurant_id);
     } catch (err) {
-      showToast('Failed to place order', 'error');
+      const msg = err?.response?.data?.error || err?.message || 'Failed to place order';
+      showToast(msg, 'error');
+      console.error('placeOrder error:', err?.response?.status, msg, err?.response?.data);
     } finally {
       setOrderPlacing(false);
     }
