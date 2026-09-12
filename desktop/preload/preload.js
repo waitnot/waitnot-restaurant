@@ -43,4 +43,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Environment flag (checked by qzPrint.js / web app) ───────────────────
   isDesktop: true,
+
+  // ── Server status (online/offline) ────────────────────────────────────────
+  /** Register a callback for server status changes: { online: bool, port?, error? } */
+  onServerStatus: (callback) => {
+    ipcRenderer.on('server-status', (_event, status) => callback(status));
+  },
 });
