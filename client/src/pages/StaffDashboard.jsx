@@ -278,7 +278,6 @@ export default function StaffDashboard() {
       return [...prev, { ...item, quantity: 1 }];
     });
   };
-
   const updateQty = (id, qty) => {
     if (qty <= 0) setOrderCart(prev => prev.filter(i => i._id !== id));
     else setOrderCart(prev => prev.map(i => i._id === id ? { ...i, quantity: qty } : i));
@@ -810,7 +809,7 @@ export default function StaffDashboard() {
                         return (
                           <div key={item._id}
                             className={`relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none ${inCart ? 'border-red-400 bg-red-50/30' : 'border-gray-200 hover:border-red-300'}`}
-                            onClick={() => { if (!inCart) addToCart(item); }}
+                            onClick={() => { addToCart(item); }}
                           >
                             <span className={`absolute top-2 left-2 w-2 h-2 rounded-sm border ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
                             <div className="pt-4 pb-1 px-0.5 min-h-[3.5rem]">
