@@ -538,6 +538,8 @@ export default function RestaurantDashboard() {
   const [menuForm, setMenuForm] = useState({
     name: '', price: '', category: '', description: '', isVeg: true, image: ''
   });
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [newCategoryValue, setNewCategoryValue] = useState('');
   const [imageUploadMethod, setImageUploadMethod] = useState('url'); // 'url' or 'upload'
   const [imageFile, setImageFile] = useState(null);
 
@@ -675,15 +677,32 @@ export default function RestaurantDashboard() {
   // Keyboard shortcuts for menu search
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Focus search when pressing "/" and we're on the menu tab
       if (e.key === '/' && activeTab === 'menu' && menuSearchInputRef.current) {
         e.preventDefault();
         menuSearchInputRef.current.focus();
       }
     };
-
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab]);
+
+  // Lock body scroll when Staff Order tab is in order view (POS mode)
+  useEffect(() => {
+    const isLocked = activeTab === 'Staff';
+    if (isLocked) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+    } else {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+    }
+    return () => {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+    };
   }, [activeTab]);
 
   const fetchRestaurant = async (id) => {
@@ -872,6 +891,8 @@ export default function RestaurantDashboard() {
       setShowMenuForm(false);
       setEditingItem(null);
       setMenuForm({ name: '', price: '', category: '', description: '', isVeg: true });
+      setShowNewCategoryInput(false);
+      setNewCategoryValue('');
     } catch (error) {
       console.error('Error saving menu item:', error);
     }
@@ -2626,7 +2647,7 @@ export default function RestaurantDashboard() {
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={activeTab === 'Staff' ? 'h-screen overflow-hidden bg-gray-50 flex flex-col' : 'min-h-screen bg-gray-50'}>
       {/* Success Message Banner */}
       {successMessage && (
         <div className={`fixed top-0 left-0 right-0 z-50 ${
@@ -2646,7 +2667,7 @@ export default function RestaurantDashboard() {
         </div>
       )}
       
-      <nav className="bg-white shadow-md p-3 sm:p-4">
+      <nav className="bg-white shadow-md p-3 sm:p-4 shrink-0">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           {/* Hamburger */}
           <button onClick={() => setDrawerOpen(true)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 shrink-0">
@@ -2808,8 +2829,8 @@ export default function RestaurantDashboard() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
-        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar">
+      <div className={activeTab === 'Staff' ? 'flex-1 overflow-hidden flex flex-col' : 'max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4'}>
+        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar shrink-0">
           {/* Staff Ordering Tab - Moved to first position */}
           <FeatureGuard feature="staffOrders">
             <button
@@ -3393,14 +3414,62 @@ export default function RestaurantDashboard() {
                     </div>
                     <div>
                       <label className="block text-gray-700 mb-2">Category</label>
-                      <input
-                        type="text"
-                        required
-                        value={menuForm.category}
-                        onChange={(e) => setMenuForm({...menuForm, category: e.target.value})}
-                        placeholder="Enter category (e.g., Starters, Main Course, Desserts, Drinks)"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      {!showNewCategoryInput ? (
+                        <div className="flex gap-2">
+                          <select
+                            required
+                            value={menuForm.category}
+                            onChange={(e) => {
+                              if (e.target.value === '__new__') {
+                                setShowNewCategoryInput(true);
+                                setNewCategoryValue('');
+                              } else {
+                                setMenuForm({...menuForm, category: e.target.value});
+                              }
+                            }}
+                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                          >
+                            <option value="">Select a category</option>
+                            {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="__new__">+ Add new category</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={newCategoryValue}
+                            onChange={e => setNewCategoryValue(e.target.value)}
+                            placeholder="New category name"
+                            className="flex-1 px-4 py-2 border border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (newCategoryValue.trim()) {
+                                setMenuForm({...menuForm, category: newCategoryValue.trim()});
+                                setShowNewCategoryInput(false);
+                              }
+                            }}
+                            className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90"
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowNewCategoryInput(false); setNewCategoryValue(''); }}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                      {menuForm.category && !showNewCategoryInput && (
+                        <p className="text-xs text-gray-500 mt-1">Selected: <span className="font-semibold text-primary">{menuForm.category}</span></p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-gray-700 mb-2">Description</label>
@@ -4337,12 +4406,11 @@ export default function RestaurantDashboard() {
         )}
 
         {/* Staff Order Tab */}
-        {/* Staff Order Tab */}
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
-          <div className="flex gap-0 overflow-hidden -mx-3 sm:-mx-6 -mt-3 sm:-mt-4" style={{height:'calc(100vh - 110px)'}}>
+          <div style={{display:'flex', flexDirection:'column', flex:1, overflow:'hidden'}}>
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
-              <div className="w-full px-4 sm:px-6 py-4 overflow-y-auto bg-gray-50">
+              <div style={{flex:1, overflowY:'auto', overflowX:'hidden'}} className="px-4 sm:px-6 py-4 bg-gray-50">
                 <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Select Table</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-4">
                   {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => {
