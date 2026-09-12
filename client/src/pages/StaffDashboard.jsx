@@ -289,10 +289,10 @@ export default function StaffDashboard() {
   const updateCartItemPrice = (id, price) =>
     setOrderCart(prev => prev.map(i => i._id === id ? { ...i, price: parseFloat(price) || 0 } : i));
 
-  const cancelRunningItem = async (itemName) => {
+  const cancelRunningItem = async (itemName, skipConfirm = false) => {
     const activeOrders = getActiveOrdersForSlot();
     if (!activeOrders.length) return;
-    if (!window.confirm(`Remove "${itemName}" from the running order?`)) return;
+    if (!skipConfirm && !window.confirm(`Remove "${itemName}" from the running order?`)) return;
     try {
       for (const order of activeOrders) {
         const newItems = order.items.filter(i => i.name !== itemName);
@@ -312,6 +312,25 @@ export default function StaffDashboard() {
     }
   };
 
+  const updateRunningItemQty = async (itemName, newQty) => {
+    const activeOrders = getActiveOrdersForSlot();
+    if (!activeOrders.length) return;
+    if (newQty <= 0) { cancelRunningItem(itemName, true); return; }
+    try {
+      for (const order of activeOrders) {
+        const hasItem = order.items.some(i => i.name === itemName);
+        if (!hasItem) continue;
+        const newItems = order.items.map(i =>
+          i.name === itemName ? { ...i, quantity: newQty } : i
+        );
+        const newTotal = newItems.reduce((s, i) => s + i.price * i.quantity, 0);
+        await axios.patch(`${API}/api/orders/${order._id}/items`, { items: newItems, totalAmount: newTotal });
+      }
+      await fetchOrders(staff.restaurant_id);
+    } catch {
+      showToast('Failed to update item', 'error');
+    }
+  };
   const cartSubtotal = orderCart.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
   const cartTotal = cartSubtotal + (orderContext.packagingCharge || 0) + (orderContext.deliveryCharge || 0) + (extraCharge.amount || 0);
 
@@ -862,12 +881,19 @@ export default function StaffDashboard() {
                         else items[i.name] = { qty: i.quantity, price: i.price };
                       }));
                       return Object.entries(items).map(([name, d]) => (
-                        <div key={name} className="flex justify-between items-center text-xs text-gray-600 py-0.5">
-                          <span>{name} × {d.qty}</span>
-                          <div className="flex items-center gap-2">
-                            <span>₹{d.price * d.qty}</span>
-                            <button onClick={() => cancelRunningItem(name)} className="text-gray-300 hover:text-red-400" title="Remove item"><X size={11} /></button>
+                        <div key={name} className="flex justify-between items-center text-xs text-gray-600 py-0.5 gap-2">
+                          <span className="flex-1 truncate">{name}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => updateRunningItemQty(name, d.qty - 1)}
+                              className="w-5 h-5 rounded bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700">−</button>
+                            <span className="w-5 text-center font-bold">{d.qty}</span>
+                            <button
+                              onClick={() => updateRunningItemQty(name, d.qty + 1)}
+                              className="w-5 h-5 rounded bg-amber-200 hover:bg-amber-300 flex items-center justify-center text-xs font-bold text-amber-800">+</button>
                           </div>
+                          <span className="w-10 text-right shrink-0">₹{d.price * d.qty}</span>
+                          <button onClick={() => cancelRunningItem(name)} className="text-gray-300 hover:text-red-400 shrink-0" title="Remove item"><X size={11} /></button>
                         </div>
                       ));
                     })()}
