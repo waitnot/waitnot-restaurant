@@ -277,3 +277,7 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1s ease-in-out infinite;
 }
+
+/* Hide scrollbar while keeping scroll functional — used in Staff Dashboard */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
