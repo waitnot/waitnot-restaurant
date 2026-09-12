@@ -618,7 +618,7 @@ export default function StaffDashboard() {
     <>
       <SEO title={`${staff.name} — ${restaurant.name}`} description="Captain App" />
 
-      <div className="h-screen overflow-hidden bg-gray-100 flex flex-col relative">
+      <div className="h-screen bg-gray-100 flex flex-col relative overflow-hidden">
 
         {/* Top bar */}
         <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
@@ -632,7 +632,7 @@ export default function StaffDashboard() {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 flex overflow-hidden md:min-h-0" style={{ height: 'calc(100vh - 57px - 56px)' }}>
+        <div className="flex-1 min-h-0 flex overflow-hidden" style={{ paddingBottom: '56px' }}>
 
           {/* Sidebar nav — desktop — REMOVED, using bottom nav instead */}
 
