@@ -10,12 +10,22 @@
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
     "build": "cd client && npm install && npm run build",
     "start": "cd server && npm start",
-    "render-build": "npm run install-all && npm run build"
+    "render-build": "npm run install-all && npm run build",
+    "desktop:install": "cd desktop && npm install",
+    "desktop:dev": "concurrently \"npm run server\" \"npm run client\" \"wait-on http://localhost:3000 && cd desktop && npm run dev\"",
+    "desktop:build": "npm run build && cd desktop && npm install && npm run build",
+    "desktop:build:win": "npm run build && cd desktop && npm install && npm run build:win",
+    "desktop:build:mac": "npm run build && cd desktop && npm install && npm run build:mac"
   },
-  "keywords": ["restaurant", "ordering", "pos"],
+  "keywords": [
+    "restaurant",
+    "ordering",
+    "pos"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
   }
 }

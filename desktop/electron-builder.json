@@ -1,0 +1,55 @@
+{
+  "appId": "com.waitnot.restaurant",
+  "productName": "WaitNot Restaurant",
+  "copyright": "Copyright © 2024 WaitNot",
+  "directories": {
+    "output": "../dist-desktop",
+    "buildResources": "assets"
+  },
+  "files": [
+    "main/**/*",
+    "preload/**/*",
+    "printing/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "../server",
+      "to": "server",
+      "filter": ["**/*", "!node_modules/.cache/**"]
+    },
+    {
+      "from": "../client/dist",
+      "to": "client/dist",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": [
+      { "target": "nsis", "arch": ["x64", "ia32"] }
+    ],
+    "icon": "assets/icon.ico",
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "assets/icon.ico",
+    "uninstallerIcon": "assets/icon.ico",
+    "installerHeaderIcon": "assets/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "WaitNot Restaurant"
+  },
+  "mac": {
+    "target": [
+      { "target": "dmg", "arch": ["x64", "arm64"] }
+    ],
+    "icon": "assets/icon.icns",
+    "category": "public.app-category.business"
+  },
+  "dmg": {
+    "title": "WaitNot Restaurant"
+  }
+}
