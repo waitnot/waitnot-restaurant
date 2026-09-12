@@ -68,6 +68,7 @@ export default function StaffDashboard() {
     if (!staffData || !token) { navigate('/staff-login'); return; }
     const s = JSON.parse(staffData);
     setStaff(s);
+    console.log('👤 Staff:', s.name, '| restaurant_id:', s.restaurant_id);
     // Set staff token on the axios instance headers directly
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
@@ -79,23 +80,36 @@ export default function StaffDashboard() {
     }
 
     // Fetch restaurant + orders in parallel — retry once if server is cold-starting
-    const doFetch = async () => {
+    const doFetch = async (attempt = 1) => {
+      const ordersUrl = `${API}/api/orders/restaurant/${s.restaurant_id}?status=active`;
+      console.log(`🔄 Fetch attempt ${attempt}:`, ordersUrl);
+
       const [resRes, ordersRes] = await Promise.all([
-        axios.get(`${API}/api/restaurants/${s.restaurant_id}`),
-        axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`)
+        axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 60000 }),
+        axios.get(ordersUrl, { timeout: 60000 })
       ]);
+
+      console.log('✅ Orders count:', ordersRes.data?.length);
       setRestaurant(resRes.data);
       localStorage.setItem(`restaurant_cache_${s.restaurant_id}`, JSON.stringify(resRes.data));
       setOrders(ordersRes.data);
       setLoading(false);
     };
 
-    doFetch().catch(() => {
-      // Retry once after 3s (handles Render cold start)
-      setTimeout(() => {
-        doFetch().catch(() => setLoading(false));
-      }, 3000);
-    });
+    // Retry up to 3 times with increasing delays — handles Render cold start (can take 50s)
+    const fetchWithRetry = async () => {
+      for (let i = 1; i <= 3; i++) {
+        try {
+          await doFetch(i);
+          return;
+        } catch (err) {
+          console.error(`❌ Fetch attempt ${i} failed:`, err?.response?.status, err?.message);
+          if (i < 3) await new Promise(r => setTimeout(r, i * 3000));
+        }
+      }
+      setLoading(false);
+    };
+    fetchWithRetry();
 
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);

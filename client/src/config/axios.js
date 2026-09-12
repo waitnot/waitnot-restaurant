@@ -71,4 +71,9 @@ axiosInstance.interceptors.response.use(
 axios.defaults.baseURL = baseURL;
 axios.defaults.timeout = 30000;
 
+// Wake up Render server immediately on app load (free tier sleeps after inactivity)
+if (!isLocalDev) {
+  fetch(`${PRODUCTION_URL}/health`).catch(() => {});
+}
+
 export default axiosInstance;
