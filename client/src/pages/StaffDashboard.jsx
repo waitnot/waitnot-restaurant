@@ -68,6 +68,7 @@ export default function StaffDashboard() {
     if (!staffData || !token) { navigate('/staff-login'); return; }
     const s = JSON.parse(staffData);
     setStaff(s);
+    // Set staff token on the axios instance headers directly
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
     // Restore cached restaurant data instantly to avoid blank screen
@@ -77,16 +78,24 @@ export default function StaffDashboard() {
       // Don't set loading:false yet — still need orders
     }
 
-    // Fetch restaurant + orders in parallel
-    Promise.all([
-      axios.get(`${API}/api/restaurants/${s.restaurant_id}`),
-      axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`)
-    ]).then(([resRes, ordersRes]) => {
+    // Fetch restaurant + orders in parallel — retry once if server is cold-starting
+    const doFetch = async () => {
+      const [resRes, ordersRes] = await Promise.all([
+        axios.get(`${API}/api/restaurants/${s.restaurant_id}`),
+        axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`)
+      ]);
       setRestaurant(resRes.data);
       localStorage.setItem(`restaurant_cache_${s.restaurant_id}`, JSON.stringify(resRes.data));
       setOrders(ordersRes.data);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    };
+
+    doFetch().catch(() => {
+      // Retry once after 3s (handles Render cold start)
+      setTimeout(() => {
+        doFetch().catch(() => setLoading(false));
+      }, 3000);
+    });
 
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);
@@ -170,9 +179,14 @@ export default function StaffDashboard() {
   };
 
   const fetchOrders = async (id) => {
-    const { data } = await axios.get(`${API}/api/orders/restaurant/${id}?status=active`);
-    setOrders(data);
-    setLoading(false);
+    try {
+      const { data } = await axios.get(`${API}/api/orders/restaurant/${id}?status=active`);
+      setOrders(data);
+      setLoading(false);
+    } catch (err) {
+      console.error('fetchOrders failed:', err?.response?.status, err?.message);
+      setLoading(false);
+    }
   };
 
   const fetchHistory = async () => {
