@@ -520,6 +520,65 @@ export default function StaffDashboard() {
     printViaIframe(html);
   };
 
+  // Print multiple KOTs in ONE print dialog
+  const printKOTBatch = (ordersToPrint) => {
+    if (!ordersToPrint || ordersToPrint.length === 0) return;
+    if (ordersToPrint.length === 1) { printKOT(ordersToPrint[0]); return; }
+    const d = new Date().toLocaleDateString('en-IN');
+    const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const blocks = ordersToPrint.map((order, idx) => {
+      const slot = order.orderType === 'room'
+        ? 'ROOM ' + (order.roomNumber || '')
+        : order.tableNumber ? 'TABLE ' + order.tableNumber
+        : (order.orderType || 'ORDER').toUpperCase();
+      const itemRows = (order.items || []).map(i =>
+        `<tr>
+          <td style="padding:4px 2px;font-size:13px;font-weight:900;border-bottom:1px dotted #000;">${i.name}</td>
+          <td style="padding:4px 2px;font-size:15px;font-weight:900;text-align:right;border-bottom:1px dotted #000;">x${i.quantity}</td>
+        </tr>`
+      ).join('');
+      const pageBreak = idx < ordersToPrint.length - 1 ? 'page-break-after:always;' : '';
+      return `<div class="wrap" style="${pageBreak}">
+        <div class="center" style="margin-bottom:8px;">
+          <div style="font-size:18px;font-weight:900;letter-spacing:1px;">${(restaurant?.name || '').toUpperCase()}</div>
+          <div style="font-size:13px;font-weight:900;margin-top:3px;">*** KITCHEN ORDER TICKET ***</div>
+          <div style="font-size:11px;margin-top:2px;">Staff Order</div>
+        </div>
+        <hr class="sep">
+        <table style="font-size:12px;margin-bottom:6px;">
+          <tr><td class="bold">Order ID</td><td style="text-align:right;font-weight:900;">${order._id.slice(-8).toUpperCase()}</td></tr>
+          <tr><td class="bold">Date</td><td style="text-align:right;">${d}</td></tr>
+          <tr><td class="bold">Time</td><td style="text-align:right;font-weight:900;">${t}</td></tr>
+          ${slot ? `<tr><td class="bold">Slot</td><td style="text-align:right;font-size:14px;font-weight:900;">${slot}</td></tr>` : ''}
+          <tr><td class="bold">Type</td><td style="text-align:right;font-weight:900;">${(order.orderType || 'DINE-IN').toUpperCase()}</td></tr>
+          ${order.customerName ? `<tr><td class="bold">Customer</td><td style="text-align:right;">${order.customerName}</td></tr>` : ''}
+        </table>
+        <hr class="sep">
+        <div class="center bold" style="font-size:13px;margin:6px 0;">ITEMS TO PREPARE</div>
+        <hr class="dsep">
+        <table>${itemRows}</table>
+        <hr class="sep">
+        <div class="center" style="font-size:12px;font-weight:900;margin-top:6px;">-- PREPARE WITH CARE --</div>
+        <div class="center" style="font-size:10px;margin-top:4px;">Printed: ${d} ${t}</div>
+      </div>`;
+    }).join('');
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>KOT</title>
+<style>
+  @page { size: 80mm auto; margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; background:#fff; font-family:'Courier New',Courier,monospace; color:#000; }
+  .wrap { width:100%; max-width:302px; margin:0 auto; }
+  .center { text-align:center; }
+  .bold { font-weight:900; }
+  .sep { border:none; border-top:2px solid #000; margin:6px 0; }
+  .dsep { border:none; border-top:1px dashed #000; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; }
+</style>
+</head><body>${blocks}</body></html>`;
+    printViaIframe(html);
+  };
+
   // Print Bill — thermal-safe table layout
   const printBill = async (tableOrders, tableLabel, total) => {
     const d = new Date().toLocaleDateString('en-IN');
@@ -879,7 +938,8 @@ export default function StaffDashboard() {
 
                 {/* Running order summary (existing orders) */}
                 {getActiveOrdersForSlot().length > 0 && (
-                  <div className="px-3 py-2 bg-amber-50 border-b border-amber-100 shrink-0">
+                  <div className="bg-amber-50 border-b border-amber-100 shrink-0" style={{ maxHeight: '35%', overflowY: 'auto' }}>
+                    <div className="px-3 pt-2 pb-1">
                     <p className="text-xs font-semibold text-amber-700 mb-1">Running Order</p>
                     {getActiveOrdersForSlot().map((order, oi) => (
                       <div key={order._id}>
@@ -904,6 +964,7 @@ export default function StaffDashboard() {
                         ))}
                       </div>
                     ))}
+                  </div>
                   </div>
                 )}
 
@@ -1040,7 +1101,7 @@ export default function StaffDashboard() {
                       </p>
                     )}
                     <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                      <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">🖨 KOT</button>
+                      <button onClick={() => printKOTBatch(getActiveOrdersForSlot())} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">🖨 KOT</button>
                       <button onClick={() => { const t = getActiveOrdersForSlot(); printBill(t, selectedTable?.label, getTableTotal(t) + (extraCharge.amount || 0)); }} className="bg-blue-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-600">🖨 Bill</button>
                     </div>
                     <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)}
@@ -1067,7 +1128,7 @@ export default function StaffDashboard() {
               {orderCart.length === 0 && getActiveOrdersForSlot().length > 0 && (
                 <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
                   <span className="flex-1 font-bold text-xs text-green-600">✅ Order Placed</span>
-                  <button onClick={() => getActiveOrdersForSlot().forEach(o => printKOT(o))} className="bg-orange-500 text-white px-2 py-2 rounded-lg text-xs font-bold">KOT</button>
+                  <button onClick={() => printKOTBatch(getActiveOrdersForSlot())} className="bg-orange-500 text-white px-2 py-2 rounded-lg text-xs font-bold">KOT</button>
                   <button onClick={() => clearTable(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-green-500 text-white px-2 py-2 rounded-lg text-xs font-bold">Clear/Pay</button>
                   <button onClick={() => cancelOrders(getActiveOrdersForSlot(), selectedTable?.label)} className="bg-red-100 text-red-600 px-2 py-2 rounded-lg text-xs font-bold">Cancel</button>
                 </div>
@@ -1118,7 +1179,7 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => tableOrders.forEach(o => printKOT(o))} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
+                            <button onClick={() => printKOTBatch(tableOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill(tableOrders, tableNum, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
                             <button onClick={() => cancelOrders(tableOrders, `Table ${tableNum}`)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
                             <button onClick={() => clearTable(tableOrders, parseInt(tableNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
@@ -1163,7 +1224,7 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => roomOrders.forEach(o => printKOT(o))} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
+                            <button onClick={() => printKOTBatch(roomOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill(roomOrders, label, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
                             <button onClick={() => cancelOrders(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
                             <button onClick={() => clearTable(roomOrders, parseInt(roomNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
