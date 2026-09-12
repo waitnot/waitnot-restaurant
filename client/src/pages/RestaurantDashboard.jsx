@@ -752,12 +752,16 @@ export default function RestaurantDashboard() {
     await saveMenuVisibility({ ...restaurant?.features, occasionalHours: updated });
   };
 
-  const fetchOrders = async (id) => {
-    try {
-      const { data } = await axios.get(`/api/orders/restaurant/${id}?status=active`, { timeout: 60000 });
-      setOrders(data);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
+  const fetchOrders = async (id, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const { data } = await axios.get(`/api/orders/restaurant/${id}?status=active`, { timeout: 60000 });
+        setOrders(data);
+        return;
+      } catch (error) {
+        console.warn(`fetchOrders attempt ${i + 1} failed:`, error?.message);
+        if (i < retries - 1) await new Promise(r => setTimeout(r, 5000));
+      }
     }
   };
 

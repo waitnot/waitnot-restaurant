@@ -68,48 +68,35 @@ export default function StaffDashboard() {
     if (!staffData || !token) { navigate('/staff-login'); return; }
     const s = JSON.parse(staffData);
     setStaff(s);
-    console.log('👤 Staff:', s.name, '| restaurant_id:', s.restaurant_id);
-    // Set staff token on the axios instance headers directly
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-    // Restore cached restaurant data instantly to avoid blank screen
+    // Show cached restaurant data instantly (blank screen prevention)
     const cached = localStorage.getItem(`restaurant_cache_${s.restaurant_id}`);
-    if (cached) {
-      setRestaurant(JSON.parse(cached));
-      // Don't set loading:false yet — still need orders
-    }
+    if (cached) setRestaurant(JSON.parse(cached));
 
-    // Fetch restaurant + orders in parallel — retry once if server is cold-starting
-    const doFetch = async (attempt = 1) => {
-      const ordersUrl = `${API}/api/orders/restaurant/${s.restaurant_id}?status=active`;
-      console.log(`🔄 Fetch attempt ${attempt}:`, ordersUrl);
+    let stopped = false;
+    let pollTimer = null;
 
-      const [resRes, ordersRes] = await Promise.all([
-        axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 60000 }),
-        axios.get(ordersUrl, { timeout: 60000 })
-      ]);
-
-      console.log('✅ Orders count:', ordersRes.data?.length);
-      setRestaurant(resRes.data);
-      localStorage.setItem(`restaurant_cache_${s.restaurant_id}`, JSON.stringify(resRes.data));
-      setOrders(ordersRes.data);
-      setLoading(false);
-    };
-
-    // Retry up to 3 times with increasing delays — handles Render cold start (can take 50s)
-    const fetchWithRetry = async () => {
-      for (let i = 1; i <= 3; i++) {
-        try {
-          await doFetch(i);
-          return;
-        } catch (err) {
-          console.error(`❌ Fetch attempt ${i} failed:`, err?.response?.status, err?.message);
-          if (i < 3) await new Promise(r => setTimeout(r, i * 3000));
-        }
+    const loadData = async () => {
+      try {
+        const [resRes, ordersRes] = await Promise.all([
+          axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 60000 }),
+          axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 60000 })
+        ]);
+        if (stopped) return;
+        setRestaurant(resRes.data);
+        localStorage.setItem(`restaurant_cache_${s.restaurant_id}`, JSON.stringify(resRes.data));
+        setOrders(ordersRes.data);
+        setLoading(false);
+      } catch (err) {
+        if (stopped) return;
+        console.warn('Orders fetch failed, retrying in 5s:', err?.message);
+        setLoading(true); // keep loading spinner while retrying
+        pollTimer = setTimeout(loadData, 5000);
       }
-      setLoading(false);
     };
-    fetchWithRetry();
+
+    loadData();
 
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);
@@ -121,11 +108,7 @@ export default function StaffDashboard() {
     setSocket(newSocket);
     newSocket.emit('join-restaurant', s.restaurant_id);
     newSocket.on('order-updated', (o) => {
-      // If socket order has no items, do a full fetch to get complete data
-      if (!o.items || o.items.length === 0) {
-        fetchOrders(s.restaurant_id);
-        return;
-      }
+      if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
       setOrders(prev => {
         const idx = prev.findIndex(x => x._id === o._id);
         if (idx !== -1) { const n = [...prev]; n[idx] = o; return n.filter(x => x.status !== 'completed'); }
@@ -142,7 +125,12 @@ export default function StaffDashboard() {
     newSocket.on('order-deleted', ({ orderId }) => {
       setOrders(prev => prev.filter(o => o._id !== orderId));
     });
-    return () => { newSocket.emit('leave-restaurant', s.restaurant_id); newSocket.disconnect(); };
+    return () => {
+      stopped = true;
+      if (pollTimer) clearTimeout(pollTimer);
+      newSocket.emit('leave-restaurant', s.restaurant_id);
+      newSocket.disconnect();
+    };
   }, [navigate]);
 
   const loadPrinterSettings = (restaurantId) => {
