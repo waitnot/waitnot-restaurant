@@ -632,7 +632,7 @@ export default function StaffDashboard() {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 flex overflow-hidden md:min-h-0" style={{ height: 'calc(100vh - 57px)' }}>
+        <div className="flex-1 flex overflow-hidden md:min-h-0" style={{ height: 'calc(100vh - 57px - 56px)' }}>
 
           {/* Sidebar nav — desktop — REMOVED, using bottom nav instead */}
 
@@ -770,7 +770,7 @@ export default function StaffDashboard() {
                   </div>
 
                   {/* Menu grid */}
-                  <div className="flex-1 overflow-y-auto p-2 pb-24 lg:pb-2 no-scrollbar min-h-0">
+                  <div className="flex-1 overflow-y-auto p-2 no-scrollbar min-h-0">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {filteredMenu.length === 0 && <p className="col-span-full text-center text-gray-400 py-8 text-xs">No items found</p>}
                       {filteredMenu.map(item => {
