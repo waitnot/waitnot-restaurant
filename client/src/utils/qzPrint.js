@@ -1,5 +1,3 @@
-import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
-
 /**
  * WaitNot Silent Printing Utility
  *
@@ -114,6 +112,7 @@ async function bluetoothPrint(html, type) {
     const address = type === 'kitchen' ? saved.btKitchenPrinter : saved.btBillPrinter;
     if (!address) return { success: false, error: 'No BT printer configured' };
 
+    const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
     const state = await BluetoothSerial.isEnabled();
     if (!state.enabled) await BluetoothSerial.enable();
     await BluetoothSerial.connect({ address });

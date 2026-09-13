@@ -5,7 +5,6 @@ import { smartPrint } from '../utils/qzPrint.js';
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
-import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
 
 const API = '';
 
@@ -175,16 +174,12 @@ export default function StaffDashboard() {
 
   const loadBluetoothPrinters = async () => {
     try {
-      // 1. Check/Request Permissions (Required for Android 12+)
-      if (window.Capacitor?.isNativePlatform?.()) {
-        const hasPermission = await BluetoothSerial.checkBluetoothPermissions();
-        if (!hasPermission) {
-          // If no permissions, the plugin usually doesn't have a direct "request"
-          // but we can try to trigger an action that prompts it or tell user.
-          console.warn('Bluetooth permissions not granted');
-        }
+      if (!window.Capacitor?.isNativePlatform?.()) return;
+      const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
+      const hasPermission = await BluetoothSerial.checkBluetoothPermissions();
+      if (!hasPermission) {
+        console.warn('Bluetooth permissions not granted');
       }
-
       const state = await BluetoothSerial.isEnabled();
       if (!state.enabled) await BluetoothSerial.enable();
       const result = await BluetoothSerial.getPairedDevices();
