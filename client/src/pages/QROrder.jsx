@@ -494,11 +494,11 @@ export default function QROrder({ orderMode }) {
   };
 
   const handlePaymentClick = () => {
-    if ((isTakeawayMode || isDeliveryMode) && !customerInfo.name.trim()) {
+    if (isDeliveryMode && !customerInfo.name.trim()) {
       alert('Please enter your name.');
       return;
     }
-    if ((isTakeawayMode || isDeliveryMode) && !customerInfo.phone.trim()) {
+    if (isDeliveryMode && !customerInfo.phone.trim()) {
       alert('Please enter your phone number.');
       return;
     }
@@ -1266,26 +1266,26 @@ export default function QROrder({ orderMode }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-gray-700 mb-2 font-medium">
-                    Name {(isTakeawayMode || isDeliveryMode) && <span className="text-red-500">*</span>}
+                    Name {isDeliveryMode && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="text"
                     value={customerInfo.name}
                     onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
-                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${(isTakeawayMode || isDeliveryMode) && !customerInfo.name ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
-                    placeholder={(isTakeawayMode || isDeliveryMode) ? "Your name (required)" : "Enter your name (optional)"}
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${isDeliveryMode && !customerInfo.name ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+                    placeholder={isDeliveryMode ? "Your name (required)" : "Enter your name (optional)"}
                   />
                 </div>
                 <div>
                   <label className="block text-gray-700 mb-2 font-medium">
-                    Phone {(isTakeawayMode || isDeliveryMode) && <span className="text-red-500">*</span>}
+                    Phone {isDeliveryMode && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="tel"
                     value={customerInfo.phone}
                     onChange={(e) => setCustomerInfo({...customerInfo, phone: e.target.value})}
-                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${(isTakeawayMode || isDeliveryMode) && !customerInfo.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
-                    placeholder={(isTakeawayMode || isDeliveryMode) ? "Your phone number (required)" : "Enter your phone number (optional)"}
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${isDeliveryMode && !customerInfo.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+                    placeholder={isDeliveryMode ? "Your phone number (required)" : "Enter your phone number (optional)"}
                   />
                 </div>
               </div>
