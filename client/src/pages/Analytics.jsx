@@ -17,6 +17,7 @@ const Analytics = () => {
   const [showOrdersTable, setShowOrdersTable] = useState(false);
   const [orderSearch, setOrderSearch] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -222,39 +223,45 @@ const Analytics = () => {
     });
   };
 
-  const deleteOrder = async (orderId) => {
-    if (!window.confirm('Delete this order permanently? This cannot be undone.')) return;
-    setDeletingId(orderId);
-    try {
-      await axios.delete(`/api/orders/${orderId}`);
-      setOrders(prev => prev.filter(o => o._id !== orderId));
-    } catch (e) {
-      alert('Failed to delete order.');
-    } finally {
-      setDeletingId(null);
-    }
+  const deleteOrder = (orderId) => {
+    setConfirmModal({
+      message: 'Delete this order permanently? This cannot be undone.',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setDeletingId(orderId);
+        try {
+          await axios.delete(`/api/orders/${orderId}`);
+          setOrders(prev => prev.filter(o => o._id !== orderId));
+        } catch (e) {
+          alert('Failed to delete order.');
+        } finally {
+          setDeletingId(null);
+        }
+      }
+    });
   };
 
-  const downloadReport = async (type) => {
+  const downloadReport = (type) => {
+    const restaurantId = localStorage.getItem('restaurantId');
+    setConfirmModal({
+      message: `Download ${type} report? Click "Also Clear" to also clear completed order history after download.`,
+      cancelLabel: 'Just Download',
+      confirmLabel: 'Download + Clear History',
+      onCancel: async () => {
+        setConfirmModal(null);
+        await doDownload(type, restaurantId, false);
+      },
+      onConfirm: async () => {
+        setConfirmModal(null);
+        await doDownload(type, restaurantId, true);
+      }
+    });
+  };
+
+  const doDownload = async (type, restaurantId, clearHistory) => {
     try {
-      const restaurantId = localStorage.getItem('restaurantId');
-      
-      // Ask user if they want to clear order history after report generation
-      const clearHistory = window.confirm(
-        `Generate ${type} report and clear order history?\n\n` +
-        `This will:\n` +
-        `✓ Download the ${type} report\n` +
-        `✓ Clear all completed orders from history\n` +
-        `⚠️ This action cannot be undone!\n\n` +
-        `Click OK to proceed with clearing history, or Cancel to just download the report.`
-      );
-      
-      // Try API first
       try {
-        const response = await axios.get(`/api/analytics/restaurant/${restaurantId}/report?type=${type}&format=csv&clearHistory=${clearHistory}`, {
-          responseType: 'blob'
-        });
-        
+        const response = await axios.get(`/api/analytics/restaurant/${restaurantId}/report?type=${type}&format=csv&clearHistory=${clearHistory}`, { responseType: 'blob' });
         const blob = new Blob([response.data], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -262,19 +269,8 @@ const Analytics = () => {
         a.download = `${restaurant?.name || 'Restaurant'}_${type}_Report_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
-        
-        // Show success message
-        if (clearHistory) {
-          alert(`✅ Report downloaded successfully!\n\nOrder history has been cleared. The system is now ready for fresh data collection.`);
-          
-          // Refresh the analytics data to reflect the cleared history
-          await fetchData();
-        } else {
-          alert('✅ Report downloaded successfully!');
-        }
-      } catch (apiError) {
-        console.log('API not available, generating report locally');
-        // Fallback to local generation
+        if (clearHistory) await fetchData();
+      } catch {
         const reportData = generateReportData(type);
         const csvContent = convertToCSV(reportData);
         const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -284,27 +280,30 @@ const Analytics = () => {
         a.download = `${restaurant?.name || 'Restaurant'}_${type}_Report_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
-        
-        // Clear history locally if requested
         if (clearHistory) {
-          try {
-            await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`);
-            alert(`✅ Report downloaded successfully!\n\nOrder history has been cleared. The system is now ready for fresh data collection.`);
-            
-            // Refresh the analytics data to reflect the cleared history
-            await fetchData();
-          } catch (clearError) {
-            console.error('Failed to clear history:', clearError);
-            alert('✅ Report downloaded successfully!\n\n⚠️ However, failed to clear order history. Please try clearing manually from the dashboard.');
-          }
-        } else {
-          alert('✅ Report downloaded successfully!');
+          try { await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`); await fetchData(); } catch {}
         }
       }
     } catch (error) {
       console.error('Error downloading report:', error);
-      alert('Failed to download report. Please try again.');
     }
+  };
+
+  const clearOrderHistory = () => {
+    const count = orders.filter(o => o.status === 'completed').length;
+    setConfirmModal({
+      message: `Clear all ${count} completed orders from history? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const restaurantId = localStorage.getItem('restaurantId');
+          await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`);
+          await fetchData();
+        } catch (error) {
+          console.error('Error clearing order history:', error);
+        }
+      }
+    });
   };
 
   const generateReportData = (type) => {
@@ -348,34 +347,21 @@ const Analytics = () => {
     }));
   };
 
-  const clearOrderHistory = async () => {
-    try {
-      const restaurantId = localStorage.getItem('restaurantId');
-      
-      const confirmClear = window.confirm(
-        `⚠️ Clear Order History?\n\n` +
-        `This will permanently delete all completed orders from the system.\n\n` +
-        `Current completed orders: ${orders.filter(o => o.status === 'completed').length}\n\n` +
-        `⚠️ This action cannot be undone!\n\n` +
-        `Are you sure you want to proceed?`
-      );
-      
-      if (!confirmClear) return;
-      
-      const response = await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`);
-      
-      if (response.data.success) {
-        alert(`✅ Order History Cleared!\n\nSuccessfully cleared ${response.data.clearedCount} completed orders.\n\nThe system is now ready for fresh data collection.`);
-        
-        // Refresh the analytics data to reflect the cleared history
-        await fetchData();
-      } else {
-        alert('❌ Failed to clear order history. Please try again.');
+  const clearOrderHistory = () => {
+    const count = orders.filter(o => o.status === 'completed').length;
+    setConfirmModal({
+      message: `Clear all ${count} completed orders from history? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const restaurantId = localStorage.getItem('restaurantId');
+          await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`);
+          await fetchData();
+        } catch (error) {
+          console.error('Error clearing order history:', error);
+        }
       }
-    } catch (error) {
-      console.error('Error clearing order history:', error);
-      alert('❌ Failed to clear order history. Please try again.');
-    }
+    });
   };
 
   const convertToCSV = (data) => {
@@ -852,6 +838,29 @@ const Analytics = () => {
         </div>
       </div>
     </div>
+
+    {/* Custom confirm modal */}
+    {confirmModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+          <p className="text-gray-800 font-semibold text-base mb-6 text-center">{confirmModal.message}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { confirmModal.onCancel ? confirmModal.onCancel() : setConfirmModal(null); }}
+              className="flex-1 py-2.5 border border-gray-200 rounded-xl font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              {confirmModal.cancelLabel || 'Cancel'}
+            </button>
+            <button
+              onClick={confirmModal.onConfirm}
+              className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600"
+            >
+              {confirmModal.confirmLabel || 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 };
 

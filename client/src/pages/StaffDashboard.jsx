@@ -339,7 +339,16 @@ export default function StaffDashboard() {
   const cancelRunningItem = async (orderId, itemName, skipConfirm = false) => {
     const targetOrder = orders.find(o => o._id === orderId);
     if (!targetOrder) return;
-    if (!skipConfirm && !window.confirm(`Remove "${itemName}" from this order?`)) return;
+    if (!skipConfirm) {
+      setConfirmModal({
+        message: `Remove "${itemName}" from this order?`,
+        onConfirm: async () => {
+          setConfirmModal(null);
+          await cancelRunningItem(orderId, itemName, true);
+        }
+      });
+      return;
+    }
     try {
       const newItems = targetOrder.items.filter(i => i.name !== itemName);
       if (newItems.length === 0) {
@@ -442,17 +451,22 @@ export default function StaffDashboard() {
   };
 
   const cancelOrders = async (ordersToCancel, label) => {
-    if (!window.confirm(`Cancel order for ${label}? It will be removed with no record in history.`)) return;
-    try {
-      await Promise.all(ordersToCancel.map(o =>
-        axios.delete(`${API}/api/orders/${o._id}`)
-      ));
-      showToast(`${label} cancelled`);
-      setSelectedTable(null);
-      fetchOrders(staff.restaurant_id);
-    } catch {
-      showToast('Failed to cancel', 'error');
-    }
+    setConfirmModal({
+      message: `Cancel order for ${label}? It will be removed with no record in history.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await Promise.all(ordersToCancel.map(o =>
+            axios.delete(`${API}/api/orders/${o._id}`)
+          ));
+          showToast(`${label} cancelled`);
+          setSelectedTable(null);
+          fetchOrders(staff.restaurant_id);
+        } catch {
+          showToast('Failed to cancel', 'error');
+        }
+      }
+    });
   };
 
   // Shared print helper — works in Electron (silent) and browser (popup)
