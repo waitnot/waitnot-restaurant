@@ -360,6 +360,7 @@ const Analytics = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -828,6 +829,7 @@ const Analytics = () => {
         </div>
       </div>
     )}
+    </>
   );
 };
 
