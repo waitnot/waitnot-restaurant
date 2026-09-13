@@ -309,75 +309,42 @@ const Analytics = () => {
   const generateReportData = (type) => {
     const now = new Date();
     let startDate, endDate = now;
-
     switch (type) {
-      case 'today':
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-      case 'weekly':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'monthly':
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case 'yearly':
-        startDate = new Date(now.getFullYear(), 0, 1);
-        break;
+      case 'today': startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
+      case 'weekly': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+      case 'monthly': startDate = new Date(now.getFullYear(), now.getMonth(), 1); break;
+      case 'yearly': startDate = new Date(now.getFullYear(), 0, 1); break;
+      default: startDate = new Date(0);
     }
-
-    const filteredOrders = orders.filter(order => {
-      const orderDate = new Date(order.createdAt);
-      return orderDate >= startDate && orderDate <= endDate;
-    });
-
-    return filteredOrders.map(order => ({
+    return orders.filter(o => new Date(o.createdAt) >= startDate && new Date(o.createdAt) <= endDate).map(order => ({
       'Order ID': order._id,
       'Date': new Date(order.createdAt).toLocaleDateString(),
       'Time': new Date(order.createdAt).toLocaleTimeString(),
       'Customer': order.customerName || 'N/A',
       'Phone': order.customerPhone || 'N/A',
-      'Type': order.orderType || order.type || 'dine-in',
+      'Type': order.orderType || 'dine-in',
       'Table': order.tableNumber || 'N/A',
       'Status': order.status,
       'Payment Method': order.paymentMethod || 'cash',
       'Payment Status': order.paymentStatus || 'pending',
-      'Items': order.items ? order.items.map(item => `${item.name} x${item.quantity}`).join('; ') : '',
-      'Total Amount': order.totalAmount || order.total || 0,
+      'Items': order.items ? order.items.map(i => `${i.name} x${i.quantity}`).join('; ') : '',
+      'Total Amount': order.totalAmount || 0,
       'Delivery Address': order.deliveryAddress || 'N/A'
     }));
   };
 
-  const clearOrderHistory = () => {
-    const count = orders.filter(o => o.status === 'completed').length;
-    setConfirmModal({
-      message: `Clear all ${count} completed orders from history? This cannot be undone.`,
-      onConfirm: async () => {
-        setConfirmModal(null);
-        try {
-          const restaurantId = localStorage.getItem('restaurantId');
-          await axios.delete(`/api/analytics/restaurant/${restaurantId}/history?type=completed`);
-          await fetchData();
-        } catch (error) {
-          console.error('Error clearing order history:', error);
-        }
-      }
-    });
-  };
-
   const convertToCSV = (data) => {
     if (!data.length) return '';
-    
     const headers = Object.keys(data[0]);
     const csvRows = [
       headers.join(','),
-      ...data.map(row => 
+      ...data.map(row =>
         headers.map(header => {
           const value = row[header];
           return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
         }).join(',')
       )
     ];
-    
     return csvRows.join('\n');
   };
 
