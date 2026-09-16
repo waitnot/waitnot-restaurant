@@ -1,0 +1,47 @@
+name: Build Captain iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/src/**'
+      - 'client/vite.captain.config.js'
+      - 'client/index-captain.html'
+      - '.github/workflows/build-captain-ios.yml'
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Build captain web app
+        run: npm run build:captain
+        working-directory: client
+
+      - name: Swap to captain capacitor config
+        run: cp capacitor.captain.json capacitor.config.json
+        working-directory: client
+
+      - name: Sync Capacitor
+        run: npx cap sync ios
+        working-directory: client
+
+      - name: Build iOS App (Simulator Debug)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator build
+        working-directory: client
