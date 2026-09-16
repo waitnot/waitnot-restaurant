@@ -1,0 +1,18 @@
+require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
+
+platform :ios, '15.0'
+use_frameworks!
+
+# workaround to avoid Xcode caching of Pods that requires
+# temporary direction of Temp folder into /tmp/
+install! 'cocoapods', :disable_input_output_paths => true
+
+def capacitor_pods
+  pod 'Capacitor', :path => '../../node_modules/@capacitor/core'
+  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/core'
+end
+
+target 'App' do
+  capacitor_pods
+  # Add Capacitor-based plugins
+end
