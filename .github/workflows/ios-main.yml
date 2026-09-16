@@ -1,14 +1,11 @@
-name: Build Captain iOS
+name: Build iOS IPA
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'client/src/**'
-      - 'client/vite.captain.config.js'
-      - 'client/index-captain.html'
-      - '.github/workflows/build-captain-ios.yml'
-  workflow_dispatch: # allow manual trigger
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: client
 
 jobs:
   build-ios:
@@ -18,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -27,27 +24,47 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        working-directory: client
 
       - name: Build captain web app
         run: npm run build:captain
-        working-directory: client
 
-      - name: Swap to captain capacitor config
-        run: |
-          cp client/capacitor.config.json client/capacitor.config.backup.json
-          cp client/capacitor.captain.json client/capacitor.config.json
-
-      - name: Sync Capacitor
+      - name: Sync Capacitor iOS
         run: npx cap sync ios
-        working-directory: client
-        env:
-          NODE_PATH: node_modules
 
-      - name: Restore original capacitor config
-        run: cp client/capacitor.config.backup.json client/capacitor.config.json
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods
+        working-directory: .
 
-      - name: Build iOS App (Simulator Debug)
+      - name: Install pods
+        run: pod install --repo-update
+        working-directory: client/ios/App
+
+      - name: Build & Archive (unsigned)
         run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator build
-        working-directory: client
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $RUNNER_TEMP/WaitNot-Captain.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+        working-directory: client/ios/App
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -r "$RUNNER_TEMP/WaitNot-Captain.xcarchive/Products/Applications/App.app" Payload/
+          zip -r WaitNot-Captain.ipa Payload/
+          echo "IPA created: $(du -sh WaitNot-Captain.ipa)"
+        working-directory: client/ios/App
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: WaitNot-Captain-iOS
+          path: client/ios/App/WaitNot-Captain.ipa
+          retention-days: 30
