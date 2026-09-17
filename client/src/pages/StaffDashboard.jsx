@@ -36,6 +36,9 @@ export default function StaffDashboard() {
   const [orderContext, setOrderContext] = useState({ orderType: 'dine-in', tableNumber: null, roomNumber: null, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
   const [editingPriceId, setEditingPriceId] = useState(null); // id of cart item being price-edited
   const [extraCharge, setExtraCharge] = useState({ label: '', amount: 0 }); // extra charge at billing
+  const [favourites, setFavourites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('staff_favourites') || '[]'); } catch { return []; }
+  });
 
   // Modals
   const [confirmModal, setConfirmModal] = useState(null);
@@ -328,6 +331,14 @@ export default function StaffDashboard() {
   const updateQty = (id, qty) => {
     if (qty <= 0) setOrderCart(prev => prev.filter(i => i._id !== id));
     else setOrderCart(prev => prev.map(i => i._id === id ? { ...i, quantity: qty } : i));
+  };
+
+  const toggleFavourite = (itemId) => {
+    setFavourites(prev => {
+      const updated = prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId];
+      localStorage.setItem('staff_favourites', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const toggleComplimentary = (id) =>
@@ -776,10 +787,11 @@ export default function StaffDashboard() {
 
   const tableCount = restaurant.tables || 10;
   const menuItems = restaurant.menu?.filter(i => i.available) || [];
-  const categories = ['All', ...new Set(menuItems.map(i => i.category))];
+  const categories = ['All', ...(favourites.length > 0 ? ['⭐ Favourites'] : []), ...new Set(menuItems.map(i => i.category))];
   const filteredMenu = menuItems.filter(i => {
     const q = menuSearch.toLowerCase();
-    const catMatch = selectedCategory === 'All' || i.category === selectedCategory;
+    const catMatch = selectedCategory === 'All'
+      || (selectedCategory === '⭐ Favourites' ? favourites.includes(i._id) : i.category === selectedCategory);
     const searchMatch = !q || i.name.toLowerCase().includes(q) || i.category?.toLowerCase().includes(q);
     return catMatch && searchMatch;
   });
@@ -907,7 +919,9 @@ export default function StaffDashboard() {
                   {categories.map(cat => (
                     <button key={cat} onClick={() => setSelectedCategory(cat)}
                       className={`px-2 py-3 text-xs font-semibold text-center border-b border-gray-100 transition-all ${
-                        selectedCategory === cat ? 'bg-red-500 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        selectedCategory === cat
+                          ? cat === '⭐ Favourites' ? 'bg-yellow-400 text-white' : 'bg-red-500 text-white'
+                          : cat === '⭐ Favourites' ? 'text-yellow-600 bg-yellow-50 hover:bg-yellow-100' : 'text-gray-600 hover:bg-gray-50'
                       }`}>
                       {cat}
                     </button>
@@ -957,14 +971,20 @@ export default function StaffDashboard() {
                       {filteredMenu.length === 0 && <p className="col-span-full text-center text-gray-400 py-8 text-xs">No items found</p>}
                       {filteredMenu.map(item => {
                         const inCart = orderCart.find(c => c._id === item._id);
+                        const isFav = favourites.includes(item._id);
                         return (
                           <div key={item._id}
                             className={`relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none ${inCart ? 'border-red-400 bg-red-50/30' : 'border-gray-200 hover:border-red-300'}`}
                             onClick={() => { addToCart(item); }}
                           >
                             <span className={`absolute top-2 left-2 w-2 h-2 rounded-sm border ${item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500'}`}></span>
+                            <button
+                              onClick={e => { e.stopPropagation(); toggleFavourite(item._id); }}
+                              className="absolute top-1.5 right-1.5 text-sm leading-none z-10"
+                              title={isFav ? 'Remove from favourites' : 'Add to favourites'}
+                            >{isFav ? '⭐' : '☆'}</button>
                             <div className="pt-4 pb-1 px-0.5 min-h-[3.5rem]">
-                              <p className="text-xs font-semibold text-gray-800 leading-tight">{item.name}</p>
+                              <p className="text-xs font-semibold text-gray-800 leading-tight pr-3">{item.name}</p>
                             </div>
                             {inCart ? (
                               <div className="flex items-center justify-between mt-1 gap-1">
