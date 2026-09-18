@@ -774,7 +774,21 @@ export default function StaffDashboard() {
     });
   };
 
-  if ((loading && !restaurant) || !staff) {
+  if (loading || !staff || !restaurant) {
+    // If loading failed (no restaurant after attempts), show retry screen
+    if (!loading && staff && !restaurant) {
+      return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-gray-600 font-medium mb-2">Could not load restaurant data</p>
+            <p className="text-gray-400 text-sm mb-4">Check your connection and try again</p>
+            <button onClick={() => window.location.reload()} className="bg-red-500 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-red-600">
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
@@ -869,7 +883,7 @@ export default function StaffDashboard() {
                 <div className="px-4 sm:px-6 pt-4 pb-2">
                   <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Rooms</h2>
                   <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
-                    {Array.from({ length: restaurant.rooms }, (_, i) => i + 1).map(n => {
+                    {Array.from({ length: restaurant.rooms || 0 }, (_, i) => i + 1).map(n => {
                       const label = restaurant?.features?.roomNames?.[n] || `Room ${n}`;
                       const rOrders = orders.filter(o => o.orderType === 'room' && parseInt(o.roomNumber) === n);
                       const isOccupied = rOrders.length > 0;
