@@ -1420,16 +1420,7 @@ export default function RestaurantDashboard() {
       items: Object.values(allItems),
       paymentMethod: firstOrder.paymentMethod,
     });
-    const w = window.open('', '_blank', 'width=420,height=700');
-    if (w) { w.document.write(html); w.document.close(); }
-    else {
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;';
-      document.body.appendChild(iframe);
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      doc.open(); doc.write(html); doc.close();
-      setTimeout(() => { try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e){} setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 3000); }, 400);
-    }
+    printViaIframeRD(html);
   };
 
   // Returns receipt HTML for an individual order
@@ -1452,205 +1443,25 @@ export default function RestaurantDashboard() {
 
   const printIndividualReceipt = (order) => {
     const settings = getPrinterSettings();
-
-    // Try to use custom bill first
     if (settings.billCustomization.enableCustomBill) {
-      const customPrintSuccess = printCustomBill(order, restaurant, settings.billCustomization);
-      if (customPrintSuccess) {
-        return;
-      }
+      const ok = printCustomBill(order, restaurant, settings.billCustomization);
+      if (ok) return;
     }
-    
-    // Enhanced thermal printer optimized bill format
-    const orderId = order.orderNumber
-      ? `#${String(order.orderNumber).padStart(3, '0')}`
-      : `ORD-${order._id.slice(-6).toUpperCase()}`;
-    const currentDate = new Date(order.createdAt);
-    const dateStr = currentDate.toLocaleDateString('en-IN');
-    const timeStr = currentDate.toLocaleTimeString('en-IN', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const slotLabel = order.tableNumber ? 'TABLE ' + order.tableNumber
+      : order.roomNumber ? 'ROOM ' + order.roomNumber : null;
+    const html = buildBillHTML({
+      restaurantName: restaurant.name,
+      slotLabel,
+      orderType: order.orderType,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      deliveryAddress: order.deliveryAddress,
+      items: order.items || [],
+      packagingCharge: order.packagingCharge,
+      deliveryCharge: order.deliveryCharge,
+      paymentMethod: order.paymentMethod,
     });
-
-    // Create receipt HTML with enhanced thermal printer styling
-    const receiptHTML = `
-      <div id="receipt-content" style="
-        width: 80mm;
-        max-width: 302px;
-        font-family: 'Courier New', 'Lucida Console', monospace;
-        font-size: 14px;
-        font-weight: bold;
-        line-height: 1.3;
-        color: #000;
-        background: white;
-        padding: 8px;
-        margin: 0;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      ">
-        <!-- Restaurant Header -->
-        <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
-          <div style="font-size: 18px; font-weight: 900; margin-bottom: 4px; letter-spacing: 1px;">
-            ${restaurant.name.toUpperCase()}
-          </div>
-          <div style="font-size: 12px; font-weight: bold;">
-            ${order.orderType === 'delivery' ? 'DELIVERY RECEIPT' : 'DINE-IN RECEIPT'}
-          </div>
-        </div>
-
-        <!-- Order Info -->
-        <div style="margin-bottom: 12px; font-size: 12px; font-weight: bold;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>ORDER ID:</span>
-            <span>${orderId}</span>
-          </div>
-          ${order.orderType === 'dine-in' ? `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>TABLE:</span>
-            <span style="font-weight: 900;">${order.tableNumber}</span>
-          </div>
-          ` : ''}
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>DATE:</span>
-            <span>${dateStr}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>TIME:</span>
-            <span>${timeStr}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>CUSTOMER:</span>
-            <span>${order.customerName}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>PHONE:</span>
-            <span>${order.customerPhone}</span>
-          </div>
-          ${order.deliveryAddress ? `
-          <div style="margin-top: 6px; font-size: 11px; font-weight: bold;">
-            <div>DELIVERY ADDRESS:</div>
-            <div style="margin-left: 8px; word-wrap: break-word; margin-top: 2px;">${order.deliveryAddress}</div>
-          </div>
-          ` : ''}
-        </div>
-
-        <!-- Items Header -->
-        <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 12px;">
-            <span style="width: 55%;">ITEM</span>
-            <span style="width: 15%; text-align: center;">QTY</span>
-            <span style="width: 30%; text-align: right;">AMOUNT</span>
-          </div>
-        </div>
-
-        <!-- Items List -->
-        <div style="margin-bottom: 12px;">
-          ${order.items.map(item => `
-            <div style="margin-bottom: 6px; font-size: 12px; font-weight: bold;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                <span style="width: 55%; word-wrap: break-word;">${item.name}</span>
-                <span style="width: 15%; text-align: center;">${item.quantity}</span>
-                <span style="width: 30%; text-align: right;">₹${item.price * item.quantity}</span>
-              </div>
-              <div style="font-size: 10px; color: #333; margin-left: 0; font-weight: normal;">
-                @ ₹${item.price} each
-              </div>
-            </div>
-          `).join('')}
-        </div>
-
-        <!-- Total Section -->
-        <div style="border-top: 2px solid #000; padding-top: 8px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 4px;">
-            <span>SUBTOTAL:</span>
-            <span>₹${order.totalAmount}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; border-top: 2px solid #000; padding-top: 6px; background: #f0f0f0; padding: 6px 4px;">
-            <span>TOTAL:</span>
-            <span>₹${order.totalAmount}</span>
-          </div>
-        </div>
-
-        <!-- Status -->
-        <div style="text-align: center; margin-bottom: 12px; font-size: 12px;">
-          <div style="background: #000; color: white; padding: 6px; font-weight: bold;">
-            STATUS: ${order.status.toUpperCase()}
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="text-align: center; font-size: 11px; border-top: 2px solid #000; padding-top: 8px; font-weight: bold;">
-          <div style="margin-bottom: 4px;">THANK YOU FOR ${order.orderType === 'delivery' ? 'ORDERING' : 'DINING'} WITH US!</div>
-          <div style="margin-bottom: 4px;">PLEASE VISIT AGAIN</div>
-          <div style="margin-bottom: 8px; font-size: 14px;">★★★★★</div>
-          <div style="font-size: 9px; color: #333; font-weight: normal;">
-            Printed: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Create a new window for printing with enhanced print styles
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    
-    if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Receipt - Order ${orderId}</title>
-          <style>
-            @media print {
-              @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              * {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-                font-weight: bold !important;
-              }
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              background: white;
-              font-family: 'Courier New', 'Lucida Console', monospace;
-              font-weight: bold;
-            }
-            @font-face {
-              font-family: 'ThermalPrint';
-              src: local('Courier New'), local('Lucida Console'), local('monospace');
-              font-weight: bold;
-            }
-          </style>
-        </head>
-        <body>
-          ${receiptHTML}
-        </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      
-      // Wait for content to load then print
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-          setTimeout(() => {
-            printWindow.close();
-          }, 250);
-        }, 500);
-      };
-    } else {
-      showToast('Please allow popups to print', 'error');
-    }
+    printViaIframeRD(html);
   };
 
   const printKitchenOrder = (tableNumber, tableOrders) => {
