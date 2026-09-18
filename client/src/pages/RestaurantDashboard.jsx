@@ -625,6 +625,8 @@ export default function RestaurantDashboard() {
       console.log('Connected to WaitNot server');
       // Re-join restaurant room on reconnection
       socket.emit('join-restaurant', restaurantId);
+      // Re-fetch active orders on reconnect to ensure sync
+      fetchOrders(restaurantId);
     });
     
     socket.on('disconnect', () => {
@@ -652,25 +654,34 @@ export default function RestaurantDashboard() {
 
     socket.on('order-updated', (updatedOrder) => {
       setOrders(prev => {
+        // Remove if completed/cancelled, otherwise update
+        if (updatedOrder.status === 'completed' || updatedOrder.status === 'cancelled') {
+          return prev.filter(o => o._id !== updatedOrder._id);
+        }
         const exists = prev.some(o => o._id === updatedOrder._id);
         if (exists) {
           return prev.map(o => o._id === updatedOrder._id ? updatedOrder : o);
         }
-        // New order from another device — add it
         return [updatedOrder, ...prev];
       });
     });
 
     // Batch update (e.g. clear table from mobile)
     socket.on('orders-updated', ({ orderIds, updateData }) => {
-      setOrders(prev => prev.map(o => {
-        if (!orderIds.includes(o._id)) return o;
-        const patch = {};
-        if (updateData.status) patch.status = updateData.status;
-        if (updateData.payment_method) patch.paymentMethod = updateData.payment_method;
-        if (updateData.payment_status) patch.paymentStatus = updateData.payment_status;
-        return { ...o, ...patch };
-      }));
+      setOrders(prev => {
+        // If status is completed/cancelled, remove those orders
+        if (updateData.status === 'completed' || updateData.status === 'cancelled') {
+          return prev.filter(o => !orderIds.includes(o._id));
+        }
+        return prev.map(o => {
+          if (!orderIds.includes(o._id)) return o;
+          const patch = {};
+          if (updateData.status) patch.status = updateData.status;
+          if (updateData.payment_method) patch.paymentMethod = updateData.payment_method;
+          if (updateData.payment_status) patch.paymentStatus = updateData.payment_status;
+          return { ...o, ...patch };
+        });
+      });
     });
 
     socket.on('order-deleted', ({ orderId }) => {

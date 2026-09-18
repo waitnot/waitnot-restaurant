@@ -142,17 +142,32 @@ export default function StaffDashboard() {
     newSocket.on('order-updated', (o) => {
       if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
       setOrders(prev => {
+        if (o.status === 'completed' || o.status === 'cancelled') {
+          return prev.filter(x => x._id !== o._id);
+        }
         const idx = prev.findIndex(x => x._id === o._id);
-        if (idx !== -1) { const n = [...prev]; n[idx] = o; return n.filter(x => x.status !== 'completed'); }
-        return o.status !== 'completed' ? [o, ...prev] : prev;
+        if (idx !== -1) { const n = [...prev]; n[idx] = o; return n; }
+        return [o, ...prev];
       });
+    });
+    newSocket.on('orders-updated', ({ orderIds, updateData }) => {
+      if (updateData.status === 'completed' || updateData.status === 'cancelled') {
+        setOrders(prev => prev.filter(o => !orderIds.includes(o._id)));
+      } else {
+        setOrders(prev => prev.map(o => {
+          if (!orderIds.includes(o._id)) return o;
+          const patch = {};
+          if (updateData.status) patch.status = updateData.status;
+          if (updateData.payment_method) patch.paymentMethod = updateData.payment_method;
+          if (updateData.payment_status) patch.paymentStatus = updateData.payment_status;
+          return { ...o, ...patch };
+        }));
+      }
     });
     newSocket.on('new-order', (o) => {
       if (o.status !== 'completed') {
-        // If items missing, fetch fresh
         if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
         setOrders(prev => {
-          // Deduplicate — don't add if already exists
           if (prev.find(x => x._id === o._id)) return prev;
           return [o, ...prev];
         });
@@ -160,6 +175,10 @@ export default function StaffDashboard() {
     });
     newSocket.on('order-deleted', ({ orderId }) => {
       setOrders(prev => prev.filter(o => o._id !== orderId));
+    });
+    newSocket.on('connect', () => {
+      newSocket.emit('join-restaurant', s.restaurant_id);
+      fetchOrders(s.restaurant_id);
     });
     return () => {
       stopped = true;
