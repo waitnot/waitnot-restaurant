@@ -567,6 +567,7 @@ export default function RestaurantDashboard() {
   const [editOrderSearchQuery, setEditOrderSearchQuery] = useState('');
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const [arrangeMode, setArrangeMode] = useState(false);
+  const [menuSubTab, setMenuSubTab] = useState('items'); // 'items' | 'visibility'
   const [orderedCategories, setOrderedCategories] = useState([]);
   const [orderedMenu, setOrderedMenu] = useState([]);
   const dragItem = useRef(null);
@@ -3135,7 +3136,95 @@ export default function RestaurantDashboard() {
 
         {activeTab === 'menu' && (
           <div>
-            {/* Header with Add Button, Search, and Arrange toggle */}
+            {/* Sub-tab toggle: Items / Visibility */}
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setMenuSubTab('items')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${menuSubTab === 'items' ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
+                Items
+              </button>
+              <button onClick={() => setMenuSubTab('visibility')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${menuSubTab === 'visibility' ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
+                Visibility
+                {restaurant?.features?.menuEnabled === false && (
+                  <span className="px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white">OFF</span>
+                )}
+              </button>
+            </div>
+
+            {/* Visibility sub-tab */}
+            {menuSubTab === 'visibility' && (
+              <div className="max-w-2xl">
+                <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+                  <h2 className="text-lg font-bold text-gray-800 mb-1">Menu Visibility</h2>
+                  <p className="text-sm text-gray-500 mb-4">Control what customers see in real time.</p>
+
+                  <div className={`p-4 rounded-xl border-2 mb-3 ${restaurant?.features?.menuEnabled === false ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-gray-800">Entire Menu</p>
+                        <p className="text-xs text-gray-500">
+                          {restaurant?.features?.menuEnabled === false ? 'Hidden from customers' : 'Visible to customers'}
+                        </p>
+                      </div>
+                      <button onClick={() => saveMenuVisibility({ ...restaurant.features, menuEnabled: restaurant?.features?.menuEnabled !== false ? false : true })}
+                        className={`relative w-14 h-7 rounded-full transition-colors shrink-0 ${restaurant?.features?.menuEnabled === false ? 'bg-red-400' : 'bg-green-500'}`}>
+                        <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${restaurant?.features?.menuEnabled === false ? 'left-0.5' : 'left-7'}`} />
+                      </button>
+                    </div>
+                    {restaurant?.features?.menuEnabled === false && (
+                      <div className="mt-3">
+                        <label className="text-xs font-medium text-red-700 block mb-1">Message shown to customers</label>
+                        <div className="flex gap-2">
+                          <input id="menuOffMessageInput" type="text" defaultValue={restaurant?.features?.menuOffMessage || ''}
+                            placeholder="e.g. We are closed right now. Please visit us tomorrow!"
+                            className="flex-1 text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white" />
+                          <button onClick={() => { const val = document.getElementById('menuOffMessageInput')?.value || ''; saveMenuVisibility({ ...restaurant.features, menuOffMessage: val }); }}
+                            className="px-3 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 whitespace-nowrap">Save</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-sm font-semibold text-gray-700 mb-3 mt-4">Category & Item Visibility</p>
+                  <div className="space-y-0">
+                    {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => {
+                      const hidden = (restaurant?.features?.hiddenCategories || []).includes(cat);
+                      const menuOff = restaurant?.features?.menuEnabled === false;
+                      const catMessages = restaurant?.features?.categoryMessages || {};
+                      const catItems = (restaurant?.menu || []).filter(i => i.category === cat);
+                      const visibleCount = catItems.filter(i => i.available).length;
+                      return (
+                        <CategoryAccordion key={cat} cat={cat} hidden={hidden} menuOff={menuOff}
+                          catMessages={catMessages} catItems={catItems} visibleCount={visibleCount}
+                          onToggleCategory={() => {
+                            const current = restaurant?.features?.hiddenCategories || [];
+                            const updated = hidden ? current.filter(c => c !== cat) : [...current, cat];
+                            saveMenuVisibility({ ...restaurant.features, hiddenCategories: updated });
+                          }}
+                          onSaveCatMessage={val => {
+                            const updated = { ...(restaurant?.features?.categoryMessages || {}), [cat]: val };
+                            saveMenuVisibility({ ...restaurant.features, categoryMessages: updated });
+                          }}
+                          onToggleItem={async (item) => {
+                            const restaurantId = localStorage.getItem('restaurantId');
+                            const newAvail = !item.available;
+                            setRestaurant(prev => ({ ...prev, menu: prev.menu.map(m => m._id === item._id ? { ...m, available: newAvail } : m) }));
+                            try {
+                              const res = await axios.put(`/api/restaurants/${restaurantId}/menu/${item._id}`, { available: newAvail });
+                              if (res.data?.menu) setRestaurant(res.data);
+                            } catch(e) { fetchRestaurant(restaurantId); showToast('Failed to update item', 'error'); }
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Items sub-tab */}
+            {menuSubTab === 'items' && (
+            <div>
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4 sm:mb-6">
               <div className="flex gap-2">
                 <FeatureGuard feature="menuManagement">
@@ -3691,103 +3780,8 @@ export default function RestaurantDashboard() {
               </div>
             )}
 
-            {/* ── Menu Visibility (merged into Menu tab) ── */}
-            {!arrangeMode && (
-              <div className="max-w-2xl mt-6">
-                <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
-                  <h2 className="text-lg font-bold text-gray-800 mb-1">Menu Visibility</h2>
-                  <p className="text-sm text-gray-500 mb-4">Control what customers see in real time.</p>
-
-                  {/* Master toggle */}
-                  <div className={`p-4 rounded-xl border-2 mb-3 ${restaurant?.features?.menuEnabled === false ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-gray-800">Entire Menu</p>
-                        <p className="text-xs text-gray-500">
-                          {restaurant?.features?.menuEnabled === false
-                            ? 'Menu is hidden — customers cannot see any items'
-                            : 'Menu is visible to customers'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const newVal = restaurant?.features?.menuEnabled !== false ? false : true;
-                          saveMenuVisibility({ ...restaurant.features, menuEnabled: newVal });
-                        }}
-                        className={`relative w-14 h-7 rounded-full transition-colors shrink-0 ${restaurant?.features?.menuEnabled === false ? 'bg-red-400' : 'bg-green-500'}`}
-                      >
-                        <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${restaurant?.features?.menuEnabled === false ? 'left-0.5' : 'left-7'}`} />
-                      </button>
-                    </div>
-                    {restaurant?.features?.menuEnabled === false && (
-                      <div className="mt-3">
-                        <label className="text-xs font-medium text-red-700 block mb-1">Message shown to customers</label>
-                        <div className="flex gap-2">
-                          <input id="menuOffMessageInput" type="text"
-                            defaultValue={restaurant?.features?.menuOffMessage || ''}
-                            placeholder="e.g. We are closed right now. Please visit us tomorrow!"
-                            className="flex-1 text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white" />
-                          <button
-                            onClick={() => {
-                              const val = document.getElementById('menuOffMessageInput')?.value || '';
-                              saveMenuVisibility({ ...restaurant.features, menuOffMessage: val });
-                            }}
-                            className="px-3 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 whitespace-nowrap">
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="text-sm font-semibold text-gray-700 mb-3 mt-4">Category & Item Visibility</p>
-                  <div className="space-y-0">
-                    {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => {
-                      const hidden = (restaurant?.features?.hiddenCategories || []).includes(cat);
-                      const menuOff = restaurant?.features?.menuEnabled === false;
-                      const catMessages = restaurant?.features?.categoryMessages || {};
-                      const catItems = (restaurant?.menu || []).filter(i => i.category === cat);
-                      const visibleCount = catItems.filter(i => i.available).length;
-                      return (
-                        <CategoryAccordion
-                          key={cat}
-                          cat={cat}
-                          hidden={hidden}
-                          menuOff={menuOff}
-                          catMessages={catMessages}
-                          catItems={catItems}
-                          visibleCount={visibleCount}
-                          onToggleCategory={() => {
-                            const current = restaurant?.features?.hiddenCategories || [];
-                            const updated = hidden ? current.filter(c => c !== cat) : [...current, cat];
-                            saveMenuVisibility({ ...restaurant.features, hiddenCategories: updated });
-                          }}
-                          onSaveCatMessage={val => {
-                            const updated = { ...(restaurant?.features?.categoryMessages || {}), [cat]: val };
-                            saveMenuVisibility({ ...restaurant.features, categoryMessages: updated });
-                          }}
-                          onToggleItem={async (item) => {
-                            const restaurantId = localStorage.getItem('restaurantId');
-                            const newAvail = !item.available;
-                            setRestaurant(prev => ({
-                              ...prev,
-                              menu: prev.menu.map(m => m._id === item._id ? { ...m, available: newAvail } : m)
-                            }));
-                            try {
-                              const res = await axios.put(`/api/restaurants/${restaurantId}/menu/${item._id}`, { available: newAvail });
-                              if (res.data?.menu) setRestaurant(res.data);
-                            } catch(e) {
-                              fetchRestaurant(restaurantId);
-                              showToast('Failed to update item', 'error');
-                            }
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
             )}
+            </div>)} {/* end menuSubTab === 'items' */}
           </div>
         )}
 
