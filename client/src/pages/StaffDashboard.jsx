@@ -588,11 +588,16 @@ export default function StaffDashboard() {
         ordersToUse = data.filter(o => ids.has(o._id));
       } catch(e) {}
     }
-    // Merge items across orders
+    // Merge items across orders — accumulate quantity, keep price
     const allItems = {};
     ordersToUse.forEach(o => (o.items || []).forEach(i => {
-      if (allItems[i.name]) { allItems[i.name].quantity += i.quantity; }
-      else allItems[i.name] = { name: i.name, quantity: i.quantity, price: i.price };
+      const price = parseFloat(i.price) || 0;
+      const qty = parseInt(i.quantity) || 1;
+      if (allItems[i.name]) {
+        allItems[i.name].quantity += qty;
+      } else {
+        allItems[i.name] = { name: i.name, quantity: qty, price };
+      }
     }));
     const mergedItems = Object.values(allItems);
     const firstOrder = ordersToUse[0] || {};

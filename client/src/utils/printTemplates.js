@@ -87,18 +87,22 @@ export function buildBillHTML({ restaurantName, slotLabel, orderType, customerNa
   const d = now.toLocaleDateString('en-IN');
   const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  const billItems = (items || []);
+  const billItems = (items || []).map(i => ({
+    ...i,
+    price: parseFloat(i.price) || 0,
+    quantity: parseInt(i.quantity) || 1,
+  }));
   const subtotal = billItems.filter(i => !i.complimentary).reduce((s, i) => s + (i.price * i.quantity), 0);
   const compTotal = billItems.filter(i => i.complimentary).reduce((s, i) => s + (i.price * i.quantity), 0);
-  const extra = (packagingCharge || 0) + (deliveryCharge || 0) + (extraCharge || 0);
+  const extra = (parseFloat(packagingCharge) || 0) + (parseFloat(deliveryCharge) || 0) + (parseFloat(extraCharge) || 0);
   const grandTotal = subtotal + extra;
 
   const rows = billItems.map(i => `
     <tr>
       <td style="padding:5px 2px;font-size:12px;font-weight:900;border-bottom:1px dashed #000;word-break:break-word;width:50%;">${i.name}${i.complimentary ? ' ★COMP' : ''}</td>
       <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:center;border-bottom:1px dashed #000;width:12%;">${i.quantity}</td>
-      <td style="padding:5px 2px;font-size:11px;text-align:right;border-bottom:1px dashed #000;width:18%;">${i.complimentary ? 'COMP' : '₹' + i.price}</td>
-      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:right;border-bottom:1px dashed #000;width:20%;">${i.complimentary ? '₹0' : '₹' + (i.price * i.quantity)}</td>
+      <td style="padding:5px 2px;font-size:11px;text-align:right;border-bottom:1px dashed #000;width:18%;">${i.complimentary ? 'COMP' : '₹' + i.price.toFixed(2)}</td>
+      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:right;border-bottom:1px dashed #000;width:20%;">${i.complimentary ? '₹0' : '₹' + (i.price * i.quantity).toFixed(2)}</td>
     </tr>`).join('');
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title>
@@ -132,16 +136,16 @@ export function buildBillHTML({ restaurantName, slotLabel, orderType, customerNa
   </table>
   <hr class="sep">
   <table style="font-size:12px;margin-bottom:5px;">
-    ${compTotal > 0 ? `<tr><td class="b">COMPLIMENTARY</td><td style="text-align:right;">−₹${compTotal}</td></tr>` : ''}
-    ${packagingCharge > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">₹${packagingCharge}</td></tr>` : ''}
-    ${deliveryCharge > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">₹${deliveryCharge}</td></tr>` : ''}
-    ${extraCharge > 0 ? `<tr><td class="b">${(extraChargeLabel || 'EXTRA').toUpperCase()}</td><td style="text-align:right;">₹${extraCharge}</td></tr>` : ''}
+    ${compTotal > 0 ? `<tr><td class="b">COMPLIMENTARY</td><td style="text-align:right;">−₹${compTotal.toFixed(2)}</td></tr>` : ''}
+    ${packagingCharge > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">₹${parseFloat(packagingCharge).toFixed(2)}</td></tr>` : ''}
+    ${deliveryCharge > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">₹${parseFloat(deliveryCharge).toFixed(2)}</td></tr>` : ''}
+    ${extraCharge > 0 ? `<tr><td class="b">${(extraChargeLabel || 'EXTRA').toUpperCase()}</td><td style="text-align:right;">₹${parseFloat(extraCharge).toFixed(2)}</td></tr>` : ''}
   </table>
   <hr class="sep">
   <table style="margin-bottom:6px;">
     <tr>
       <td style="font-size:18px;font-weight:900;padding:4px 2px;">TOTAL</td>
-      <td style="text-align:right;font-size:22px;font-weight:900;padding:4px 2px;">₹${grandTotal}</td>
+      <td style="text-align:right;font-size:22px;font-weight:900;padding:4px 2px;">₹${grandTotal.toFixed(2)}</td>
     </tr>
   </table>
   <hr class="sep">

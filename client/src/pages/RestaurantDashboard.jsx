@@ -1407,8 +1407,10 @@ export default function RestaurantDashboard() {
 
     const allItems = {};
     tableOrders.forEach(o => o.items.forEach(i => {
-      if (allItems[i.name]) { allItems[i.name].quantity += i.quantity; }
-      else allItems[i.name] = { name: i.name, price: i.price, quantity: i.quantity };
+      const price = parseFloat(i.price) || 0;
+      const qty = parseInt(i.quantity) || 1;
+      if (allItems[i.name]) { allItems[i.name].quantity += qty; }
+      else allItems[i.name] = { name: i.name, price, quantity: qty };
     }));
 
     const html = buildBillHTML({
