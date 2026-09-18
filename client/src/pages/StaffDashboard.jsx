@@ -417,11 +417,6 @@ export default function StaffDashboard() {
 
   const placeOrder = async () => {
     if (!selectedTable || orderCart.length === 0) return;
-    // Validate takeaway requires name and phone
-    if (orderContext.orderType === 'takeaway') {
-      if (!orderContext.customerName.trim()) { showToast('Customer name is required for takeaway', 'error'); return; }
-      if (!orderContext.customerPhone.trim()) { showToast('Phone number is required for takeaway', 'error'); return; }
-    }
     setOrderPlacing(true);
     try {
       const { orderType, tableNumber, roomNumber, customerName, customerPhone, deliveryAddress, packagingCharge, deliveryCharge } = orderContext;
@@ -953,13 +948,13 @@ export default function StaffDashboard() {
                     {orderContext.orderType === 'delivery' && <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>}
                     <input type="text" value={orderContext.customerName}
                       onChange={e => setOrderContext(prev => ({ ...prev, customerName: e.target.value }))}
-                      placeholder={orderContext.orderType === 'takeaway' ? 'Name *' : 'Customer name'}
-                      className={`text-xs border rounded-lg px-2 py-1 focus:outline-none min-w-[100px] ${orderContext.orderType === 'takeaway' && !orderContext.customerName.trim() ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                      placeholder={orderContext.orderType === 'takeaway' ? 'Name' : 'Customer name'}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none min-w-[100px]" />
                     {orderContext.orderType === 'takeaway' && (
                       <input type="tel" value={orderContext.customerPhone}
                         onChange={e => setOrderContext(prev => ({ ...prev, customerPhone: e.target.value }))}
-                        placeholder="Phone *"
-                        className={`text-xs border rounded-lg px-2 py-1 focus:outline-none w-28 ${!orderContext.customerPhone.trim() ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                        placeholder="Phone"
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none w-28" />
                     )}
                     {orderContext.orderType === 'delivery' && (
                       <input type="text" value={orderContext.deliveryAddress}
