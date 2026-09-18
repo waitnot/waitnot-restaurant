@@ -247,7 +247,9 @@ router.delete('/:id', async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.to(`restaurant-${order.restaurantId}`).emit('order-deleted', { orderId: req.params.id });
+      // DB returns snake_case — use restaurant_id directly
+      const restaurantId = order.restaurant_id || order.restaurantId;
+      io.to(`restaurant-${restaurantId}`).emit('order-deleted', { orderId: req.params.id });
       io.to('admin-room').emit('order-deleted', { orderId: req.params.id });
     }
 
