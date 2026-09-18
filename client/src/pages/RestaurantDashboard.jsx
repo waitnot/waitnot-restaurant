@@ -3692,7 +3692,7 @@ export default function RestaurantDashboard() {
             )}
 
             {/* ── Menu Visibility (merged into Menu tab) ── */}
-            {!arrangeMode && !showAddForm && (
+            {!arrangeMode && (
               <div className="max-w-2xl mt-6">
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
                   <h2 className="text-lg font-bold text-gray-800 mb-1">Menu Visibility</h2>
