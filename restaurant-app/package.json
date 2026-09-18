@@ -38,14 +38,10 @@
       "printer.js",
       "fallback.html",
       "renderer/**/*",
-      "assets/**/*",
       "sounds/**/*",
       "logo.png",
       "node_modules/**/*"
     ],
-    "extraMetadata": {
-      "description": "Complete Restaurant Management System with Order Management, Menu Management, QR Code Ordering, and Analytics Dashboard"
-    },
     "win": {
       "target": [{"target": "nsis", "arch": ["x64", "ia32"]}],
       "icon": "logo.png",
@@ -54,7 +50,7 @@
       "verifyUpdateCodeSignature": false
     },
     "mac": {
-      "target": "dmg",
+      "target": [{"target": "dmg", "arch": ["x64", "arm64"]}],
       "category": "public.app-category.business",
       "icon": "logo.png"
     },
@@ -73,87 +69,9 @@
       "runAfterFinish": true,
       "menuCategory": "WaitNot",
       "deleteAppDataOnUninstall": false,
-      "packElevateHelper": true,
       "perMachine": false,
       "artifactName": "${productName} Setup ${version}.${ext}",
       "uninstallDisplayName": "${productName}"
-    },
-    "extraMetadata": {
-      "main": "main.js"
-    }
-  }
-}
-  "build": {
-    "appId": "com.waitnot.restaurant",
-    "productName": "WaitNot Restaurant",
-    "copyright": "Copyright © 2024 WaitNot Team",
-    "directories": {
-      "output": "dist",
-      "buildResources": "build"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "fallback.html",
-      "renderer/**/*",
-      "assets/**/*",
-      "sounds/**/*",
-      "logo.png",
-      "node_modules/**/*"
-    ],
-    "extraMetadata": {
-      "description": "Complete Restaurant Management System with Order Management, Menu Management, QR Code Ordering, and Analytics Dashboard"
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        }
-      ],
-      "icon": "logo.png",
-      "requestedExecutionLevel": "asInvoker",
-      "publisherName": "WaitNot Team",
-      "verifyUpdateCodeSignature": false
-    },
-    "mac": {
-      "target": "dmg",
-      "category": "public.app-category.business",
-      "icon": "logo.png"
-    },
-    "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "category": "Office",
-      "icon": "logo.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "allowElevation": true,
-      "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true,
-      "shortcutName": "WaitNot Restaurant",
-      "runAfterFinish": true,
-      "menuCategory": "WaitNot",
-      "deleteAppDataOnUninstall": false,
-      "packElevateHelper": true,
-      "perMachine": false,
-      "artifactName": "${productName} Setup ${version}.${ext}",
-      "uninstallDisplayName": "${productName}",
-      "license": "build/license.txt"
-    },
-    "extraMetadata": {
-      "main": "main.js"
     }
   }
 }
