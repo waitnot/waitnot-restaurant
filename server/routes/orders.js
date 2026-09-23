@@ -239,6 +239,85 @@ router.post('/batch-update', async (req, res) => {
   }
 });
 
+// Merge multiple orders into one combined completed order, delete originals
+router.post('/merge-and-complete', async (req, res) => {
+  try {
+    const { orderIds, paymentMethod, paymentSubType, utrNumber, restaurantId, tableNumber, roomNumber, orderType, customerName } = req.body;
+
+    if (!orderIds || orderIds.length === 0) {
+      return res.status(400).json({ error: 'orderIds required' });
+    }
+
+    // If only one order, just do a regular batch-update
+    if (orderIds.length === 1) {
+      await orderDB.batchUpdate(orderIds, {
+        status: 'completed',
+        payment_method: paymentMethod || 'cash',
+        payment_status: 'paid',
+        ...(paymentSubType && { payment_sub_type: paymentSubType }),
+        ...(utrNumber && { utr_number: utrNumber }),
+      });
+      const updated = await orderDB.findById(orderIds[0]);
+      const io = req.app.get('io');
+      if (io && updated) {
+        io.to(`restaurant-${updated.restaurantId}`).emit('order-updated', updated);
+        io.to('admin-room').emit('order-updated', updated);
+      }
+      return res.json({ success: true, merged: false, orderId: orderIds[0] });
+    }
+
+    // Fetch all orders
+    const orders = await Promise.all(orderIds.map(id => orderDB.findById(id)));
+    const validOrders = orders.filter(Boolean);
+
+    // Merge all items, combining duplicates by name
+    const itemMap = {};
+    let totalAmount = 0;
+    validOrders.forEach(order => {
+      totalAmount += parseFloat(order.totalAmount || 0);
+      (order.items || []).forEach(item => {
+        if (itemMap[item.name]) {
+          itemMap[item.name].quantity += item.quantity;
+        } else {
+          itemMap[item.name] = { ...item };
+        }
+      });
+    });
+    const mergedItems = Object.values(itemMap);
+
+    // Create the merged completed order
+    const mergedOrder = await orderDB.create({
+      restaurantId,
+      tableNumber: tableNumber || validOrders[0]?.tableNumber,
+      roomNumber: roomNumber || validOrders[0]?.roomNumber,
+      orderType: orderType || validOrders[0]?.orderType || 'dine-in',
+      customerName: customerName || validOrders[0]?.customerName,
+      items: mergedItems.map(i => ({ menuItemId: i._id || i.menuItemId, name: i.name, price: i.price, quantity: i.quantity })),
+      totalAmount,
+      status: 'completed',
+      paymentMethod: paymentMethod || 'cash',
+      paymentStatus: 'paid',
+      paymentSubType: paymentSubType || null,
+      utrNumber: utrNumber || null,
+      source: 'staff',
+    });
+
+    // Delete the original orders
+    await orderDB.deleteMultiple(orderIds);
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`restaurant-${restaurantId}`).emit('orders-merged', { orderIds, mergedOrder });
+      io.to('admin-room').emit('orders-merged', { orderIds, mergedOrder });
+    }
+
+    res.json({ success: true, merged: true, order: mergedOrder });
+  } catch (error) {
+    console.error('❌ Merge and complete failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Delete a single order by ID
 router.delete('/:id', async (req, res) => {
   try {

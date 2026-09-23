@@ -643,23 +643,26 @@ export default function StaffDashboard() {
     setOnlinePayStep(false);
     setUtrNumber('');
     setConfirmModal({
-      message: `Confirm clearing Table ${tableNum}?`,
+      message: `Confirm clearing Table ${tableNum}? All orders will be merged into one combined bill.`,
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          // Use batch update for better performance
           const orderIds = tableOrders.map(o => o._id);
-          await axios.post(`${API}/api/orders/batch-update`, {
+          const firstOrder = tableOrders[0];
+          await axios.post(`${API}/api/orders/merge-and-complete`, {
             orderIds,
-            status: 'completed',
             paymentMethod,
             paymentSubType: subType || null,
             utrNumber: utr || null,
-            paymentStatus: 'paid'
+            restaurantId: staff.restaurant_id,
+            tableNumber: firstOrder?.tableNumber,
+            roomNumber: firstOrder?.roomNumber,
+            orderType: firstOrder?.orderType,
+            customerName: firstOrder?.customerName,
           });
 
           setSelectedTable(null);
-          showToast('Table cleared');
+          showToast('Table cleared — saved as combined bill');
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
           console.error('❌ Error clearing table:', err);
