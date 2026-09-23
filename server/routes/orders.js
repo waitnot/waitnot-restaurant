@@ -1,5 +1,6 @@
 import express from 'express';
 import { orderDB } from '../db.js';
+import { query, withTransaction } from '../database/connection.js';
 
 const router = express.Router();
 
@@ -248,62 +249,100 @@ router.post('/merge-and-complete', async (req, res) => {
       return res.status(400).json({ error: 'orderIds required' });
     }
 
-    // If only one order, just do a regular batch-update
+    // Single order — just batch-update, no merge needed
     if (orderIds.length === 1) {
       await orderDB.batchUpdate(orderIds, {
         status: 'completed',
         payment_method: paymentMethod || 'cash',
         payment_status: 'paid',
-        ...(paymentSubType && { payment_sub_type: paymentSubType }),
-        ...(utrNumber && { utr_number: utrNumber }),
+        ...(paymentSubType ? { payment_sub_type: paymentSubType } : {}),
+        ...(utrNumber ? { utr_number: utrNumber } : {}),
       });
-      const updated = await orderDB.findById(orderIds[0]);
       const io = req.app.get('io');
-      if (io && updated) {
-        io.to(`restaurant-${updated.restaurantId}`).emit('order-updated', updated);
-        io.to('admin-room').emit('order-updated', updated);
+      if (io) {
+        io.to(`restaurant-${restaurantId}`).emit('orders-updated', { orderIds, updateData: { status: 'completed' } });
+        io.to('admin-room').emit('orders-updated', { orderIds, updateData: { status: 'completed' } });
       }
-      return res.json({ success: true, merged: false, orderId: orderIds[0] });
+      return res.json({ success: true, merged: false });
     }
 
-    // Fetch all orders
-    const orders = await Promise.all(orderIds.map(id => orderDB.findById(id)));
-    const validOrders = orders.filter(Boolean);
+    // Multiple orders — merge into one in a single transaction
+    const mergedOrder = await withTransaction(async (client) => {
+      // Fetch all order items
+      const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(',');
+      const itemsResult = await client.query(
+        `SELECT oi.name, oi.price, oi.quantity, oi.menu_item_id
+         FROM order_items oi
+         WHERE oi.order_id IN (${placeholders})`,
+        orderIds
+      );
 
-    // Merge all items, combining duplicates by name
-    const itemMap = {};
-    let totalAmount = 0;
-    validOrders.forEach(order => {
-      totalAmount += parseFloat(order.totalAmount || 0);
-      (order.items || []).forEach(item => {
-        if (itemMap[item.name]) {
-          itemMap[item.name].quantity += item.quantity;
+      // Merge items, combining duplicates by name
+      const itemMap = {};
+      let totalAmount = 0;
+      itemsResult.rows.forEach(row => {
+        const key = row.name;
+        if (itemMap[key]) {
+          itemMap[key].quantity += row.quantity;
         } else {
-          itemMap[item.name] = { ...item };
+          itemMap[key] = { name: row.name, price: parseFloat(row.price), quantity: row.quantity, menuItemId: row.menu_item_id };
         }
+        totalAmount += parseFloat(row.price) * row.quantity;
       });
-    });
-    const mergedItems = Object.values(itemMap);
+      const mergedItems = Object.values(itemMap);
 
-    // Create the merged completed order
-    const mergedOrder = await orderDB.create({
-      restaurantId,
-      tableNumber: tableNumber || validOrders[0]?.tableNumber,
-      roomNumber: roomNumber || validOrders[0]?.roomNumber,
-      orderType: orderType || validOrders[0]?.orderType || 'dine-in',
-      customerName: customerName || validOrders[0]?.customerName,
-      items: mergedItems.map(i => ({ menuItemId: i._id || i.menuItemId, name: i.name, price: i.price, quantity: i.quantity })),
-      totalAmount,
-      status: 'completed',
-      paymentMethod: paymentMethod || 'cash',
-      paymentStatus: 'paid',
-      paymentSubType: paymentSubType || null,
-      utrNumber: utrNumber || null,
-      source: 'staff',
-    });
+      // Get next order number
+      const numResult = await client.query(
+        `SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num FROM orders WHERE restaurant_id = $1`,
+        [restaurantId]
+      );
+      const orderNumber = numResult.rows[0].next_num;
 
-    // Delete the original orders
-    await orderDB.deleteMultiple(orderIds);
+      // Insert merged order
+      const orderResult = await client.query(`
+        INSERT INTO orders (
+          restaurant_id, order_number, table_number, room_number, customer_name,
+          order_type, status, payment_method, payment_status, total_amount,
+          source, payment_sub_type, utr_number
+        ) VALUES ($1,$2,$3,$4,$5,$6,'completed',$7,'paid',$8,'staff',$9,$10)
+        RETURNING *
+      `, [
+        restaurantId,
+        orderNumber,
+        tableNumber || null,
+        roomNumber || null,
+        customerName || null,
+        orderType || 'dine-in',
+        paymentMethod || 'cash',
+        totalAmount,
+        paymentSubType || null,
+        utrNumber || null,
+      ]);
+
+      const newOrder = orderResult.rows[0];
+
+      // Insert merged items
+      if (mergedItems.length > 0) {
+        const itemPlaceholders = mergedItems.map((_, i) => {
+          const o = i * 5;
+          return `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5})`;
+        }).join(',');
+        const itemValues = [];
+        mergedItems.forEach(item => {
+          itemValues.push(newOrder.id, item.menuItemId || null, item.name, item.price, item.quantity);
+        });
+        await client.query(
+          `INSERT INTO order_items (order_id, menu_item_id, name, price, quantity) VALUES ${itemPlaceholders}`,
+          itemValues
+        );
+      }
+
+      // Delete original order items and orders
+      await client.query(`DELETE FROM order_items WHERE order_id IN (${placeholders})`, orderIds);
+      await client.query(`DELETE FROM orders WHERE id IN (${placeholders})`, orderIds);
+
+      return { ...newOrder, items: mergedItems };
+    });
 
     const io = req.app.get('io');
     if (io) {
