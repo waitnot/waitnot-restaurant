@@ -152,7 +152,8 @@ export async function getBluetoothConnectionState(address) {
 export function addBluetoothConnectionListener(callback) {
   if (!window.Capacitor?.isNativePlatform?.()) return () => {};
   try {
-    const p = await getPlugin();
+    const p = window.Capacitor.Plugins.EscPos || _plugin;
+    if (!p) return () => {};
     p.addListener('connectionState', callback);
     return () => { try { p.removeAllListeners(); } catch(_) {} };
   } catch(_) { return () => {}; }
@@ -161,7 +162,8 @@ export function addBluetoothConnectionListener(callback) {
 export function addBluetoothScanListener(callback) {
   if (!window.Capacitor?.isNativePlatform?.()) return () => {};
   try {
-    const p = await getPlugin();
+    const p = window.Capacitor.Plugins.EscPos || _plugin;
+    if (!p) return () => {};
     p.addListener('scanResult', callback);
     return () => { try { p.removeAllListeners(); } catch(_) {} };
   } catch(_) { return () => {}; }
