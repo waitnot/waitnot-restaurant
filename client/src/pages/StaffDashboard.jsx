@@ -136,6 +136,15 @@ export default function StaffDashboard() {
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);
     // Don't auto-scan BT on startup — only scan when user taps the button in Settings
+    // But DO auto-reconnect to saved printer silently
+    if (window.Capacitor?.isNativePlatform?.()) {
+      const saved = localStorage.getItem(`printer_settings_${s.restaurant_id}`);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        // Small delay to let app UI load first
+        setTimeout(() => autoReconnectPrinter(settings), 2000);
+      }
+    }
 
     const newSocket = io(API, { transports: ['websocket', 'polling'] });
     setSocket(newSocket);
@@ -205,6 +214,23 @@ export default function StaffDashboard() {
     }
   };
 
+  // Auto-reconnect to saved printer on startup — runs silently in background
+  const autoReconnectPrinter = async (settings) => {
+    if (!window.Capacitor?.isNativePlatform?.()) return;
+    const addresses = [...new Set([settings.btKitchenPrinter, settings.btBillPrinter].filter(Boolean))];
+    for (const address of addresses) {
+      try {
+        const r = await connectBluetoothPrinter(address);
+        if (r.connected) {
+          setConnectedPrinters(prev => ({ ...prev, [address]: true }));
+          console.log('Auto-reconnected to printer:', address);
+        }
+      } catch (_) {
+        // Silent — printer may be off, user can manually connect later
+      }
+    }
+  };
+
   const loadBluetoothPrinters = async () => {
     try {
       if (!window.Capacitor?.isNativePlatform?.()) return;
@@ -245,7 +271,9 @@ export default function StaffDashboard() {
     setTimeout(() => {
       setSavingSettings(false);
       showToast('Settings saved');
-    }, 500);
+      // Auto-connect to newly saved printer
+      autoReconnectPrinter(printerSettings);
+    }, 300);
   };
 
   const handlePrinterSettingChange = (key, value) => {
@@ -1356,8 +1384,7 @@ export default function StaffDashboard() {
                       const savedDevice = btPrinters.find(p => p.address === savedAddr) || (savedAddr ? { name: 'Saved Printer', address: savedAddr } : null);
                       const isConnected = savedAddr && !!connectedPrinters[savedAddr];
 
-                      if (savedDevice && isConnected) {
-                        return (
+                      if (savedDevice && isConnected) {                        return (
                           <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-white border border-blue-200 rounded-xl flex items-center justify-center relative shrink-0">
@@ -1399,6 +1426,39 @@ export default function StaffDashboard() {
                         );
                       }
                       return null;
+                    })()}
+
+                    {/* Saved printer disconnected — show reconnect banner */}
+                    {(() => {
+                      const savedAddr = printerSettings.btKitchenPrinter || printerSettings.btBillPrinter;
+                      if (!savedAddr || connectedPrinters[savedAddr]) return null;
+                      const savedName = btPrinters.find(p => p.address === savedAddr)?.name || 'Saved Printer';
+                      return (
+                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                          <div className="w-10 h-10 bg-white border border-amber-200 rounded-xl flex items-center justify-center relative shrink-0">
+                            <Printer size={18} className="text-amber-500" />
+                            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-gray-300 border-2 border-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-amber-800 text-sm">{savedName}</p>
+                            <p className="text-xs text-amber-500 font-mono">{savedAddr}</p>
+                            <p className="text-xs text-amber-600 mt-0.5">⟳ Not connected — will auto-reconnect</p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              showToast('Reconnecting...', 'success');
+                              const r = await connectBluetoothPrinter(savedAddr);
+                              if (r.connected) {
+                                setConnectedPrinters(prev => ({ ...prev, [savedAddr]: true }));
+                                showToast('✓ Connected!');
+                              } else {
+                                showToast('Failed: ' + (r.error || 'Printer off or out of range'), 'error');
+                              }
+                            }}
+                            className="text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold whitespace-nowrap"
+                          >Reconnect</button>
+                        </div>
+                      );
                     })()}
 
                     {/* Only show scan controls when no connected saved printer */}
