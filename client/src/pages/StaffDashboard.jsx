@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff, History, TrendingUp } from 'lucide-react';
-import { smartPrint } from '../utils/qzPrint.js';
+import { smartPrint, testBluetoothPrinter } from '../utils/qzPrint.js';
 import { buildKOTHTML, buildBillHTML } from '../utils/printTemplates.js';
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
@@ -59,6 +59,8 @@ export default function StaffDashboard() {
   const [btPrinters, setBtPrinters] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [btTesting, setBtTesting] = useState(''); // address being tested
+  const [btScanStatus, setBtScanStatus] = useState(''); // 'scanning' | 'done' | 'error'
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -198,17 +200,28 @@ export default function StaffDashboard() {
   const loadBluetoothPrinters = async () => {
     try {
       if (!window.Capacitor?.isNativePlatform?.()) return;
+      setBtScanStatus('scanning');
       const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
       const hasPermission = await BluetoothSerial.checkBluetoothPermissions();
       if (!hasPermission) {
-        console.warn('Bluetooth permissions not granted');
+        showToast('Bluetooth permission not granted', 'error');
+        setBtScanStatus('error');
+        return;
       }
       const state = await BluetoothSerial.isEnabled();
       if (!state.enabled) await BluetoothSerial.enable();
       const result = await BluetoothSerial.getPairedDevices();
       setBtPrinters(result.devices || []);
+      setBtScanStatus('done');
+      if ((result.devices || []).length === 0) {
+        showToast('No paired devices found. Pair your printer in Android Settings first.', 'error');
+      } else {
+        showToast(`Found ${result.devices.length} paired device(s)`);
+      }
     } catch (error) {
       console.error('Failed to load BT printers:', error);
+      setBtScanStatus('error');
+      showToast('Scan failed: ' + error.message, 'error');
     }
   };
 
@@ -528,13 +541,20 @@ export default function StaffDashboard() {
   };
 
   // Iframe-based print — works even when browser blocks popups
-  const printViaIframe = (html) => {
-    if (window.electronAPI?.silentPrint) {
-      const saved = JSON.parse(localStorage.getItem('printer_settings_' + (staff?.restaurant_id || '')) || '{}');
-      window.electronAPI.silentPrint(html, saved.qzKitchenPrinter || saved.kitchenPrinterName || '');
+  const printViaIframe = (html, type = 'kitchen', orderData = null) => {
+    // On mobile (Capacitor) — route through smartPrint which uses BT ESC/POS
+    if (window.Capacitor?.isNativePlatform?.()) {
+      smartPrint(html, type, orderData);
       return;
     }
-    // Open in new popup window so user sees receipt before printing
+    if (window.electronAPI?.silentPrint) {
+      const saved = JSON.parse(localStorage.getItem('printer_settings_' + (staff?.restaurant_id || '')) || '{}');
+      const printerName = type === 'kitchen'
+        ? (saved.qzKitchenPrinter || saved.kitchenPrinterName || '')
+        : (saved.qzBillPrinter || saved.cashCounterPrinterName || '');
+      window.electronAPI.silentPrint(html, printerName);
+      return;
+    }
     const w = window.open('', '_blank', 'width=420,height=700');
     if (w) {
       w.document.write(html);
@@ -542,7 +562,6 @@ export default function StaffDashboard() {
       setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 4000); }, 350);
       return;
     }
-    // Fallback: hidden iframe silent print
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;visibility:hidden;';
     document.body.appendChild(iframe);
@@ -569,14 +588,12 @@ export default function StaffDashboard() {
       specialInstructions: order.specialInstructions,
       items: order.items || [],
     });
-    printViaIframe(html);
+    printViaIframe(html, 'kitchen', { order, restaurantName: restaurant?.name });
   };
 
-  // Print multiple KOTs in ONE print dialog
   const printKOTBatch = (ordersToPrint) => {
     if (!ordersToPrint || ordersToPrint.length === 0) return;
     if (ordersToPrint.length === 1) { printKOT(ordersToPrint[0]); return; }
-    // Combine all orders into one KOT with merged items
     const allItems = {};
     ordersToPrint.forEach(o => (o.items || []).forEach(i => {
       if (allItems[i.name]) allItems[i.name].quantity += i.quantity;
@@ -593,10 +610,11 @@ export default function StaffDashboard() {
       customerName: ordersToPrint[0]?.customerName,
       items: Object.values(allItems),
     });
-    printViaIframe(html);
+    // For batch, use first order as representative
+    const merged = { ...ordersToPrint[0], items: Object.values(allItems) };
+    printViaIframe(html, 'kitchen', { order: merged, restaurantName: restaurant?.name });
   };
 
-  // Print Bill — thermal-safe table layout
   const printBill = async (tableOrders, tableLabel, total) => {
     let ordersToUse = tableOrders;
     const hasItems = tableOrders.some(o => o.items && o.items.length > 0);
@@ -607,16 +625,12 @@ export default function StaffDashboard() {
         ordersToUse = data.filter(o => ids.has(o._id));
       } catch(e) {}
     }
-    // Merge items across orders — accumulate quantity, keep price
     const allItems = {};
     ordersToUse.forEach(o => (o.items || []).forEach(i => {
       const price = parseFloat(i.price) || 0;
       const qty = parseInt(i.quantity) || 1;
-      if (allItems[i.name]) {
-        allItems[i.name].quantity += qty;
-      } else {
-        allItems[i.name] = { name: i.name, quantity: qty, price };
-      }
+      if (allItems[i.name]) allItems[i.name].quantity += qty;
+      else allItems[i.name] = { name: i.name, quantity: qty, price };
     }));
     const mergedItems = Object.values(allItems);
     const firstOrder = ordersToUse[0] || {};
@@ -628,7 +642,7 @@ export default function StaffDashboard() {
       items: mergedItems,
       paymentMethod: firstOrder.paymentMethod,
     });
-    printViaIframe(html);
+    printViaIframe(html, 'bill', { orders: ordersToUse, tableLabel, total, restaurantName: restaurant?.name });
   };
 
   const clearTable = (tableOrders, tableNum) => {
@@ -1320,58 +1334,114 @@ export default function StaffDashboard() {
                     ⚠️ Bluetooth printing is only available in the mobile app.
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="space-y-5">
+
+                    {/* Step 1 — Scan */}
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                      <p className="text-xs font-bold text-blue-700 mb-1">STEP 1 — Pair &amp; Scan</p>
+                      <p className="text-xs text-blue-600 mb-3">First pair your printer in Android Bluetooth Settings, then tap Scan here.</p>
+                      <button onClick={loadBluetoothPrinters}
+                        disabled={btScanStatus === 'scanning'}
+                        className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                        <RefreshCw size={13} className={btScanStatus === 'scanning' ? 'animate-spin' : ''} />
+                        {btScanStatus === 'scanning' ? 'Scanning...' : 'Scan for Paired Devices'}
+                      </button>
+                      {btScanStatus === 'done' && btPrinters.length > 0 && (
+                        <p className="text-xs text-green-600 font-semibold mt-2">✓ Found {btPrinters.length} device(s)</p>
+                      )}
+                      {btScanStatus === 'done' && btPrinters.length === 0 && (
+                        <p className="text-xs text-red-600 mt-2">No paired devices found. Pair your printer in Android Settings first.</p>
+                      )}
+                    </div>
+
+                    {/* Step 2 — Assign printers */}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">Kitchen Printer</label>
-                        <button onClick={loadBluetoothPrinters} className="text-blue-500 text-xs font-semibold flex items-center gap-1">
-                          <RefreshCw size={12} /> Scan
-                        </button>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">STEP 2 — Assign Printers</p>
+
+                      <div className="space-y-4">
+                        {/* Kitchen Printer */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Kitchen Printer (KOT)</label>
+                          <div className="flex gap-2">
+                            <select
+                              value={printerSettings.btKitchenPrinter}
+                              onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            >
+                              <option value="">— Select device —</option>
+                              {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                            </select>
+                            {printerSettings.btKitchenPrinter && (
+                              <button
+                                onClick={async () => {
+                                  setBtTesting(printerSettings.btKitchenPrinter);
+                                  const r = await testBluetoothPrinter(printerSettings.btKitchenPrinter);
+                                  setBtTesting('');
+                                  showToast(r.success ? '✓ Kitchen printer OK' : 'Test failed: ' + r.error, r.success ? 'success' : 'error');
+                                }}
+                                disabled={btTesting === printerSettings.btKitchenPrinter}
+                                className="px-3 py-2 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {btTesting === printerSettings.btKitchenPrinter ? '...' : 'Test'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bill Printer */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Bill Printer</label>
+                          <div className="flex gap-2">
+                            <select
+                              value={printerSettings.btBillPrinter}
+                              onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            >
+                              <option value="">— Select device —</option>
+                              {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                            </select>
+                            {printerSettings.btBillPrinter && (
+                              <button
+                                onClick={async () => {
+                                  setBtTesting(printerSettings.btBillPrinter);
+                                  const r = await testBluetoothPrinter(printerSettings.btBillPrinter);
+                                  setBtTesting('');
+                                  showToast(r.success ? '✓ Bill printer OK' : 'Test failed: ' + r.error, r.success ? 'success' : 'error');
+                                }}
+                                disabled={btTesting === printerSettings.btBillPrinter}
+                                className="px-3 py-2 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {btTesting === printerSettings.btBillPrinter ? '...' : 'Test'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <select
-                        value={printerSettings.btKitchenPrinter}
-                        onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      >
-                        <option value="">— Select device —</option>
-                        {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
-                      </select>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Bill Printer</label>
-                      <select
-                        value={printerSettings.btBillPrinter}
-                        onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      >
-                        <option value="">— Select device —</option>
-                        {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
-                      </select>
-                    </div>
-
-                    <div className="space-y-4 pt-2">
-                      <label className="flex items-center gap-3 cursor-pointer group">
-                        <div className={`w-10 h-5 rounded-full transition-colors ${printerSettings.autoPrintKitchenBill ? 'bg-green-500' : 'bg-gray-300'}`}
+                    {/* Auto-print toggles */}
+                    <div className="space-y-3 pt-1">
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Auto-Print</p>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className={`w-10 h-5 rounded-full transition-colors shrink-0 ${printerSettings.autoPrintKitchenBill ? 'bg-green-500' : 'bg-gray-300'}`}
                           onClick={() => handlePrinterSettingChange('autoPrintKitchenBill', !printerSettings.autoPrintKitchenBill)}>
                           <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${printerSettings.autoPrintKitchenBill ? 'translate-x-5' : 'translate-x-0'}`} />
                         </div>
-                        <span className="text-sm font-medium text-gray-700">Auto-print KOT on order</span>
+                        <span className="text-sm text-gray-700">Auto-print KOT when order is placed</span>
                       </label>
-
-                      <label className="flex items-center gap-3 cursor-pointer group">
-                        <div className={`w-10 h-5 rounded-full transition-colors ${printerSettings.autoPrintFinalBill ? 'bg-green-500' : 'bg-gray-300'}`}
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className={`w-10 h-5 rounded-full transition-colors shrink-0 ${printerSettings.autoPrintFinalBill ? 'bg-green-500' : 'bg-gray-300'}`}
                           onClick={() => handlePrinterSettingChange('autoPrintFinalBill', !printerSettings.autoPrintFinalBill)}>
                           <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${printerSettings.autoPrintFinalBill ? 'translate-x-5' : 'translate-x-0'}`} />
                         </div>
-                        <span className="text-sm font-medium text-gray-700">Auto-print Bill on clear</span>
+                        <span className="text-sm text-gray-700">Auto-print Bill when table is cleared</span>
                       </label>
                     </div>
 
                     <button
                       onClick={savePrinterSettings}
                       disabled={savingSettings}
-                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 mt-4"
+                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
                     >
                       {savingSettings ? 'Saving...' : 'Save Configuration'}
                     </button>

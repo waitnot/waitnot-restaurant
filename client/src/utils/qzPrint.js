@@ -104,25 +104,220 @@ async function electronPrintBill(orders, tableLabel, total, restaurantName) {
   return await window.electronAPI.printBill(data, printerName);
 }
 
-// ─── 2. Android Bluetooth ─────────────────────────────────────────────────────
+// ─── 2. Android Bluetooth ESC/POS ────────────────────────────────────────────
 
-async function bluetoothPrint(html, type) {
+// ESC/POS command helpers
+const ESC = '\x1B';
+const GS  = '\x1D';
+const INIT          = ESC + '@';           // Initialize printer
+const BOLD_ON       = ESC + '\x45\x01';
+const BOLD_OFF      = ESC + '\x45\x00';
+const ALIGN_CENTER  = ESC + '\x61\x01';
+const ALIGN_LEFT    = ESC + '\x61\x00';
+const ALIGN_RIGHT   = ESC + '\x61\x02';
+const FONT_NORMAL   = ESC + '\x21\x00';    // Normal size
+const FONT_DOUBLE   = ESC + '\x21\x11';    // Double height+width
+const FONT_LARGE    = ESC + '\x21\x10';    // Double height only
+const CUT           = GS  + 'V\x42\x03';  // Partial cut
+const LINE_FEED     = '\n';
+const SEPARATOR_SOLID  = '================================\n';
+const SEPARATOR_DASH   = '--------------------------------\n';
+
+/** Pad/truncate string to fixed width */
+function col(str, width, align = 'left') {
+  const s = String(str || '').substring(0, width);
+  const pad = width - s.length;
+  if (align === 'right') return ' '.repeat(pad) + s;
+  if (align === 'center') {
+    const left = Math.floor(pad / 2);
+    return ' '.repeat(left) + s + ' '.repeat(pad - left);
+  }
+  return s + ' '.repeat(pad);
+}
+
+/** Two-column row: left text + right text, total width 32 chars */
+function twoCol(left, right, width = 32) {
+  const r = String(right || '');
+  const l = String(left || '').substring(0, width - r.length - 1);
+  const pad = width - l.length - r.length;
+  return l + ' '.repeat(Math.max(1, pad)) + r + LINE_FEED;
+}
+
+function buildKOTEscPos({ restaurantName, slotLabel, orderId, orderType, customerName, deliveryAddress, specialInstructions, items }) {
+  const now = new Date();
+  const d = now.toLocaleDateString('en-IN');
+  const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const W = 32;
+
+  let out = INIT;
+  out += ALIGN_CENTER + FONT_DOUBLE + BOLD_ON;
+  out += (restaurantName || 'RESTAURANT').toUpperCase().substring(0, 16) + LINE_FEED;
+  out += FONT_NORMAL + BOLD_ON;
+  out += '** KITCHEN ORDER TICKET **' + LINE_FEED;
+  out += (orderType || 'ORDER').toUpperCase() + LINE_FEED;
+  out += BOLD_OFF + SEPARATOR_SOLID;
+
+  out += ALIGN_LEFT;
+  if (slotLabel) out += BOLD_ON + twoCol('SLOT:', slotLabel, W) + BOLD_OFF;
+  out += twoCol('DATE:', d, W);
+  out += BOLD_ON + twoCol('TIME:', t, W) + BOLD_OFF;
+  if (orderId) out += twoCol('REF:', String(orderId).slice(-6).toUpperCase(), W);
+  if (customerName) out += twoCol('NAME:', customerName, W);
+  if (deliveryAddress) out += 'ADDR: ' + deliveryAddress + LINE_FEED;
+
+  out += SEPARATOR_SOLID;
+  out += ALIGN_CENTER + BOLD_ON + '-- ITEMS TO PREPARE --' + LINE_FEED + BOLD_OFF;
+  out += SEPARATOR_SOLID + ALIGN_LEFT;
+
+  (items || []).forEach(item => {
+    out += FONT_LARGE + BOLD_ON;
+    out += twoCol(item.name.substring(0, 24), 'x' + item.quantity, W);
+    out += FONT_NORMAL + BOLD_OFF;
+  });
+
+  out += SEPARATOR_SOLID;
+
+  if (specialInstructions) {
+    out += BOLD_ON + '! NOTE: ' + specialInstructions + LINE_FEED + BOLD_OFF;
+    out += SEPARATOR_DASH;
+  }
+
+  out += ALIGN_CENTER + BOLD_ON + '-- PREPARE WITH CARE --' + LINE_FEED + BOLD_OFF;
+  out += LINE_FEED + LINE_FEED + LINE_FEED + LINE_FEED;
+  out += CUT;
+  return out;
+}
+
+function buildBillEscPos({ restaurantName, slotLabel, orderType, customerName, customerPhone, deliveryAddress, items, packagingCharge = 0, deliveryCharge = 0, paymentMethod }) {
+  const now = new Date();
+  const d = now.toLocaleDateString('en-IN');
+  const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const W = 32;
+
+  const billItems = (items || []).map(i => ({
+    ...i,
+    price: parseFloat(i.price) || 0,
+    quantity: parseInt(i.quantity) || 1,
+  }));
+  const subtotal = billItems.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+  const extra = (parseFloat(packagingCharge) || 0) + (parseFloat(deliveryCharge) || 0);
+  const grandTotal = subtotal + extra;
+
+  let out = INIT;
+  out += ALIGN_CENTER + FONT_DOUBLE + BOLD_ON;
+  out += (restaurantName || 'RESTAURANT').toUpperCase().substring(0, 16) + LINE_FEED;
+  out += FONT_NORMAL + BOLD_ON;
+
+  const receiptType = orderType === 'delivery' ? 'DELIVERY RECEIPT'
+    : orderType === 'takeaway' ? 'TAKEAWAY RECEIPT'
+    : orderType === 'room' ? 'ROOM RECEIPT' : 'DINE-IN RECEIPT';
+  out += receiptType + LINE_FEED + BOLD_OFF + SEPARATOR_SOLID;
+
+  out += ALIGN_LEFT;
+  if (slotLabel) out += BOLD_ON + twoCol('SLOT:', slotLabel, W) + BOLD_OFF;
+  out += twoCol('DATE:', d, W);
+  out += twoCol('TIME:', t, W);
+  if (customerName) out += twoCol('NAME:', customerName, W);
+  if (customerPhone) out += twoCol('PHONE:', customerPhone, W);
+  if (paymentMethod) out += BOLD_ON + twoCol('PAYMENT:', paymentMethod.toUpperCase(), W) + BOLD_OFF;
+  if (deliveryAddress) out += 'ADDR: ' + deliveryAddress + LINE_FEED;
+
+  out += SEPARATOR_SOLID;
+  // Header row
+  out += BOLD_ON + col('ITEM', 18) + col('QTY', 4, 'right') + col('AMT', 10, 'right') + LINE_FEED + BOLD_OFF;
+  out += SEPARATOR_DASH;
+
+  billItems.forEach(item => {
+    const amt = item.complimentary ? 'COMP' : '₹' + (item.price * item.quantity).toFixed(0);
+    out += col((item.name + (item.complimentary ? '★' : '')).substring(0, 18), 18)
+         + col(String(item.quantity), 4, 'right')
+         + col(amt, 10, 'right') + LINE_FEED;
+  });
+
+  out += SEPARATOR_SOLID;
+  if (packagingCharge > 0) out += twoCol('PACKAGING:', '₹' + packagingCharge.toFixed(0), W);
+  if (deliveryCharge > 0) out += twoCol('DELIVERY:', '₹' + deliveryCharge.toFixed(0), W);
+  out += SEPARATOR_SOLID;
+
+  out += ALIGN_CENTER + FONT_DOUBLE + BOLD_ON;
+  out += 'TOTAL: ₹' + grandTotal.toFixed(0) + LINE_FEED;
+  out += FONT_NORMAL + BOLD_OFF + SEPARATOR_SOLID;
+
+  out += ALIGN_CENTER;
+  out += 'THANK YOU! VISIT AGAIN' + LINE_FEED;
+  out += '* * * * * * * *' + LINE_FEED;
+  out += LINE_FEED + LINE_FEED + LINE_FEED + LINE_FEED;
+  out += CUT;
+  return out;
+}
+
+async function getBluetoothSerial() {
+  const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
+  return BluetoothSerial;
+}
+
+async function bluetoothPrint(html, type, escPosData = null) {
   try {
     const saved = getSavedSettings();
     const address = type === 'kitchen' ? saved.btKitchenPrinter : saved.btBillPrinter;
-    if (!address) return { success: false, error: 'No BT printer configured' };
+    if (!address) return { success: false, error: 'No BT printer configured for ' + type };
 
-    const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
-    const state = await BluetoothSerial.isEnabled();
-    if (!state.enabled) await BluetoothSerial.enable();
-    await BluetoothSerial.connect({ address });
+    const BT = await getBluetoothSerial();
 
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    const text = div.innerText.split('\n').filter(l => l.trim()).join('\n');
-    await BluetoothSerial.write({ address, value: text + '\n\n\n\n' });
-    await new Promise(r => setTimeout(r, 500));
-    await BluetoothSerial.disconnect({ address });
+    // Ensure BT is on
+    const state = await BT.isEnabled();
+    if (!state.enabled) {
+      await BT.enable();
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // Connect
+    await BT.connect({ address });
+    await new Promise(r => setTimeout(r, 800));
+
+    // Build ESC/POS text — use pre-built if provided, else fallback to plain text
+    let printData;
+    if (escPosData) {
+      printData = escPosData;
+    } else {
+      // Fallback: extract plain text from HTML and format manually
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      const lines = Array.from(div.querySelectorAll('*'))
+        .filter(el => el.children.length === 0 && el.textContent.trim())
+        .map(el => el.textContent.trim());
+      printData = INIT + ALIGN_CENTER + lines.join(LINE_FEED) + LINE_FEED.repeat(4) + CUT;
+    }
+
+    // Write data — split into chunks to avoid BT buffer overflow
+    const CHUNK = 512;
+    for (let i = 0; i < printData.length; i += CHUNK) {
+      await BT.write({ address, value: printData.slice(i, i + CHUNK) });
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    await new Promise(r => setTimeout(r, 1200));
+    await BT.disconnect({ address });
+    return { success: true };
+  } catch (e) {
+    console.error('BT print error:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+/** Test BT connection — returns success/failure */
+export async function testBluetoothPrinter(address) {
+  try {
+    const BT = await getBluetoothSerial();
+    const state = await BT.isEnabled();
+    if (!state.enabled) await BT.enable();
+    await BT.connect({ address });
+    await new Promise(r => setTimeout(r, 600));
+    const testMsg = INIT + ALIGN_CENTER + BOLD_ON + 'PRINTER TEST OK' + LINE_FEED + BOLD_OFF
+      + new Date().toLocaleTimeString() + LINE_FEED + LINE_FEED + LINE_FEED + CUT;
+    await BT.write({ address, value: testMsg });
+    await new Promise(r => setTimeout(r, 800));
+    await BT.disconnect({ address });
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
@@ -218,11 +413,50 @@ export async function smartPrint(html, type = 'bill', orderData = null) {
     if (result?.success) return { method: 'electron-html' };
   }
 
-  // 2. Android Bluetooth
+  // 2. Android Bluetooth — with ESC/POS
   if (window.Capacitor?.isNativePlatform?.()) {
-    const res = await bluetoothPrint(html, type);
+    let escPos = null;
+    if (orderData) {
+      try {
+        if (type === 'kitchen' && orderData.order) {
+          const o = orderData.order;
+          escPos = buildKOTEscPos({
+            restaurantName: orderData.restaurantName,
+            slotLabel: o.tableNumber ? 'TABLE ' + o.tableNumber : o.roomNumber ? 'ROOM ' + o.roomNumber : (o.orderType || '').toUpperCase(),
+            orderId: o._id,
+            orderType: o.orderType,
+            customerName: o.customerName,
+            deliveryAddress: o.deliveryAddress,
+            specialInstructions: o.specialInstructions,
+            items: o.items,
+          });
+        } else if (type === 'bill' && orderData.orders) {
+          const itemMap = {};
+          orderData.orders.forEach(o => o.items?.forEach(i => {
+            if (itemMap[i.name]) { itemMap[i.name].quantity += i.quantity; }
+            else itemMap[i.name] = { name: i.name, quantity: i.quantity, price: i.price };
+          }));
+          const o0 = orderData.orders[0] || {};
+          escPos = buildBillEscPos({
+            restaurantName: orderData.restaurantName,
+            slotLabel: orderData.tableLabel,
+            orderType: o0.orderType,
+            customerName: o0.customerName,
+            customerPhone: o0.customerPhone,
+            deliveryAddress: o0.deliveryAddress,
+            items: Object.values(itemMap),
+            packagingCharge: o0.packagingCharge,
+            deliveryCharge: o0.deliveryCharge,
+            paymentMethod: o0.paymentMethod,
+          });
+        }
+      } catch (e) {
+        console.warn('ESC/POS build failed, using plain fallback:', e);
+      }
+    }
+    const res = await bluetoothPrint(html, type, escPos);
     if (res.success) return { method: 'bluetooth' };
-    alert('⚠️ Bluetooth printer not configured. Go to Settings → Bluetooth Printer.');
+    alert('⚠️ Bluetooth print failed: ' + (res.error || 'Unknown error') + '\n\nCheck Settings → Bluetooth Printer and ensure the printer is paired.');
     return { method: 'none', error: res.error };
   }
 
