@@ -1350,7 +1350,61 @@ export default function StaffDashboard() {
                 ) : (
                   <div className="space-y-5">
 
-                    {/* Pair a new printer */}
+                    {/* If a saved printer exists and is connected, show it locked — no need to scan */}
+                    {(() => {
+                      const savedAddr = printerSettings.btKitchenPrinter || printerSettings.btBillPrinter;
+                      const savedDevice = btPrinters.find(p => p.address === savedAddr) || (savedAddr ? { name: 'Saved Printer', address: savedAddr } : null);
+                      const isConnected = savedAddr && !!connectedPrinters[savedAddr];
+
+                      if (savedDevice && isConnected) {
+                        return (
+                          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-white border border-blue-200 rounded-xl flex items-center justify-center relative shrink-0">
+                                <Printer size={18} className="text-blue-600" />
+                                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow-[0_0_6px_2px_rgba(59,130,246,0.7)]" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-bold text-blue-800 text-sm">{savedDevice.name}</p>
+                                <p className="text-xs text-blue-500 font-mono">{savedDevice.address}</p>
+                                <p className="text-xs text-blue-600 font-semibold mt-0.5">● Connected</p>
+                              </div>
+                              <div className="flex flex-col gap-1.5">
+                                <button
+                                  disabled={!!btTesting}
+                                  onClick={async () => {
+                                    setBtTesting(savedAddr);
+                                    showToast('Sending test print...', 'success');
+                                    testBluetoothPrinter(savedAddr).then(r => {
+                                      setBtTesting('');
+                                      if (r.success) showToast('✓ Test print sent!');
+                                      else showToast('Error: ' + r.error, 'error');
+                                    }).catch(() => setBtTesting(''));
+                                    setTimeout(() => setBtTesting(p => p === savedAddr ? '' : p), 5000);
+                                  }}
+                                  className="text-xs bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold disabled:opacity-50"
+                                >{btTesting === savedAddr ? '...' : 'Test Print'}</button>
+                                <button
+                                  onClick={async () => {
+                                    await disconnectBluetoothPrinter(savedAddr);
+                                    setConnectedPrinters(prev => ({ ...prev, [savedAddr]: false }));
+                                    showToast('Disconnected');
+                                  }}
+                                  className="text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded-lg font-bold"
+                                >Disconnect</button>
+                              </div>
+                            </div>
+                            <p className="text-xs text-blue-500 mt-3 text-center">Printer is connected. Disconnect to change or rescan.</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Only show scan controls when no connected saved printer */}
+                    {!(printerSettings.btKitchenPrinter || printerSettings.btBillPrinter) || !connectedPrinters[printerSettings.btKitchenPrinter || printerSettings.btBillPrinter] ? (<>
+
+                    {/* Find Printers */}
                     <button
                       onClick={loadBluetoothPrinters}
                       className="w-full flex items-center gap-4 border-2 border-dashed border-green-300 bg-green-50 rounded-2xl p-4 hover:border-green-400 transition-colors"
@@ -1490,6 +1544,8 @@ export default function StaffDashboard() {
                         </div>
                       </div>
                     )}
+
+                    </> ) : null /* end scan-only section */}
 
                     {/* Auto-print toggles */}
                     <div className="space-y-3 pt-1">
