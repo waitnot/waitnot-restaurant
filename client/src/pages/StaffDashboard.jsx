@@ -199,29 +199,29 @@ export default function StaffDashboard() {
     try {
       if (!window.Capacitor?.isNativePlatform?.()) return;
       setBtScanStatus('scanning');
-      const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
 
-      // Check if BT is on — never call enable() as it crashes on Android 12+
-      let state;
-      try { state = await BluetoothSerial.isEnabled(); } catch (_) { state = { enabled: true }; }
-      if (!state.enabled) {
-        setBtScanStatus('error');
-        showToast('Please turn on Bluetooth in Android Settings first', 'error');
-        return;
-      }
+      // Use our own EscPosPlugin which handles permissions safely
+      const { registerPlugin } = await import('@capacitor/core');
+      const EscPos = registerPlugin('EscPos');
 
-      const result = await BluetoothSerial.getPairedDevices();
+      const result = await EscPos.getPairedDevices();
       setBtPrinters(result.devices || []);
       setBtScanStatus('done');
       if ((result.devices || []).length === 0) {
-        showToast('No paired devices. Pair your printer in Android Bluetooth Settings first.', 'error');
+        showToast('No paired devices. Pair printer in Android Bluetooth Settings first.', 'error');
       } else {
         showToast(`Found ${result.devices.length} device(s)`);
       }
     } catch (error) {
       console.error('BT scan failed:', error);
       setBtScanStatus('error');
-      showToast('Scan failed: ' + error.message, 'error');
+      if (error.message?.toLowerCase().includes('disabled')) {
+        showToast('Bluetooth is off. Turn it on and try again.', 'error');
+      } else if (error.message?.toLowerCase().includes('permission')) {
+        showToast('Bluetooth permission denied. Allow in Android Settings → Apps → WaitNot → Permissions', 'error');
+      } else {
+        showToast('Scan failed: ' + error.message, 'error');
+      }
     }
   };
 

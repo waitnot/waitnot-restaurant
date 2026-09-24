@@ -1,26 +1,40 @@
 package com.waitnot.captain;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.util.Log;
 
+import androidx.core.app.ActivityCompat;
+
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
 
 import java.io.OutputStream;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * EscPosPlugin — accepts hex-encoded ESC/POS bytes from JS and sends them
- * directly to a Bluetooth SPP printer. Bypasses the JSON string encoding issue
- * that corrupts binary bytes in the standard BluetoothSerial write() method.
+ * EscPosPlugin — safe Bluetooth printer plugin.
+ * - getPairedDevices: safely wrapped with permission checks
+ * - printHex: accepts hex-encoded ESC/POS bytes, bypasses JSON binary corruption
  */
-@CapacitorPlugin(name = "EscPos")
+@CapacitorPlugin(
+    name = "EscPos",
+    permissions = {
+        @Permission(strings = { Manifest.permission.BLUETOOTH_CONNECT }, alias = "bluetoothConnect"),
+        @Permission(strings = { Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN }, alias = "bluetooth")
+    }
+)
 public class EscPosPlugin extends Plugin {
 
     private static final String TAG = "EscPosPlugin";
@@ -28,29 +42,78 @@ public class EscPosPlugin extends Plugin {
 
     @SuppressLint("MissingPermission")
     @PluginMethod
+    public void getPairedDevices(PluginCall call) {
+        try {
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            if (adapter == null) { call.reject("Bluetooth not supported"); return; }
+            if (!adapter.isEnabled()) { call.reject("Bluetooth is disabled"); return; }
+
+            // Check permission on Android 12+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissionForAlias("bluetoothConnect", call, "permissionCallback");
+                    return;
+                }
+            }
+
+            Set<BluetoothDevice> paired = adapter.getBondedDevices();
+            JSArray arr = new JSArray();
+            if (paired != null) {
+                for (BluetoothDevice d : paired) {
+                    JSObject obj = new JSObject();
+                    obj.put("name", d.getName() != null ? d.getName() : "Unknown");
+                    obj.put("address", d.getAddress());
+                    arr.put(obj);
+                }
+            }
+            JSObject result = new JSObject();
+            result.put("devices", arr);
+            call.resolve(result);
+        } catch (SecurityException e) {
+            call.reject("Bluetooth permission denied: " + e.getMessage());
+        } catch (Exception e) {
+            call.reject("Failed to get devices: " + e.getMessage());
+        }
+    }
+
+    @com.getcapacitor.annotation.PermissionCallback
+    private void permissionCallback(PluginCall call) {
+        if (call == null) return;
+        // Re-call the original method after permission grant
+        if ("getPairedDevices".equals(call.getMethodName())) {
+            getPairedDevices(call);
+        } else if ("printHex".equals(call.getMethodName())) {
+            printHex(call);
+        } else {
+            call.reject("Permission denied");
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    @PluginMethod
     public void printHex(PluginCall call) {
         String address = call.getString("address");
         String hex = call.getString("hex");
 
-        if (address == null || address.isEmpty()) {
-            call.reject("address required");
-            return;
-        }
-        if (hex == null || hex.isEmpty()) {
-            call.reject("hex required");
-            return;
+        if (address == null || address.isEmpty()) { call.reject("address required"); return; }
+        if (hex == null || hex.isEmpty()) { call.reject("hex required"); return; }
+
+        // Check permission on Android 12+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionForAlias("bluetoothConnect", call, "permissionCallback");
+                return;
+            }
         }
 
-        // Decode hex string to bytes
         byte[] data;
         try {
             data = hexToBytes(hex);
         } catch (Exception e) {
-            call.reject("Invalid hex string: " + e.getMessage());
+            call.reject("Invalid hex: " + e.getMessage());
             return;
         }
 
-        // Connect and print on a background thread
         final byte[] finalData = data;
         new Thread(() -> {
             BluetoothSocket socket = null;
@@ -60,32 +123,20 @@ public class EscPosPlugin extends Plugin {
                     call.reject("Bluetooth not available or disabled");
                     return;
                 }
-
                 BluetoothDevice device = adapter.getRemoteDevice(address);
-
-                // Try secure connection first, then insecure
                 try {
                     socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
                     adapter.cancelDiscovery();
                     socket.connect();
                 } catch (Exception e1) {
                     Log.w(TAG, "Secure connect failed, trying insecure: " + e1.getMessage());
-                    try {
-                        if (socket != null) socket.close();
-                    } catch (Exception ignored) {}
-                    try {
-                        socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
-                        adapter.cancelDiscovery();
-                        socket.connect();
-                    } catch (Exception e2) {
-                        call.reject("Connection failed: " + e2.getMessage());
-                        return;
-                    }
+                    try { if (socket != null) socket.close(); } catch (Exception ignored) {}
+                    socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+                    adapter.cancelDiscovery();
+                    socket.connect();
                 }
 
                 OutputStream out = socket.getOutputStream();
-
-                // Write in 200-byte chunks
                 int offset = 0;
                 while (offset < finalData.length) {
                     int len = Math.min(200, finalData.length - offset);
@@ -94,21 +145,17 @@ public class EscPosPlugin extends Plugin {
                     offset += len;
                     Thread.sleep(80);
                 }
-
                 Thread.sleep(1200);
                 out.close();
 
                 JSObject result = new JSObject();
                 result.put("success", true);
                 call.resolve(result);
-
             } catch (Exception e) {
                 Log.e(TAG, "Print failed: " + e.getMessage(), e);
                 call.reject("Print failed: " + e.getMessage());
             } finally {
-                try {
-                    if (socket != null) socket.close();
-                } catch (Exception ignored) {}
+                try { if (socket != null) socket.close(); } catch (Exception ignored) {}
             }
         }).start();
     }
