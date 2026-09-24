@@ -1375,14 +1375,19 @@ export default function StaffDashboard() {
                               <button
                                 onClick={async () => {
                                   setBtTesting(printerSettings.btKitchenPrinter);
+                                  showToast('Connecting to printer...', 'success');
                                   const r = await testBluetoothPrinter(printerSettings.btKitchenPrinter);
                                   setBtTesting('');
-                                  showToast(r.success ? '✓ Kitchen printer OK' : 'Test failed: ' + r.error, r.success ? 'success' : 'error');
+                                  if (r.success) {
+                                    showToast('✓ Kitchen printer OK — check for printout', 'success');
+                                  } else {
+                                    alert('Kitchen printer test failed:\n\n' + r.error + '\n\nMake sure:\n1. Printer is ON\n2. Printer is paired in Android Bluetooth settings\n3. Bluetooth is enabled');
+                                  }
                                 }}
-                                disabled={btTesting === printerSettings.btKitchenPrinter}
+                                disabled={!!btTesting}
                                 className="px-3 py-2 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 whitespace-nowrap"
                               >
-                                {btTesting === printerSettings.btKitchenPrinter ? '...' : 'Test'}
+                                {btTesting === printerSettings.btKitchenPrinter ? 'Testing...' : 'Test'}
                               </button>
                             )}
                           </div>
@@ -1404,14 +1409,19 @@ export default function StaffDashboard() {
                               <button
                                 onClick={async () => {
                                   setBtTesting(printerSettings.btBillPrinter);
+                                  showToast('Connecting to printer...', 'success');
                                   const r = await testBluetoothPrinter(printerSettings.btBillPrinter);
                                   setBtTesting('');
-                                  showToast(r.success ? '✓ Bill printer OK' : 'Test failed: ' + r.error, r.success ? 'success' : 'error');
+                                  if (r.success) {
+                                    showToast('✓ Bill printer OK — check for printout', 'success');
+                                  } else {
+                                    alert('Bill printer test failed:\n\n' + r.error + '\n\nMake sure:\n1. Printer is ON\n2. Printer is paired in Android Bluetooth settings\n3. Bluetooth is enabled');
+                                  }
                                 }}
-                                disabled={btTesting === printerSettings.btBillPrinter}
+                                disabled={!!btTesting}
                                 className="px-3 py-2 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 whitespace-nowrap"
                               >
-                                {btTesting === printerSettings.btBillPrinter ? '...' : 'Test'}
+                                {btTesting === printerSettings.btBillPrinter ? 'Testing...' : 'Test'}
                               </button>
                             )}
                           </div>

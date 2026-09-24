@@ -114,6 +114,9 @@ public class EscPosPlugin extends Plugin {
             return;
         }
 
+        // Keep call alive across background thread
+        call.setKeepAlive(true);
+
         final byte[] finalData = data;
         new Thread(() -> {
             BluetoothSocket socket = null;
@@ -126,7 +129,6 @@ public class EscPosPlugin extends Plugin {
                 BluetoothDevice device = adapter.getRemoteDevice(address);
                 adapter.cancelDiscovery();
 
-                // Try insecure first (works with most cheap thermal printers)
                 BluetoothSocket[] socketHolder = new BluetoothSocket[1];
                 Exception[] errorHolder = new Exception[1];
 
@@ -149,7 +151,7 @@ public class EscPosPlugin extends Plugin {
                     }
                 });
                 connectThread.start();
-                connectThread.join(10000); // 10 second timeout
+                connectThread.join(10000);
 
                 if (connectThread.isAlive()) {
                     connectThread.interrupt();
