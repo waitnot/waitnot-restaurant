@@ -201,22 +201,25 @@ export default function StaffDashboard() {
       setBtScanStatus('scanning');
       const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
 
-      const state = await BluetoothSerial.isEnabled();
+      // Check if BT is on — never call enable() as it crashes on Android 12+
+      let state;
+      try { state = await BluetoothSerial.isEnabled(); } catch (_) { state = { enabled: true }; }
       if (!state.enabled) {
-        await BluetoothSerial.enable();
-        await new Promise(r => setTimeout(r, 1500));
+        setBtScanStatus('error');
+        showToast('Please turn on Bluetooth in Android Settings first', 'error');
+        return;
       }
 
       const result = await BluetoothSerial.getPairedDevices();
       setBtPrinters(result.devices || []);
       setBtScanStatus('done');
       if ((result.devices || []).length === 0) {
-        showToast('No paired devices found. Pair your printer in Android Settings first.', 'error');
+        showToast('No paired devices. Pair your printer in Android Bluetooth Settings first.', 'error');
       } else {
-        showToast(`Found ${result.devices.length} paired device(s)`);
+        showToast(`Found ${result.devices.length} device(s)`);
       }
     } catch (error) {
-      console.error('Failed to load BT printers:', error);
+      console.error('BT scan failed:', error);
       setBtScanStatus('error');
       showToast('Scan failed: ' + error.message, 'error');
     }
