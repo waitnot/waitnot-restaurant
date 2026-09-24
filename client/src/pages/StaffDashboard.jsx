@@ -217,24 +217,17 @@ export default function StaffDashboard() {
   // Auto-reconnect to saved printer on startup — runs silently in background
   const autoReconnectPrinter = async (settings) => {
     if (!window.Capacitor?.isNativePlatform?.()) return;
+    // Connect to both KOT and Bill printers (may be same or different devices)
     const addresses = [...new Set([settings.btKitchenPrinter, settings.btBillPrinter].filter(Boolean))];
     for (const address of addresses) {
       try {
         const r = await connectBluetoothPrinter(address);
         if (r.connected) {
           setConnectedPrinters(prev => ({ ...prev, [address]: true }));
-          // Ensure both KOT and Bill are assigned to this printer
-          const current = JSON.parse(localStorage.getItem(`printer_settings_${settings.restaurant_id || ''}`) || JSON.stringify(settings));
-          if (!current.btKitchenPrinter || !current.btBillPrinter) {
-            const updated = { ...current, btKitchenPrinter: address, btBillPrinter: address };
-            const restaurantId = localStorage.getItem('restaurantId') || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
-            localStorage.setItem(`printer_settings_${restaurantId}`, JSON.stringify(updated));
-            setPrinterSettings(updated);
-          }
-          console.log('Auto-reconnected to printer:', address);
+          console.log('Auto-reconnected:', address);
         }
       } catch (_) {
-        // Silent — printer may be off, user can manually connect later
+        // Silent — printer may be off, user can reconnect manually
       }
     }
   };
@@ -523,6 +516,11 @@ export default function StaffDashboard() {
       showToast('Order placed!');
       // Add to local state immediately for instant feedback
       setOrders(prev => prev.find(x => x._id === newOrder._id) ? prev : [newOrder, ...prev]);
+      // Auto-print KOT if enabled
+      const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
+      if (savedSettings.autoPrintKitchenBill) {
+        printKOT(newOrder);
+      }
       // Also fetch from server to ensure DB sync
       fetchOrders(staff.restaurant_id);
     } catch (err) {
@@ -727,6 +725,16 @@ export default function StaffDashboard() {
 
           setSelectedTable(null);
           showToast('Table cleared — saved as combined bill');
+          // Auto-print Bill if enabled
+          const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
+          if (savedSettings.autoPrintFinalBill) {
+            const label = firstOrder?.orderType === 'room'
+              ? (restaurant?.features?.roomNames?.[firstOrder.roomNumber] || `Room ${firstOrder.roomNumber}`)
+              : firstOrder?.orderType === 'dine-in' ? `Table ${firstOrder.tableNumber}`
+              : firstOrder?.orderType === 'takeaway' ? 'Takeaway'
+              : 'Delivery';
+            printBill(tableOrders, label, tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0));
+          }
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
           console.error('❌ Error clearing table:', err);
@@ -1555,11 +1563,32 @@ export default function StaffDashboard() {
                                         const r = await connectBluetoothPrinter(p.address);
                                         if (r.connected) {
                                           setConnectedPrinters(prev => ({ ...prev, [p.address]: true }));
-                                          // Auto-assign as both KOT and Bill printer
-                                          const updated = { ...printerSettings, btKitchenPrinter: p.address, btBillPrinter: p.address };
+                                          // If no printers assigned yet, auto-assign both
+                                          // If one is already assigned, assign this as the other role
+                                          const kp = printerSettings.btKitchenPrinter;
+                                          const bp = printerSettings.btBillPrinter;
+                                          let updated;
+                                          if (!kp && !bp) {
+                                            // First printer — assign both
+                                            updated = { ...printerSettings, btKitchenPrinter: p.address, btBillPrinter: p.address };
+                                            showToast('✓ Connected as KOT + Bill printer!');
+                                          } else if (kp && bp && kp === bp) {
+                                            // Both same — this new one replaces or supplements, assign both
+                                            updated = { ...printerSettings, btKitchenPrinter: p.address, btBillPrinter: p.address };
+                                            showToast('✓ Connected as KOT + Bill printer!');
+                                          } else if (!kp) {
+                                            updated = { ...printerSettings, btKitchenPrinter: p.address };
+                                            showToast('✓ Connected as KOT printer!');
+                                          } else if (!bp) {
+                                            updated = { ...printerSettings, btBillPrinter: p.address };
+                                            showToast('✓ Connected as Bill printer!');
+                                          } else {
+                                            // Both already filled — assign both to new device
+                                            updated = { ...printerSettings, btKitchenPrinter: p.address, btBillPrinter: p.address };
+                                            showToast('✓ Connected as KOT + Bill printer!');
+                                          }
                                           setPrinterSettings(updated);
                                           localStorage.setItem(`printer_settings_${staff.restaurant_id}`, JSON.stringify(updated));
-                                          showToast('✓ Connected & assigned as KOT + Bill printer!');
                                         } else {
                                           showToast('Connect failed: ' + (r.error || 'Unknown'), 'error');
                                         }
