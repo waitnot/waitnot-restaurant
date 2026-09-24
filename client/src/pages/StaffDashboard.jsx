@@ -202,14 +202,21 @@ export default function StaffDashboard() {
       if (!window.Capacitor?.isNativePlatform?.()) return;
       setBtScanStatus('scanning');
       const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
-      const hasPermission = await BluetoothSerial.checkBluetoothPermissions();
-      if (!hasPermission) {
-        showToast('Bluetooth permission not granted', 'error');
-        setBtScanStatus('error');
-        return;
-      }
+
+      // Request runtime permissions first (Android 12+ needs this)
+      try {
+        const { Permissions } = await import('@capacitor/core');
+        if (Permissions?.request) {
+          await Permissions.request({ permissions: ['bluetooth', 'bluetoothScan', 'bluetoothConnect'] }).catch(() => {});
+        }
+      } catch (_) {}
+
       const state = await BluetoothSerial.isEnabled();
-      if (!state.enabled) await BluetoothSerial.enable();
+      if (!state.enabled) {
+        await BluetoothSerial.enable();
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
       const result = await BluetoothSerial.getPairedDevices();
       setBtPrinters(result.devices || []);
       setBtScanStatus('done');

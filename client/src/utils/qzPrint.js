@@ -256,6 +256,39 @@ async function getBluetoothSerial() {
   return BluetoothSerial;
 }
 
+async function ensureBluetoothReady(BT) {
+  // Request runtime permissions (Android 12+ requires BLUETOOTH_SCAN + BLUETOOTH_CONNECT)
+  // The plugin's checkBluetoothPermissions only checks — use Capacitor's requestPermissions as fallback
+  try {
+    const granted = await BT.checkBluetoothPermissions();
+    if (!granted) {
+      // Try to trigger permission request via Capacitor permissions API
+      if (window.Capacitor?.Plugins?.Permissions) {
+        try {
+          await window.Capacitor.Plugins.Permissions.request({
+            permissions: ['bluetooth', 'bluetoothScan', 'bluetoothConnect', 'location']
+          });
+        } catch (_) {}
+      }
+      // Also try the plugin's own event — some forks support this
+      throw new Error('Bluetooth permissions not granted. Please allow Bluetooth permissions in Android Settings → Apps → WaitNot Captain → Permissions.');
+    }
+  } catch (e) {
+    if (e.message && e.message.includes('permissions')) throw e;
+    // checkBluetoothPermissions itself threw — ignore, proceed
+  }
+
+  // Ensure BT is enabled
+  let state;
+  try { state = await BT.isEnabled(); } catch (_) { state = { enabled: true }; }
+  if (!state.enabled) {
+    try {
+      await BT.enable();
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (_) {}
+  }
+}
+
 async function connectBT(BT, address) {
   // Try secure connect first, fall back to insecure (most thermal printers need insecure)
   try {
@@ -273,13 +306,7 @@ async function bluetoothPrint(html, type, escPosData = null) {
     if (!address) return { success: false, error: 'No BT printer configured for ' + type };
 
     const BT = await getBluetoothSerial();
-
-    // Ensure BT is on
-    const state = await BT.isEnabled();
-    if (!state.enabled) {
-      await BT.enable();
-      await new Promise(r => setTimeout(r, 1500));
-    }
+    await ensureBluetoothReady(BT);
 
     // Disconnect first in case still connected from previous print
     try { await BT.disconnect({ address }); } catch (_) {}
@@ -288,7 +315,7 @@ async function bluetoothPrint(html, type, escPosData = null) {
     await connectBT(BT, address);
     await new Promise(r => setTimeout(r, 1000));
 
-    // Build ESC/POS text — use pre-built if provided, else plain text fallback
+    // Build print data
     let printData;
     if (escPosData) {
       printData = escPosData;
@@ -301,7 +328,7 @@ async function bluetoothPrint(html, type, escPosData = null) {
       printData = INIT + ALIGN_CENTER + lines.join(LINE_FEED) + LINE_FEED.repeat(4) + CUT;
     }
 
-    // Write in small chunks — BT SPP buffer is typically 990 bytes
+    // Write in small chunks — BT SPP buffer is typically limited on cheap thermal printers
     const CHUNK = 200;
     for (let i = 0; i < printData.length; i += CHUNK) {
       await BT.write({ address, value: printData.slice(i, i + CHUNK) });
@@ -321,11 +348,7 @@ async function bluetoothPrint(html, type, escPosData = null) {
 export async function testBluetoothPrinter(address) {
   try {
     const BT = await getBluetoothSerial();
-    const state = await BT.isEnabled();
-    if (!state.enabled) {
-      await BT.enable();
-      await new Promise(r => setTimeout(r, 1500));
-    }
+    await ensureBluetoothReady(BT);
 
     try { await BT.disconnect({ address }); } catch (_) {}
     await new Promise(r => setTimeout(r, 300));
