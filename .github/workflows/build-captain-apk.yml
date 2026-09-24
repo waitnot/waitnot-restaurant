@@ -49,6 +49,10 @@ jobs:
         run: npx cap sync android
         working-directory: client
 
+      - name: Set Android SDK path
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        working-directory: client/android
+
       - name: Make gradlew executable
         run: chmod +x gradlew
         working-directory: client/android
