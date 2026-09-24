@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff, History, TrendingUp } from 'lucide-react';
-import { smartPrint, testBluetoothPrinter } from '../utils/qzPrint.js';
+import { smartPrint, testBluetoothPrinter, scanBluetoothDevices, stopBluetoothScan, getPairedBluetoothDevices, connectBluetoothPrinter, disconnectBluetoothPrinter, getBluetoothConnectionState, addBluetoothConnectionListener, addBluetoothScanListener, requestBluetoothPairing } from '../utils/qzPrint.js';
 import { buildKOTHTML, buildBillHTML } from '../utils/printTemplates.js';
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
@@ -61,6 +61,7 @@ export default function StaffDashboard() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [btTesting, setBtTesting] = useState(''); // address being tested
   const [btScanStatus, setBtScanStatus] = useState(''); // 'scanning' | 'done' | 'error'
+  const [connectedPrinters, setConnectedPrinters] = useState({}); // address → boolean
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -180,11 +181,20 @@ export default function StaffDashboard() {
       newSocket.emit('join-restaurant', s.restaurant_id);
       fetchOrders(s.restaurant_id);
     });
+
+    // Listen for BT connection state changes
+    const btUnsub = window.Capacitor?.isNativePlatform?.()
+      ? addBluetoothConnectionListener(({ address, state }) => {
+          setConnectedPrinters(prev => ({ ...prev, [address]: state === 'connected' }));
+        })
+      : () => {};
+
     return () => {
       stopped = true;
       if (pollTimer) clearTimeout(pollTimer);
       newSocket.emit('leave-restaurant', s.restaurant_id);
       newSocket.disconnect();
+      btUnsub();
     };
   }, [navigate]);
 
@@ -199,29 +209,33 @@ export default function StaffDashboard() {
     try {
       if (!window.Capacitor?.isNativePlatform?.()) return;
       setBtScanStatus('scanning');
+      setBtPrinters([]);
 
-      // Use our own EscPosPlugin which handles permissions safely
-      const { registerPlugin } = await import('@capacitor/core');
-      const EscPos = registerPlugin('EscPos');
+      // First load already-paired devices instantly
+      const paired = await getPairedBluetoothDevices();
+      if (paired.devices?.length > 0) {
+        setBtPrinters(paired.devices);
+      }
 
-      const result = await EscPos.getPairedDevices();
-      setBtPrinters(result.devices || []);
+      // Then scan for new nearby devices
+      const scanUnsub = addBluetoothScanListener(({ devices }) => {
+        setBtPrinters(devices || []);
+      });
+
+      const result = await scanBluetoothDevices();
+      scanUnsub();
+      setBtPrinters(result.devices || paired.devices || []);
       setBtScanStatus('done');
-      if ((result.devices || []).length === 0) {
-        showToast('No paired devices. Pair printer in Android Bluetooth Settings first.', 'error');
+
+      if ((result.devices || []).length === 0 && (paired.devices || []).length === 0) {
+        showToast('No devices found. Make sure Bluetooth is ON.', 'error');
       } else {
-        showToast(`Found ${result.devices.length} device(s)`);
+        showToast(`Found ${(result.devices || []).length} device(s)`);
       }
     } catch (error) {
       console.error('BT scan failed:', error);
       setBtScanStatus('error');
-      if (error.message?.toLowerCase().includes('disabled')) {
-        showToast('Bluetooth is off. Turn it on and try again.', 'error');
-      } else if (error.message?.toLowerCase().includes('permission')) {
-        showToast('Bluetooth permission denied. Allow in Android Settings → Apps → WaitNot → Permissions', 'error');
-      } else {
-        showToast('Scan failed: ' + error.message, 'error');
-      }
+      showToast('Scan failed: ' + error.message, 'error');
     }
   };
 
@@ -1338,23 +1352,17 @@ export default function StaffDashboard() {
 
                     {/* Pair a new printer */}
                     <button
-                      onClick={() => {
-                        // Open Android Bluetooth settings
-                        try {
-                          window.Capacitor?.Plugins?.App?.openUrl({ url: 'android.settings.BLUETOOTH_SETTINGS' }).catch(() => {});
-                        } catch (_) {}
-                        showToast('Opening Bluetooth settings...', 'success');
-                      }}
+                      onClick={loadBluetoothPrinters}
                       className="w-full flex items-center gap-4 border-2 border-dashed border-green-300 bg-green-50 rounded-2xl p-4 hover:border-green-400 transition-colors"
                     >
                       <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
                         <span className="text-green-600 text-xl font-bold">+</span>
                       </div>
                       <div className="text-left">
-                        <p className="font-semibold text-green-700 text-sm">Pair a new printer</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Opens Bluetooth settings to pair device</p>
+                        <p className="font-semibold text-green-700 text-sm">Find Printers</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Scan for nearby Bluetooth printers</p>
                       </div>
-                      <span className="ml-auto text-green-500 text-lg">↗</span>
+                      <RefreshCw size={16} className={`ml-auto text-green-500 ${btScanStatus === 'scanning' ? 'animate-spin' : ''}`} />
                     </button>
 
                     {/* Scan */}
@@ -1363,55 +1371,89 @@ export default function StaffDashboard() {
                         disabled={btScanStatus === 'scanning'}
                         className="w-full flex items-center gap-2 justify-center bg-blue-600 text-white text-sm font-bold px-4 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50">
                         <RefreshCw size={15} className={btScanStatus === 'scanning' ? 'animate-spin' : ''} />
-                        {btScanStatus === 'scanning' ? 'Scanning...' : 'Scan for Paired Devices'}
+                        {btScanStatus === 'scanning' ? 'Scanning...' : 'Scan for Devices'}
                       </button>
                     </div>
 
                     {/* Paired devices list */}
                     {btPrinters.length > 0 && (
                       <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Paired Devices ({btPrinters.length})</p>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                          {btScanStatus === 'scanning' ? 'Scanning...' : `Devices (${btPrinters.length})`}
+                        </p>
                         <div className="space-y-2">
                           {btPrinters.map(p => {
                             const isKitchen = printerSettings.btKitchenPrinter === p.address;
                             const isBill = printerSettings.btBillPrinter === p.address;
-                            const isConnected = btTesting === p.address || (isKitchen || isBill);
+                            const isConnected = !!connectedPrinters[p.address];
+                            const isAssigned = isKitchen || isBill;
                             return (
-                              <div key={p.address} className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl p-3">
-                                <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shrink-0">
+                              <div key={p.address} className={`flex items-center gap-3 border rounded-2xl p-3 transition-colors ${isConnected ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                                <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shrink-0 relative">
                                   <Printer size={18} className="text-gray-500" />
+                                  {/* Blue connection light */}
+                                  <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${isConnected ? 'bg-blue-500 shadow-[0_0_6px_2px_rgba(59,130,246,0.7)]' : 'bg-gray-300'}`} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
                                   <p className="text-xs text-gray-400 font-mono">{p.address}</p>
-                                  <div className="flex gap-1 mt-1 flex-wrap">
+                                  <div className="flex gap-1 mt-0.5 flex-wrap">
+                                    {isConnected && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">● Connected</span>}
+                                    {!isConnected && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">Disconnected</span>}
                                     {isKitchen && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">KOT</span>}
-                                    {isBill && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Bill</span>}
+                                    {isBill && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">Bill</span>}
+                                    {!p.paired && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Tap to pair</span>}
                                   </div>
                                 </div>
-                                {/* Blue connection indicator */}
-                                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                                  <div className={`w-3 h-3 rounded-full ${isKitchen || isBill ? 'bg-blue-500 shadow-[0_0_6px_2px_rgba(59,130,246,0.6)]' : 'bg-gray-300'}`} />
-                                  <button
-                                    onClick={async () => {
-                                      setBtTesting(p.address);
-                                      showToast('Sending test print...', 'success');
-                                      // Fire and don't wait — printer prints even if callback hangs
-                                      testBluetoothPrinter(p.address).then(r => {
-                                        setBtTesting('');
-                                        if (r.success) showToast('✓ Test print sent!', 'success');
-                                        else showToast('Print error: ' + r.error, 'error');
-                                      }).catch(() => setBtTesting(''));
-                                      // Show "sent" after 2s regardless
-                                      setTimeout(() => {
-                                        setBtTesting(prev => prev === p.address ? '' : prev);
-                                      }, 3000);
-                                    }}
-                                    disabled={!!btTesting}
-                                    className="text-xs bg-green-500 text-white px-2.5 py-1 rounded-lg font-bold disabled:opacity-50"
-                                  >
-                                    {btTesting === p.address ? '...' : 'Test'}
-                                  </button>
+                                <div className="flex flex-col gap-1.5 shrink-0">
+                                  {/* Connect / Disconnect */}
+                                  {isConnected ? (
+                                    <button
+                                      onClick={async () => {
+                                        await disconnectBluetoothPrinter(p.address);
+                                        setConnectedPrinters(prev => ({ ...prev, [p.address]: false }));
+                                        showToast('Disconnected');
+                                      }}
+                                      className="text-xs bg-red-100 text-red-600 px-2.5 py-1 rounded-lg font-bold"
+                                    >Disconnect</button>
+                                  ) : (
+                                    <button
+                                      onClick={async () => {
+                                        if (!p.paired) {
+                                          showToast('Pairing...', 'success');
+                                          await requestBluetoothPairing(p.address);
+                                          showToast('Follow the system pairing dialog', 'success');
+                                          return;
+                                        }
+                                        showToast('Connecting...', 'success');
+                                        const r = await connectBluetoothPrinter(p.address);
+                                        if (r.connected) {
+                                          setConnectedPrinters(prev => ({ ...prev, [p.address]: true }));
+                                          showToast('✓ Connected!');
+                                        } else {
+                                          showToast('Connect failed: ' + (r.error || 'Unknown'), 'error');
+                                        }
+                                      }}
+                                      className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-bold"
+                                    >{p.paired ? 'Connect' : 'Pair'}</button>
+                                  )}
+                                  {/* Test print */}
+                                  {isAssigned && (
+                                    <button
+                                      disabled={!!btTesting}
+                                      onClick={async () => {
+                                        setBtTesting(p.address);
+                                        showToast('Sending test print...', 'success');
+                                        testBluetoothPrinter(p.address).then(r => {
+                                          setBtTesting('');
+                                          if (r.success) showToast('✓ Test print sent!');
+                                          else showToast('Print error: ' + r.error, 'error');
+                                        }).catch(() => setBtTesting(''));
+                                        setTimeout(() => setBtTesting(prev => prev === p.address ? '' : prev), 4000);
+                                      }}
+                                      className="text-xs bg-green-500 text-white px-2.5 py-1 rounded-lg font-bold disabled:opacity-50"
+                                    >{btTesting === p.address ? '...' : 'Test'}</button>
+                                  )}
                                 </div>
                               </div>
                             );
