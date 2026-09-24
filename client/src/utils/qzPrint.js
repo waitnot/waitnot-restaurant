@@ -256,6 +256,16 @@ async function getBluetoothSerial() {
   return BluetoothSerial;
 }
 
+async function connectBT(BT, address) {
+  // Try secure connect first, fall back to insecure (most thermal printers need insecure)
+  try {
+    await BT.connect({ address });
+  } catch (e) {
+    console.warn('Secure BT connect failed, trying insecure:', e.message);
+    await BT.connectInsecure({ address });
+  }
+}
+
 async function bluetoothPrint(html, type, escPosData = null) {
   try {
     const saved = getSavedSettings();
@@ -268,19 +278,21 @@ async function bluetoothPrint(html, type, escPosData = null) {
     const state = await BT.isEnabled();
     if (!state.enabled) {
       await BT.enable();
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 1500));
     }
 
-    // Connect
-    await BT.connect({ address });
-    await new Promise(r => setTimeout(r, 800));
+    // Disconnect first in case still connected from previous print
+    try { await BT.disconnect({ address }); } catch (_) {}
+    await new Promise(r => setTimeout(r, 300));
 
-    // Build ESC/POS text — use pre-built if provided, else fallback to plain text
+    await connectBT(BT, address);
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Build ESC/POS text — use pre-built if provided, else plain text fallback
     let printData;
     if (escPosData) {
       printData = escPosData;
     } else {
-      // Fallback: extract plain text from HTML and format manually
       const div = document.createElement('div');
       div.innerHTML = html;
       const lines = Array.from(div.querySelectorAll('*'))
@@ -289,15 +301,15 @@ async function bluetoothPrint(html, type, escPosData = null) {
       printData = INIT + ALIGN_CENTER + lines.join(LINE_FEED) + LINE_FEED.repeat(4) + CUT;
     }
 
-    // Write data — split into chunks to avoid BT buffer overflow
-    const CHUNK = 512;
+    // Write in small chunks — BT SPP buffer is typically 990 bytes
+    const CHUNK = 200;
     for (let i = 0; i < printData.length; i += CHUNK) {
       await BT.write({ address, value: printData.slice(i, i + CHUNK) });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 150));
     }
 
-    await new Promise(r => setTimeout(r, 1200));
-    await BT.disconnect({ address });
+    await new Promise(r => setTimeout(r, 1500));
+    try { await BT.disconnect({ address }); } catch (_) {}
     return { success: true };
   } catch (e) {
     console.error('BT print error:', e);
@@ -305,21 +317,45 @@ async function bluetoothPrint(html, type, escPosData = null) {
   }
 }
 
-/** Test BT connection — returns success/failure */
+/** Test BT connection — prints a test page */
 export async function testBluetoothPrinter(address) {
   try {
     const BT = await getBluetoothSerial();
     const state = await BT.isEnabled();
-    if (!state.enabled) await BT.enable();
-    await BT.connect({ address });
-    await new Promise(r => setTimeout(r, 600));
-    const testMsg = INIT + ALIGN_CENTER + BOLD_ON + 'PRINTER TEST OK' + LINE_FEED + BOLD_OFF
-      + new Date().toLocaleTimeString() + LINE_FEED + LINE_FEED + LINE_FEED + CUT;
-    await BT.write({ address, value: testMsg });
-    await new Promise(r => setTimeout(r, 800));
-    await BT.disconnect({ address });
+    if (!state.enabled) {
+      await BT.enable();
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    try { await BT.disconnect({ address }); } catch (_) {}
+    await new Promise(r => setTimeout(r, 300));
+
+    await connectBT(BT, address);
+    await new Promise(r => setTimeout(r, 1000));
+
+    const now = new Date();
+    const testMsg = INIT
+      + ALIGN_CENTER + BOLD_ON
+      + '** PRINTER TEST **' + LINE_FEED + BOLD_OFF
+      + '================\n'
+      + now.toLocaleDateString('en-IN') + ' ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + LINE_FEED
+      + '================\n'
+      + BOLD_ON + 'CONNECTION OK!' + LINE_FEED + BOLD_OFF
+      + 'WaitNot POS' + LINE_FEED
+      + LINE_FEED + LINE_FEED + LINE_FEED + LINE_FEED
+      + CUT;
+
+    const CHUNK = 200;
+    for (let i = 0; i < testMsg.length; i += CHUNK) {
+      await BT.write({ address, value: testMsg.slice(i, i + CHUNK) });
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    await new Promise(r => setTimeout(r, 1500));
+    try { await BT.disconnect({ address }); } catch (_) {}
     return { success: true };
   } catch (e) {
+    console.error('BT test error:', e);
     return { success: false, error: e.message };
   }
 }
