@@ -134,9 +134,7 @@ export default function StaffDashboard() {
 
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);
-    if (window.Capacitor?.isNativePlatform?.()) {
-      loadBluetoothPrinters();
-    }
+    // Don't auto-scan BT on startup — only scan when user taps the button in Settings
 
     const newSocket = io(API, { transports: ['websocket', 'polling'] });
     setSocket(newSocket);
@@ -202,14 +200,6 @@ export default function StaffDashboard() {
       if (!window.Capacitor?.isNativePlatform?.()) return;
       setBtScanStatus('scanning');
       const { BluetoothSerial } = await import('@ascentio-it/capacitor-bluetooth-serial');
-
-      // Request runtime permissions first (Android 12+ needs this)
-      try {
-        const { Permissions } = await import('@capacitor/core');
-        if (Permissions?.request) {
-          await Permissions.request({ permissions: ['bluetooth', 'bluetoothScan', 'bluetoothConnect'] }).catch(() => {});
-        }
-      } catch (_) {}
 
       const state = await BluetoothSerial.isEnabled();
       if (!state.enabled) {
