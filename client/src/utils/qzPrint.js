@@ -91,10 +91,10 @@ function buildBillBytes({restaurantName,slotLabel,orderType,customerName,custome
 
 // ─── EscPos plugin (Android) ──────────────────────────────────────────────────
 let _plugin = null;
-function getPlugin() {
+async function getPlugin() {
   if (_plugin) return _plugin;
   if (window.Capacitor?.Plugins?.EscPos) { _plugin = window.Capacitor.Plugins.EscPos; return _plugin; }
-  const { registerPlugin } = require('@capacitor/core');
+  const { registerPlugin } = await import('@capacitor/core');
   _plugin = registerPlugin('EscPos');
   return _plugin;
 }
@@ -103,7 +103,7 @@ function getPlugin() {
 export async function scanBluetoothDevices() {
   if (!window.Capacitor?.isNativePlatform?.()) return { devices: [] };
   try {
-    const p = getPlugin();
+    const p = await getPlugin();
     return await Promise.race([
       p.scanDevices(),
       new Promise((_,r) => setTimeout(()=>r(new Error('Scan timeout')), 15000))
@@ -113,18 +113,18 @@ export async function scanBluetoothDevices() {
 
 export async function stopBluetoothScan() {
   if (!window.Capacitor?.isNativePlatform?.()) return;
-  try { getPlugin().stopScan(); } catch(_) {}
+  try { (await getPlugin()).stopScan(); } catch(_) {}
 }
 
 export async function getPairedBluetoothDevices() {
   if (!window.Capacitor?.isNativePlatform?.()) return { devices: [] };
-  try { return await getPlugin().getPairedDevices(); }
+  try { return await (await getPlugin()).getPairedDevices(); }
   catch(e) { return { devices: [], error: e.message }; }
 }
 
 export async function requestBluetoothPairing(address) {
   if (!window.Capacitor?.isNativePlatform?.()) return { success: false };
-  try { return await getPlugin().requestPairing({ address }); }
+  try { return await (await getPlugin()).requestPairing({ address }); }
   catch(e) { return { success: false, error: e.message }; }
 }
 
@@ -132,7 +132,7 @@ export async function connectBluetoothPrinter(address) {
   if (!window.Capacitor?.isNativePlatform?.()) return { connected: false };
   try {
     return await Promise.race([
-      getPlugin().connect({ address }),
+      (await getPlugin()).connect({ address }),
       new Promise((_,r) => setTimeout(()=>r(new Error('Connection timeout')), 12000))
     ]);
   } catch(e) { return { connected: false, error: e.message }; }
@@ -140,19 +140,19 @@ export async function connectBluetoothPrinter(address) {
 
 export async function disconnectBluetoothPrinter(address) {
   if (!window.Capacitor?.isNativePlatform?.()) return;
-  try { await getPlugin().disconnect({ address }); } catch(_) {}
+  try { await (await getPlugin()).disconnect({ address }); } catch(_) {}
 }
 
 export async function getBluetoothConnectionState(address) {
   if (!window.Capacitor?.isNativePlatform?.()) return { state: 'disconnected' };
-  try { return await getPlugin().getConnectionState({ address }); }
+  try { return await (await getPlugin()).getConnectionState({ address }); }
   catch(_) { return { state: 'disconnected' }; }
 }
 
 export function addBluetoothConnectionListener(callback) {
   if (!window.Capacitor?.isNativePlatform?.()) return () => {};
   try {
-    const p = getPlugin();
+    const p = await getPlugin();
     p.addListener('connectionState', callback);
     return () => { try { p.removeAllListeners(); } catch(_) {} };
   } catch(_) { return () => {}; }
@@ -161,7 +161,7 @@ export function addBluetoothConnectionListener(callback) {
 export function addBluetoothScanListener(callback) {
   if (!window.Capacitor?.isNativePlatform?.()) return () => {};
   try {
-    const p = getPlugin();
+    const p = await getPlugin();
     p.addListener('scanResult', callback);
     return () => { try { p.removeAllListeners(); } catch(_) {} };
   } catch(_) { return () => {}; }
@@ -170,7 +170,7 @@ export function addBluetoothScanListener(callback) {
 // ─── escPosPrint ─────────────────────────────────────────────────────────────
 async function escPosPrint(address, byteArr) {
   try {
-    const p = getPlugin();
+    const p = await getPlugin();
     const hex = toHex(byteArr);
     await Promise.race([
       p.printHex({ address, hex }),
