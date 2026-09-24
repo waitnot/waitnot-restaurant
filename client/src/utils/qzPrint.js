@@ -215,10 +215,16 @@ function buildBillBytes(params) {
   );
 }
 
-// Cache the plugin instance — registerPlugin should only be called once
+// Cache the plugin instance
 let _escPosPlugin = null;
 async function getEscPosPlugin() {
   if (_escPosPlugin) return _escPosPlugin;
+  // Use Capacitor.Plugins to access the natively registered plugin
+  if (window.Capacitor?.Plugins?.EscPos) {
+    _escPosPlugin = window.Capacitor.Plugins.EscPos;
+    return _escPosPlugin;
+  }
+  // Fallback: registerPlugin for typed access
   const { registerPlugin } = await import('@capacitor/core');
   _escPosPlugin = registerPlugin('EscPos');
   return _escPosPlugin;
@@ -228,11 +234,12 @@ async function escPosPrint(address, byteArr) {
   try {
     const EscPos = await getEscPosPlugin();
     const hex = toHex(byteArr);
-    // 15 second timeout — native side has 10s connect timeout + write time
+    console.log('EscPos.printHex → address:', address, 'hex bytes:', byteArr.length);
     const result = await Promise.race([
       EscPos.printHex({ address, hex }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Print timeout — printer not responding')), 15000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('No response from printer after 12 seconds. Make sure printer is ON and in range.')), 12000))
     ]);
+    console.log('EscPos.printHex ← success');
     return { success: true };
   } catch (e) {
     console.error('EscPos.printHex error:', e);
