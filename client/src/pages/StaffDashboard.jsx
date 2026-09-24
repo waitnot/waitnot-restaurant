@@ -1336,98 +1336,118 @@ export default function StaffDashboard() {
                 ) : (
                   <div className="space-y-5">
 
-                    {/* Step 1 — Scan */}
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-                      <p className="text-xs font-bold text-blue-700 mb-1">STEP 1 — Pair &amp; Scan</p>
-                      <p className="text-xs text-blue-600 mb-3">First pair your printer in Android Bluetooth Settings, then tap Scan here.</p>
+                    {/* Pair a new printer */}
+                    <button
+                      onClick={() => {
+                        // Open Android Bluetooth settings
+                        try {
+                          window.Capacitor?.Plugins?.App?.openUrl({ url: 'android.settings.BLUETOOTH_SETTINGS' }).catch(() => {});
+                        } catch (_) {}
+                        showToast('Opening Bluetooth settings...', 'success');
+                      }}
+                      className="w-full flex items-center gap-4 border-2 border-dashed border-green-300 bg-green-50 rounded-2xl p-4 hover:border-green-400 transition-colors"
+                    >
+                      <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
+                        <span className="text-green-600 text-xl font-bold">+</span>
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-green-700 text-sm">Pair a new printer</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Opens Bluetooth settings to pair device</p>
+                      </div>
+                      <span className="ml-auto text-green-500 text-lg">↗</span>
+                    </button>
+
+                    {/* Scan */}
+                    <div>
                       <button onClick={loadBluetoothPrinters}
                         disabled={btScanStatus === 'scanning'}
-                        className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                        <RefreshCw size={13} className={btScanStatus === 'scanning' ? 'animate-spin' : ''} />
+                        className="w-full flex items-center gap-2 justify-center bg-blue-600 text-white text-sm font-bold px-4 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50">
+                        <RefreshCw size={15} className={btScanStatus === 'scanning' ? 'animate-spin' : ''} />
                         {btScanStatus === 'scanning' ? 'Scanning...' : 'Scan for Paired Devices'}
                       </button>
-                      {btScanStatus === 'done' && btPrinters.length > 0 && (
-                        <p className="text-xs text-green-600 font-semibold mt-2">✓ Found {btPrinters.length} device(s)</p>
-                      )}
-                      {btScanStatus === 'done' && btPrinters.length === 0 && (
-                        <p className="text-xs text-red-600 mt-2">No paired devices found. Pair your printer in Android Settings first.</p>
-                      )}
                     </div>
 
-                    {/* Step 2 — Assign printers */}
-                    <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">STEP 2 — Assign Printers</p>
-
-                      <div className="space-y-4">
-                        {/* Kitchen Printer */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Kitchen Printer (KOT)</label>
-                          <div className="flex gap-2">
-                            <select
-                              value={printerSettings.btKitchenPrinter}
-                              onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
-                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                            >
-                              <option value="">— Select device —</option>
-                              {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
-                            </select>
-                            {printerSettings.btKitchenPrinter && (
-                              <button
-                                onClick={async () => {
-                                  setBtTesting(printerSettings.btKitchenPrinter);
-                                  showToast('Connecting to printer...', 'success');
-                                  const r = await testBluetoothPrinter(printerSettings.btKitchenPrinter);
-                                  setBtTesting('');
-                                  if (r.success) {
-                                    showToast('✓ Kitchen printer OK — check for printout', 'success');
-                                  } else {
-                                    alert('Kitchen printer test failed:\n\n' + r.error + '\n\nMake sure:\n1. Printer is ON\n2. Printer is paired in Android Bluetooth settings\n3. Bluetooth is enabled');
-                                  }
-                                }}
-                                disabled={!!btTesting}
-                                className="px-3 py-2 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 whitespace-nowrap"
-                              >
-                                {btTesting === printerSettings.btKitchenPrinter ? 'Testing...' : 'Test'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Bill Printer */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Bill Printer</label>
-                          <div className="flex gap-2">
-                            <select
-                              value={printerSettings.btBillPrinter}
-                              onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
-                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                            >
-                              <option value="">— Select device —</option>
-                              {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
-                            </select>
-                            {printerSettings.btBillPrinter && (
-                              <button
-                                onClick={async () => {
-                                  setBtTesting(printerSettings.btBillPrinter);
-                                  showToast('Connecting to printer...', 'success');
-                                  const r = await testBluetoothPrinter(printerSettings.btBillPrinter);
-                                  setBtTesting('');
-                                  if (r.success) {
-                                    showToast('✓ Bill printer OK — check for printout', 'success');
-                                  } else {
-                                    alert('Bill printer test failed:\n\n' + r.error + '\n\nMake sure:\n1. Printer is ON\n2. Printer is paired in Android Bluetooth settings\n3. Bluetooth is enabled');
-                                  }
-                                }}
-                                disabled={!!btTesting}
-                                className="px-3 py-2 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 whitespace-nowrap"
-                              >
-                                {btTesting === printerSettings.btBillPrinter ? 'Testing...' : 'Test'}
-                              </button>
-                            )}
-                          </div>
+                    {/* Paired devices list */}
+                    {btPrinters.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Paired Devices ({btPrinters.length})</p>
+                        <div className="space-y-2">
+                          {btPrinters.map(p => {
+                            const isKitchen = printerSettings.btKitchenPrinter === p.address;
+                            const isBill = printerSettings.btBillPrinter === p.address;
+                            const isConnected = btTesting === p.address || (isKitchen || isBill);
+                            return (
+                              <div key={p.address} className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl p-3">
+                                <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shrink-0">
+                                  <Printer size={18} className="text-gray-500" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                                  <p className="text-xs text-gray-400 font-mono">{p.address}</p>
+                                  <div className="flex gap-1 mt-1 flex-wrap">
+                                    {isKitchen && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">KOT</span>}
+                                    {isBill && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Bill</span>}
+                                  </div>
+                                </div>
+                                {/* Blue connection indicator */}
+                                <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                  <div className={`w-3 h-3 rounded-full ${isKitchen || isBill ? 'bg-blue-500 shadow-[0_0_6px_2px_rgba(59,130,246,0.6)]' : 'bg-gray-300'}`} />
+                                  <button
+                                    onClick={async () => {
+                                      setBtTesting(p.address);
+                                      showToast('Sending test print...', 'success');
+                                      // Fire and don't wait — printer prints even if callback hangs
+                                      testBluetoothPrinter(p.address).then(r => {
+                                        setBtTesting('');
+                                        if (r.success) showToast('✓ Test print sent!', 'success');
+                                        else showToast('Print error: ' + r.error, 'error');
+                                      }).catch(() => setBtTesting(''));
+                                      // Show "sent" after 2s regardless
+                                      setTimeout(() => {
+                                        setBtTesting(prev => prev === p.address ? '' : prev);
+                                      }, 3000);
+                                    }}
+                                    disabled={!!btTesting}
+                                    className="text-xs bg-green-500 text-white px-2.5 py-1 rounded-lg font-bold disabled:opacity-50"
+                                  >
+                                    {btTesting === p.address ? '...' : 'Test'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    </div>
+                    )}
+
+                    {btScanStatus === 'done' && btPrinters.length === 0 && (
+                      <p className="text-xs text-red-600 text-center py-2">No paired devices found. Pair your printer in Android Bluetooth Settings first.</p>
+                    )}
+
+                    {/* Assign printers */}
+                    {btPrinters.length > 0 && (
+                      <div className="space-y-3">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Assign Printers</p>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Kitchen Printer (KOT)</label>
+                          <select value={printerSettings.btKitchenPrinter}
+                            onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
+                            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="">— Select device —</option>
+                            {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Bill Printer</label>
+                          <select value={printerSettings.btBillPrinter}
+                            onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
+                            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="">— Select device —</option>
+                            {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Auto-print toggles */}
                     <div className="space-y-3 pt-1">
@@ -1448,11 +1468,8 @@ export default function StaffDashboard() {
                       </label>
                     </div>
 
-                    <button
-                      onClick={savePrinterSettings}
-                      disabled={savingSettings}
-                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
-                    >
+                    <button onClick={savePrinterSettings} disabled={savingSettings}
+                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50">
                       {savingSettings ? 'Saving...' : 'Save Configuration'}
                     </button>
                   </div>
