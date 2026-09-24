@@ -124,28 +124,60 @@ public class EscPosPlugin extends Plugin {
                     return;
                 }
                 BluetoothDevice device = adapter.getRemoteDevice(address);
-                try {
-                    socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
-                    adapter.cancelDiscovery();
-                    socket.connect();
-                } catch (Exception e1) {
-                    Log.w(TAG, "Secure connect failed, trying insecure: " + e1.getMessage());
-                    try { if (socket != null) socket.close(); } catch (Exception ignored) {}
-                    socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
-                    adapter.cancelDiscovery();
-                    socket.connect();
+                adapter.cancelDiscovery();
+
+                // Try insecure first (works with most cheap thermal printers)
+                BluetoothSocket[] socketHolder = new BluetoothSocket[1];
+                Exception[] errorHolder = new Exception[1];
+
+                Thread connectThread = new Thread(() -> {
+                    try {
+                        socketHolder[0] = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+                        socketHolder[0].connect();
+                    } catch (Exception e1) {
+                        Log.w(TAG, "Insecure connect failed: " + e1.getMessage());
+                        try { if (socketHolder[0] != null) socketHolder[0].close(); } catch (Exception ignored) {}
+                        socketHolder[0] = null;
+                        try {
+                            socketHolder[0] = device.createRfcommSocketToServiceRecord(SPP_UUID);
+                            socketHolder[0].connect();
+                        } catch (Exception e2) {
+                            errorHolder[0] = e2;
+                            try { if (socketHolder[0] != null) socketHolder[0].close(); } catch (Exception ignored) {}
+                            socketHolder[0] = null;
+                        }
+                    }
+                });
+                connectThread.start();
+                connectThread.join(10000); // 10 second timeout
+
+                if (connectThread.isAlive()) {
+                    connectThread.interrupt();
+                    call.reject("Connection timeout — is the printer on and in range?");
+                    return;
                 }
+                if (socketHolder[0] == null) {
+                    String err = errorHolder[0] != null ? errorHolder[0].getMessage() : "Unknown connection error";
+                    call.reject("Connection failed: " + err);
+                    return;
+                }
+                socket = socketHolder[0];
 
                 OutputStream out = socket.getOutputStream();
-                int offset = 0;
-                while (offset < finalData.length) {
-                    int len = Math.min(200, finalData.length - offset);
-                    out.write(finalData, offset, len);
+                if (finalData.length <= 512) {
+                    out.write(finalData);
                     out.flush();
-                    offset += len;
-                    Thread.sleep(80);
+                } else {
+                    int offset = 0;
+                    while (offset < finalData.length) {
+                        int len = Math.min(512, finalData.length - offset);
+                        out.write(finalData, offset, len);
+                        out.flush();
+                        offset += len;
+                        Thread.sleep(50);
+                    }
                 }
-                Thread.sleep(1200);
+                Thread.sleep(800);
                 out.close();
 
                 JSObject result = new JSObject();
