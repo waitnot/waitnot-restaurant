@@ -73,10 +73,10 @@ router.post('/', checkOrderRateLimit, async (req, res) => {
     try {
       const io = req.app.get('io');
       if (io) {
-        // Notify the specific restaurant
         io.to(`restaurant-${order.restaurantId}`).emit('new-order', order);
-        // Notify all admins
         io.to('admin-room').emit('new-order', order);
+        // Signal the print-server device to print KOT
+        io.to(`restaurant-${order.restaurantId}`).emit('print-kot', { order });
         console.log('📡 Real-time notification sent to restaurant and admin');
       }
     } catch (socketError) {
@@ -348,6 +348,8 @@ router.post('/merge-and-complete', async (req, res) => {
     if (io) {
       io.to(`restaurant-${restaurantId}`).emit('orders-merged', { orderIds, mergedOrder });
       io.to('admin-room').emit('orders-merged', { orderIds, mergedOrder });
+      // Signal print-server device to print Bill
+      io.to(`restaurant-${restaurantId}`).emit('print-bill', { order: mergedOrder, orders: [mergedOrder] });
     }
 
     res.json({ success: true, merged: true, order: mergedOrder });

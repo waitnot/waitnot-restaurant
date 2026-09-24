@@ -191,10 +191,46 @@ export default function StaffDashboard() {
       fetchOrders(s.restaurant_id);
     });
 
+    // ── Print server: this device prints if it has the printer connected ──
+    newSocket.on('print-kot', ({ order }) => {
+      const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
+      if (settings.autoPrintKitchenBill && settings.btKitchenPrinter) {
+        // Only print if this device has the kitchen printer connected
+        // Use a ref-safe approach — read connectedPrinters from localStorage flag
+        const isConnected = sessionStorage.getItem(`bt_connected_${settings.btKitchenPrinter}`) === '1';
+        if (isConnected) {
+          // Import dynamically to avoid circular deps
+          import('../utils/qzPrint.js').then(({ smartPrint }) => {
+            // Build HTML fallback for smartPrint
+            const html = `<pre>${order.items?.map(i => `${i.name} x${i.quantity}`).join('\n')}</pre>`;
+            smartPrint(html, 'kitchen', { order, restaurantName: s.name });
+          });
+        }
+      }
+    });
+
+    newSocket.on('print-bill', ({ order, orders }) => {
+      const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
+      if (settings.autoPrintFinalBill && settings.btBillPrinter) {
+        const isConnected = sessionStorage.getItem(`bt_connected_${settings.btBillPrinter}`) === '1';
+        if (isConnected) {
+          import('../utils/qzPrint.js').then(({ smartPrint }) => {
+            const html = `<pre>BILL\n${order?.items?.map(i => `${i.name} x${i.quantity} Rs.${i.price * i.quantity}`).join('\n')}\nTOTAL: Rs.${order?.totalAmount}</pre>`;
+            const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
+              : order?.orderType === 'room' ? `Room ${order.roomNumber}`
+              : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
+            smartPrint(html, 'bill', { orders: orders || [order], tableLabel: label, total: order?.totalAmount, restaurantName: s.name });
+          });
+        }
+      }
+    });
+
     // Listen for BT connection state changes
     const btUnsub = window.Capacitor?.isNativePlatform?.()
       ? addBluetoothConnectionListener(({ address, state }) => {
           setConnectedPrinters(prev => ({ ...prev, [address]: state === 'connected' }));
+          // Store in sessionStorage so socket print-server listener can read it
+          sessionStorage.setItem(`bt_connected_${address}`, state === 'connected' ? '1' : '0');
         })
       : () => {};
 
@@ -224,6 +260,7 @@ export default function StaffDashboard() {
         const r = await connectBluetoothPrinter(address);
         if (r.connected) {
           setConnectedPrinters(prev => ({ ...prev, [address]: true }));
+          sessionStorage.setItem(`bt_connected_${address}`, '1');
           console.log('Auto-reconnected:', address);
         }
       } catch (_) {
