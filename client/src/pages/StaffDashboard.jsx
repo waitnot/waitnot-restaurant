@@ -223,6 +223,14 @@ export default function StaffDashboard() {
         const r = await connectBluetoothPrinter(address);
         if (r.connected) {
           setConnectedPrinters(prev => ({ ...prev, [address]: true }));
+          // Ensure both KOT and Bill are assigned to this printer
+          const current = JSON.parse(localStorage.getItem(`printer_settings_${settings.restaurant_id || ''}`) || JSON.stringify(settings));
+          if (!current.btKitchenPrinter || !current.btBillPrinter) {
+            const updated = { ...current, btKitchenPrinter: address, btBillPrinter: address };
+            const restaurantId = localStorage.getItem('restaurantId') || JSON.parse(localStorage.getItem('staffData') || '{}').restaurant_id;
+            localStorage.setItem(`printer_settings_${restaurantId}`, JSON.stringify(updated));
+            setPrinterSettings(updated);
+          }
           console.log('Auto-reconnected to printer:', address);
         }
       } catch (_) {
@@ -1450,6 +1458,10 @@ export default function StaffDashboard() {
                               const r = await connectBluetoothPrinter(savedAddr);
                               if (r.connected) {
                                 setConnectedPrinters(prev => ({ ...prev, [savedAddr]: true }));
+                                // Ensure both assigned
+                                const updated = { ...printerSettings, btKitchenPrinter: savedAddr, btBillPrinter: savedAddr };
+                                setPrinterSettings(updated);
+                                localStorage.setItem(`printer_settings_${staff.restaurant_id}`, JSON.stringify(updated));
                                 showToast('✓ Connected!');
                               } else {
                                 showToast('Failed: ' + (r.error || 'Printer off or out of range'), 'error');
@@ -1543,7 +1555,11 @@ export default function StaffDashboard() {
                                         const r = await connectBluetoothPrinter(p.address);
                                         if (r.connected) {
                                           setConnectedPrinters(prev => ({ ...prev, [p.address]: true }));
-                                          showToast('✓ Connected!');
+                                          // Auto-assign as both KOT and Bill printer
+                                          const updated = { ...printerSettings, btKitchenPrinter: p.address, btBillPrinter: p.address };
+                                          setPrinterSettings(updated);
+                                          localStorage.setItem(`printer_settings_${staff.restaurant_id}`, JSON.stringify(updated));
+                                          showToast('✓ Connected & assigned as KOT + Bill printer!');
                                         } else {
                                           showToast('Connect failed: ' + (r.error || 'Unknown'), 'error');
                                         }
