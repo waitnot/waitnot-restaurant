@@ -194,35 +194,29 @@ export default function StaffDashboard() {
     // ── Print server: this device prints if it has the printer connected ──
     newSocket.on('print-kot', ({ order }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
-      if (settings.autoPrintKitchenBill && settings.btKitchenPrinter) {
-        // Only print if this device has the kitchen printer connected
-        // Use a ref-safe approach — read connectedPrinters from localStorage flag
-        const isConnected = sessionStorage.getItem(`bt_connected_${settings.btKitchenPrinter}`) === '1';
-        if (isConnected) {
-          // Import dynamically to avoid circular deps
-          import('../utils/qzPrint.js').then(({ smartPrint }) => {
-            // Build HTML fallback for smartPrint
-            const html = `<pre>${order.items?.map(i => `${i.name} x${i.quantity}`).join('\n')}</pre>`;
-            smartPrint(html, 'kitchen', { order, restaurantName: s.name });
-          });
-        }
-      }
+      if (!settings.autoPrintKitchenBill || !settings.btKitchenPrinter) return;
+      const addr = settings.btKitchenPrinter;
+      const isConnected = sessionStorage.getItem(`bt_connected_${addr}`) === '1';
+      if (!isConnected) return; // not the print server device
+      import('../utils/qzPrint.js').then(({ smartPrint }) => {
+        const html = `<pre>${(order.items||[]).map(i => `${i.name} x${i.quantity}`).join('\n')}</pre>`;
+        smartPrint(html, 'kitchen', { order, restaurantName: s.name }).catch(() => {});
+      });
     });
 
     newSocket.on('print-bill', ({ order, orders }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
-      if (settings.autoPrintFinalBill && settings.btBillPrinter) {
-        const isConnected = sessionStorage.getItem(`bt_connected_${settings.btBillPrinter}`) === '1';
-        if (isConnected) {
-          import('../utils/qzPrint.js').then(({ smartPrint }) => {
-            const html = `<pre>BILL\n${order?.items?.map(i => `${i.name} x${i.quantity} Rs.${i.price * i.quantity}`).join('\n')}\nTOTAL: Rs.${order?.totalAmount}</pre>`;
-            const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
-              : order?.orderType === 'room' ? `Room ${order.roomNumber}`
-              : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
-            smartPrint(html, 'bill', { orders: orders || [order], tableLabel: label, total: order?.totalAmount, restaurantName: s.name });
-          });
-        }
-      }
+      if (!settings.autoPrintFinalBill || !settings.btBillPrinter) return;
+      const addr = settings.btBillPrinter;
+      const isConnected = sessionStorage.getItem(`bt_connected_${addr}`) === '1';
+      if (!isConnected) return;
+      import('../utils/qzPrint.js').then(({ smartPrint }) => {
+        const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
+          : order?.orderType === 'room' ? `Room ${order.roomNumber}`
+          : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
+        const html = `<pre>${label}\n${(order?.items||[]).map(i=>`${i.name} x${i.quantity} Rs.${i.price*i.quantity}`).join('\n')}\nTOTAL: Rs.${order?.totalAmount}</pre>`;
+        smartPrint(html, 'bill', { orders: orders||[order], tableLabel: label, total: order?.totalAmount, restaurantName: s.name }).catch(() => {});
+      });
     });
 
     // Listen for BT connection state changes
@@ -1423,6 +1417,14 @@ export default function StaffDashboard() {
                     <p className="text-gray-500 text-sm">Configure Bluetooth printers</p>
                   </div>
                 </div>
+
+                {/* Multi-mobile info banner */}
+                {isMobile && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-2">
+                    <p className="text-xs font-bold text-blue-700 mb-1">📱 Multi-Mobile Setup</p>
+                    <p className="text-xs text-blue-600">Bluetooth printers support only <strong>one phone connection</strong> at a time. Set up one phone as the <strong>print server</strong> — connect it to the printer and enable Auto-Print. All other phones place orders normally and this phone will print automatically.</p>
+                  </div>
+                )}
 
                 {!isMobile ? (
                   <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl text-yellow-800 text-sm">
