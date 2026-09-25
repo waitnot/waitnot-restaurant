@@ -1,0 +1,81 @@
+{
+  "name": "waitnot-staff-dashboard",
+  "version": "1.4.0",
+  "description": "WaitNot Staff Dashboard Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish=never"
+  },
+  "keywords": ["restaurant", "management", "waitnot", "staff", "orders"],
+  "author": "WaitNot Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7",
+    "node-thermal-printer": "^4.3.3",
+    "pdf-to-printer": "^5.3.1"
+  },
+  "build": {
+    "appId": "com.waitnot.staff",
+    "productName": "WaitNot Staff",
+    "copyright": "Copyright © 2024 WaitNot Team",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "printer.js",
+      "printer-settings.html",
+      "fallback.html",
+      "renderer/**/*",
+      "fonts/**/*",
+      "sounds/**/*",
+      "logo.png",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [{"target": "portable", "arch": ["x64"]}],
+      "icon": "logo.png",
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "WaitNot Team",
+      "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": false,
+      "sign": null
+    },
+    "mac": {
+      "target": [{"target": "dmg", "arch": ["x64", "arm64"]}],
+      "category": "public.app-category.business",
+      "icon": "logo.png"
+    },
+    "linux": {
+      "target": [{"target": "AppImage", "arch": ["x64"]}],
+      "category": "Office",
+      "icon": "logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "WaitNot Staff",
+      "runAfterFinish": true,
+      "menuCategory": "WaitNot",
+      "deleteAppDataOnUninstall": false,
+      "perMachine": false,
+      "artifactName": "WaitNot-Staff-Setup-${version}.${ext}",
+      "uninstallDisplayName": "WaitNot Staff Dashboard"
+    }
+  }
+}

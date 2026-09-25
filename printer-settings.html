@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Printer Settings — WaitNot Staff</title>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+       background:#f1f5f9; color:#1e293b; font-size:14px; min-height:100vh; }
+
+.header { background:#dc2626; color:white; padding:18px 20px;
+          display:flex; align-items:center; gap:12px; }
+.header h1 { font-size:17px; font-weight:700; }
+.header p  { font-size:12px; opacity:.85; margin-top:2px; }
+
+.body { padding:18px; max-width:540px; margin:0 auto; }
+
+.card { background:white; border-radius:14px; border:1px solid #e2e8f0;
+        padding:18px; margin-bottom:14px; }
+.card-title { font-size:11px; font-weight:800; color:#64748b; letter-spacing:.8px;
+              text-transform:uppercase; margin-bottom:14px; display:flex;
+              align-items:center; gap:6px; }
+
+/* Printer rows */
+.p-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.p-row:last-child { margin-bottom:0; }
+.p-label { font-size:12px; font-weight:700; color:#374151; width:100px; flex-shrink:0; }
+.p-select { flex:1; border:1.5px solid #d1d5db; border-radius:8px; padding:8px 10px;
+            font-size:13px; color:#1e293b; background:white; cursor:pointer; outline:none;
+            transition:border-color .15s; }
+.p-select:focus { border-color:#dc2626; box-shadow:0 0 0 3px #fecaca; }
+.btn-test { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px;
+            padding:7px 12px; font-size:11px; font-weight:700; color:#64748b;
+            cursor:pointer; white-space:nowrap; transition:all .15s; flex-shrink:0; }
+.btn-test:hover { background:#eff6ff; border-color:#3b82f6; color:#2563eb; }
+.btn-test.success { background:#dcfce7; border-color:#16a34a; color:#15803d; }
+.btn-test.fail    { background:#fee2e2; border-color:#dc2626; color:#dc2626; }
+
+.btn-refresh { background:none; border:1.5px solid #d1d5db; border-radius:8px;
+               padding:6px 12px; font-size:11px; font-weight:700; color:#64748b;
+               cursor:pointer; display:flex; align-items:center; gap:5px; }
+.btn-refresh:hover { border-color:#dc2626; color:#dc2626; }
+
+/* Status dot */
+.dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.dot.green { background:#22c55e; }
+.dot.gray  { background:#d1d5db; }
+
+/* Toggle */
+.toggle-row { display:flex; align-items:center; justify-content:space-between;
+              padding:11px 0; border-bottom:1px solid #f1f5f9; }
+.toggle-row:last-child { border-bottom:none; padding-bottom:0; }
+.toggle-label { display:flex; flex-direction:column; gap:2px; }
+.toggle-label span { font-size:13px; font-weight:600; }
+.toggle-label small { font-size:11px; color:#94a3b8; }
+.toggle { width:44px; height:24px; background:#d1d5db; border-radius:12px;
+          position:relative; cursor:pointer; transition:background .2s; flex-shrink:0; }
+.toggle.on { background:#dc2626; }
+.toggle::after { content:''; position:absolute; width:20px; height:20px; background:white;
+                 border-radius:50%; top:2px; left:2px; transition:transform .2s;
+                 box-shadow:0 1px 4px rgba(0,0,0,.25); }
+.toggle.on::after { transform:translateX(20px); }
+
+/* Save */
+.save-btn { width:100%; background:#dc2626; color:white; border:none; border-radius:10px;
+            padding:14px; font-size:15px; font-weight:700; cursor:pointer; margin-top:4px;
+            transition:background .15s; }
+.save-btn:hover { background:#b91c1c; }
+.save-btn:disabled { background:#9ca3af; cursor:not-allowed; }
+
+.status-bar { text-align:center; padding:10px 14px; border-radius:8px; font-size:13px;
+              font-weight:600; margin-top:12px; display:none; }
+.status-bar.ok  { background:#dcfce7; color:#166534; display:block; }
+.status-bar.err { background:#fee2e2; color:#991b1b; display:block; }
+
+.hint { font-size:11px; color:#94a3b8; margin-top:6px; }
+.loading-txt { color:#94a3b8; font-size:13px; }
+.warn-txt { color:#f59e0b; font-size:12px; margin-top:6px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M17 17H7a2 2 0 01-2-2V9a2 2 0 012-2h10a2 2 0 012 2v6a2 2 0 01-2 2z"/>
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M7 9V5a1 1 0 011-1h8a1 1 0 011 1v4M7 13h.01M17 13h-6"/>
+  </svg>
+  <div>
+    <h1>Printer Settings</h1>
+    <p>USB &amp; Bluetooth — KOT and Bill printing</p>
+  </div>
+</div>
+
+<div class="body">
+
+  <!-- ── Printer Selection ─────────────────────────── -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div class="card-title" style="margin:0;">🖨️ Printer Selection</div>
+      <button class="btn-refresh" onclick="loadPrinters()">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+            d="M4 4v5h.582m15.356 2A8 8 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8 8 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Refresh
+      </button>
+    </div>
+
+    <div id="printer-loading" class="loading-txt">Scanning for printers…</div>
+
+    <div id="printer-rows" style="display:none;">
+      <!-- KOT -->
+      <div class="p-row">
+        <span class="p-label">🍳 KOT Printer</span>
+        <select id="kitchen-printer" class="p-select">
+          <option value="">— Select —</option>
+        </select>
+        <button class="btn-test" id="test-kot" onclick="testPrint('kitchen')">Test KOT</button>
+      </div>
+      <!-- Bill -->
+      <div class="p-row">
+        <span class="p-label">🧾 Bill Printer</span>
+        <select id="bill-printer" class="p-select">
+          <option value="">— Select —</option>
+        </select>
+        <button class="btn-test" id="test-bill" onclick="testPrint('bill')">Test Bill</button>
+      </div>
+
+      <p id="no-printer-msg" class="warn-txt" style="display:none;">
+        ⚠ No printers detected. Ensure your USB/Bluetooth printer is on and connected.
+      </p>
+      <p class="hint">★ = system default. Thermal/POS printers are auto-selected.</p>
+    </div>
+  </div>
+
+  <!-- ── Auto Print ───────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">⚡ Auto Print</div>
+
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <span>Auto-print KOT on order placed</span>
+        <small>Prints kitchen ticket immediately when staff places an order</small>
+      </div>
+      <div class="toggle" id="toggle-kot" onclick="toggleSwitch('kot')"></div>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <span>Auto-print Bill on table cleared</span>
+        <small>Prints final bill automatically when a table is cleared / paid</small>
+      </div>
+      <div class="toggle" id="toggle-bill" onclick="toggleSwitch('bill')"></div>
+    </div>
+  </div>
+
+  <!-- ── Receipt Size ─────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">📄 Receipt Size</div>
+    <div class="p-row">
+      <span class="p-label">Paper Width</span>
+      <select id="paper-width" class="p-select">
+        <option value="58mm">58 mm — small thermal</option>
+        <option value="80mm" selected>80 mm — standard thermal</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="save-btn" id="save-btn" onclick="saveSettings()">
+    💾&nbsp; Save Settings
+  </button>
+  <div class="status-bar" id="status-bar"></div>
+
+</div><!-- /body -->
+
+<script>
+const api = window.electronAPI;
+let settings  = {};
+let autoKot   = false;
+let autoBill  = false;
+
+/* ── Init ──────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadSavedSettings();
+  await loadPrinters();
+});
+
+async function loadSavedSettings() {
+  try {
+    settings = await api.getPrinterSettings();
+    autoKot  = !!settings.autoKot;
+    autoBill = !!settings.autoBill;
+    if (autoKot)  document.getElementById('toggle-kot').classList.add('on');
+    if (autoBill) document.getElementById('toggle-bill').classList.add('on');
+    const pw = settings.paperWidth || '80mm';
+    document.getElementById('paper-width').value = pw;
+  } catch(e) { console.warn(e); }
+}
+
+async function loadPrinters() {
+  const loading = document.getElementById('printer-loading');
+  const rows    = document.getElementById('printer-rows');
+  const noMsg   = document.getElementById('no-printer-msg');
+  loading.style.display = 'block';
+  rows.style.display    = 'none';
+
+  try {
+    const printers = await api.getPrinters();
+    loading.style.display = 'none';
+    rows.style.display    = 'block';
+
+    if (!printers || printers.length === 0) {
+      noMsg.style.display = 'block';
+      return;
+    }
+    noMsg.style.display = 'none';
+
+    const kSel = document.getElementById('kitchen-printer');
+    const bSel = document.getElementById('bill-printer');
+    kSel.innerHTML = '<option value="">— Select —</option>';
+    bSel.innerHTML = '<option value="">— Select —</option>';
+
+    printers.forEach(p => {
+      const label = p.name + (p.isDefault ? '  ★' : '');
+      kSel.appendChild(new Option(label, p.name));
+      bSel.appendChild(new Option(label, p.name));
+    });
+
+    // Restore saved
+    if (settings.kitchenPrinter) kSel.value = settings.kitchenPrinter;
+    if (settings.billPrinter)    bSel.value = settings.billPrinter;
+
+    // Auto-select thermal if nothing saved
+    if (!kSel.value) {
+      const thermal = printers.find(p =>
+        /pos|thermal|receipt|epson|tsp|tm-|bixolon|star|citizen|58|80mm/i.test(p.name)
+      );
+      const best = thermal || printers.find(p => p.isDefault) || printers[0];
+      if (best) { kSel.value = best.name; bSel.value = best.name; }
+    }
+  } catch(e) {
+    loading.textContent = '❌ Failed: ' + e.message;
+  }
+}
+
+/* ── Toggle ────────────────────────────────────────── */
+function toggleSwitch(which) {
+  const el = document.getElementById('toggle-' + which);
+  el.classList.toggle('on');
+  if (which === 'kot')  autoKot  = el.classList.contains('on');
+  if (which === 'bill') autoBill = el.classList.contains('on');
+}
+
+/* ── Test Print ────────────────────────────────────── */
+async function testPrint(type) {
+  const sel     = type === 'kitchen' ? 'kitchen-printer' : 'bill-printer';
+  const btnId   = type === 'kitchen' ? 'test-kot' : 'test-bill';
+  const printer = document.getElementById(sel).value;
+  const btn     = document.getElementById(btnId);
+
+  if (!printer) { showStatus('⚠ Select a printer first.', 'err'); return; }
+
+  btn.textContent = '⏳ Printing…';
+  btn.disabled    = true;
+
+  const pw  = document.getElementById('paper-width').value;
+  const now = new Date();
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  @page{size:${pw} auto;margin:3mm;}
+  body{font-family:'Courier New',monospace;font-size:13px;background:#fff;color:#000;}
+  .c{text-align:center;} .b{font-weight:900;} hr{border:none;border-top:1px dashed #000;margin:6px 0;}
+</style></head><body>
+<div class="c b" style="font-size:18px;margin-bottom:4px;">WaitNot Staff</div>
+<div class="c" style="font-size:11px;">TEST PRINT — ${type.toUpperCase()}</div>
+<hr>
+<div style="font-size:12px;">Printer: ${printer}</div>
+<div style="font-size:12px;">Width: ${pw}</div>
+<div style="font-size:12px;">Time: ${now.toLocaleTimeString()}</div>
+<hr>
+<div class="c b">✓ Printer is working!</div>
+<div style="height:20px;"></div>
+</body></html>`;
+
+  try {
+    const r = await api.silentPrint(html, printer);
+    if (r && r.success) {
+      btn.textContent = '✅ Printed!';
+      btn.classList.add('success');
+      showStatus(`✅ Test print sent to "${printer}"`, 'ok');
+    } else {
+      btn.textContent = '❌ Failed';
+      btn.classList.add('fail');
+      showStatus('❌ Print failed: ' + (r && r.error || 'unknown'), 'err');
+    }
+  } catch(e) {
+    btn.textContent = '❌ Error';
+    btn.classList.add('fail');
+    showStatus('❌ ' + e.message, 'err');
+  }
+
+  setTimeout(() => {
+    btn.textContent = type === 'kitchen' ? 'Test KOT' : 'Test Bill';
+    btn.disabled    = false;
+    btn.classList.remove('success', 'fail');
+  }, 3000);
+}
+
+/* ── Save ──────────────────────────────────────────── */
+async function saveSettings() {
+  const kitchenPrinter = document.getElementById('kitchen-printer').value;
+  const billPrinter    = document.getElementById('bill-printer').value;
+  const paperWidth     = document.getElementById('paper-width').value;
+
+  if (!kitchenPrinter && !billPrinter) {
+    showStatus('⚠ Select at least one printer.', 'err'); return;
+  }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Saving…';
+
+  try {
+    await api.savePrinterSettings({
+      kitchenPrinter,
+      billPrinter,
+      selectedPrinter : kitchenPrinter || billPrinter,
+      autoKot,
+      autoBill,
+      paperWidth,
+    });
+
+    settings = { kitchenPrinter, billPrinter, autoKot, autoBill, paperWidth };
+    showStatus(
+      `✅ Saved!  KOT → ${kitchenPrinter || '—'}  |  Bill → ${billPrinter || '—'}`
+      + `\nAuto KOT: ${autoKot ? 'ON ✅' : 'OFF'}  |  Auto Bill: ${autoBill ? 'ON ✅' : 'OFF'}`,
+      'ok'
+    );
+  } catch(e) {
+    showStatus('❌ ' + e.message, 'err');
+  }
+
+  btn.disabled    = false;
+  btn.textContent = '💾  Save Settings';
+}
+
+/* ── Status bar ────────────────────────────────────── */
+function showStatus(msg, type) {
+  const el = document.getElementById('status-bar');
+  el.textContent  = msg;
+  el.className    = 'status-bar ' + type;
+  setTimeout(() => { el.className = 'status-bar'; }, 6000);
+}
+</script>
+</body>
+</html>
