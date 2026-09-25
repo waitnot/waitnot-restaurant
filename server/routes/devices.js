@@ -92,7 +92,8 @@ router.post('/register-direct', async (req, res) => {
   }
 });
 
-// Test endpoint — send a test push to all devices of a restaurantrouter.post('/test-push/:restaurantId', async (req, res) => {
+// Test endpoint — send a test push to all devices of a restaurant
+router.post('/test-push/:restaurantId', async (req, res) => {
   try {
     const { restaurantId } = req.params;
     const tokens = await getRestaurantFcmTokens(restaurantId);
