@@ -64,3 +64,23 @@ export async function getRestaurantFcmTokens(restaurantId) {
 }
 
 export default router;
+
+// Test endpoint — send a test push to all devices of a restaurant
+router.post('/test-push/:restaurantId', async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const tokens = await getRestaurantFcmTokens(restaurantId);
+    if (tokens.length === 0) {
+      return res.json({ success: false, message: 'No devices registered for this restaurant', tokens: [] });
+    }
+    const { sendPushNotification } = await import('../fcm.js');
+    await sendPushNotification(tokens, {
+      title: '🧪 Test Notification',
+      body: 'WaitNot push notifications are working!',
+      data: { type: 'test' }
+    });
+    res.json({ success: true, tokenCount: tokens.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
