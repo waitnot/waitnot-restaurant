@@ -14,5 +14,8 @@ end
 
 target 'App' do
   capacitor_pods
+  # Firebase for push notifications
+  pod 'Firebase/Core'
+  pod 'Firebase/Messaging'
   # Add Capacitor-based plugins
 end

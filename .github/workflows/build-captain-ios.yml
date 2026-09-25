@@ -1,0 +1,87 @@
+name: Build Captain iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/src/**'
+      - 'client/ios/**'
+      - 'client/vite.captain.config.js'
+      - 'client/index-captain.html'
+      - 'client/package.json'
+      - '.github/workflows/build-captain-ios.yml'
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+        working-directory: client
+
+      - name: Build captain web app
+        run: npm run build:captain
+        working-directory: client
+
+      - name: Swap to captain capacitor config
+        run: cp capacitor.captain.json capacitor.config.json
+        working-directory: client
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+        working-directory: client
+
+      - name: Install CocoaPods
+        run: pod install --repo-update
+        working-directory: client/ios/App
+
+      - name: Build iOS App (unsigned, generic device)
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+        working-directory: client
+
+      - name: Export IPA (unsigned)
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath client/build/App.xcarchive \
+            -exportPath client/build/ipa \
+            -exportOptionsPlist client/ios/ExportOptions.plist \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+          || true
+          # Fallback: package app bundle directly if export fails
+          mkdir -p client/build/ipa
+          cp -r client/build/App.xcarchive/Products/Applications/App.app client/build/ipa/ 2>/dev/null || true
+          cd client/build/ipa && zip -r WaitNot-Captain.ipa . 2>/dev/null || true
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WaitNot-Captain-iOS
+          path: |
+            client/build/App.xcarchive
+            client/build/ipa/
+          retention-days: 30
