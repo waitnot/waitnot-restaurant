@@ -450,16 +450,21 @@ function startOrderPolling() {
 
     try {
       // Pull session info from renderer localStorage
+      // Works on any page — credentials persist after login
       const info = await mainWindow.webContents.executeJavaScript(`
         (function() {
           try {
-            if (!(window.location.hash || '').includes('staff-dashboard')) return null;
             const sd = localStorage.getItem('staffData');
             const tk = localStorage.getItem('staffToken');
             if (!sd || !tk) return null;
             const staff = JSON.parse(sd);
+            if (!staff.restaurant_id) return null;
             const rd = localStorage.getItem('restaurantData');
-            return { rid: staff.restaurant_id, tk, rname: rd ? JSON.parse(rd).name : null };
+            return {
+              rid   : staff.restaurant_id,
+              tk,
+              rname : rd ? JSON.parse(rd).name : null
+            };
           } catch(e) { return null; }
         })()
       `).catch(() => null);
