@@ -8,7 +8,7 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Ensure table exists
+// Ensure table exists with correct constraints
 async function ensureDeviceTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS staff_devices (
@@ -17,11 +17,22 @@ async function ensureDeviceTable() {
       restaurant_id UUID REFERENCES restaurants(id) ON DELETE CASCADE,
       fcm_token TEXT NOT NULL,
       platform VARCHAR(20) DEFAULT 'android',
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(restaurant_id, fcm_token)
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await query(`CREATE INDEX IF NOT EXISTS idx_staff_devices_restaurant ON staff_devices(restaurant_id)`);
+  // Add unique constraint if not present (safe to run multiple times)
+  await query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'staff_devices_restaurant_id_fcm_token_key'
+      ) THEN
+        ALTER TABLE staff_devices ADD CONSTRAINT staff_devices_restaurant_id_fcm_token_key
+          UNIQUE (restaurant_id, fcm_token);
+      END IF;
+    END $$;
+  `);
 }
 
 ensureDeviceTable().catch(e => console.warn('Device table init:', e.message));
@@ -39,11 +50,10 @@ router.post('/register', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid token — missing staffId or restaurantId', user: req.user });
     }
 
+    await query(`DELETE FROM staff_devices WHERE restaurant_id = $1 AND fcm_token = $2`, [restaurantId, fcmToken]);
     await query(`
       INSERT INTO staff_devices (staff_id, restaurant_id, fcm_token, platform, updated_at)
       VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (restaurant_id, fcm_token)
-      DO UPDATE SET platform = $4, updated_at = NOW()
     `, [staffId, restaurantId, fcmToken, platform]);
 
     console.log(`📱 FCM token registered: staff=${staffId} restaurant=${restaurantId} platform=${platform}`);
@@ -76,15 +86,14 @@ router.post('/register-direct', async (req, res) => {
     const { fcmToken, restaurantId, staffId = 0, platform = 'android' } = req.body;
     if (!fcmToken || !restaurantId) return res.status(400).json({ error: 'fcmToken and restaurantId required' });
 
-    // Use 0 as placeholder staffId if not authenticated
+    // Delete existing entry for this token first, then insert fresh — avoids constraint issues
+    await query(`DELETE FROM staff_devices WHERE restaurant_id = $1 AND fcm_token = $2`, [restaurantId, fcmToken]);
     await query(`
       INSERT INTO staff_devices (staff_id, restaurant_id, fcm_token, platform, updated_at)
       VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (restaurant_id, fcm_token)
-      DO UPDATE SET platform = $4, updated_at = NOW()
     `, [staffId || 0, restaurantId, fcmToken, platform]);
 
-    console.log(`📱 FCM token registered directly: restaurant=${restaurantId} platform=${platform}`);
+    console.log(`📱 FCM token registered: restaurant=${restaurantId} platform=${platform} token=${fcmToken.substring(0,20)}...`);
     res.json({ success: true });
   } catch (e) {
     console.error('Direct register error:', e);
