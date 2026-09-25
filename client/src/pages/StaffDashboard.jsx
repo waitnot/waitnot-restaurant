@@ -149,6 +149,11 @@ export default function StaffDashboard() {
     const newSocket = io(API, { transports: ['websocket', 'polling'] });
     setSocket(newSocket);
     newSocket.emit('join-restaurant', s.restaurant_id);
+
+    // Periodic refresh every 15s — catches any missed socket events (QR orders etc)
+    const refreshInterval = setInterval(() => {
+      if (!stopped) fetchOrders(s.restaurant_id);
+    }, 15000);
     newSocket.on('order-updated', (o) => {
       if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
       setOrders(prev => {
@@ -176,15 +181,15 @@ export default function StaffDashboard() {
     });
     newSocket.on('new-order', (o) => {
       if (o.status !== 'completed') {
-        if (!o.items || o.items.length === 0) {
-          // Fetch to get full order data, but still add to state immediately
-          fetchOrders(s.restaurant_id);
-          return;
-        }
+        // Always add to state immediately for instant reflection
         setOrders(prev => {
           if (prev.find(x => x._id === o._id)) return prev;
           return [o, ...prev];
         });
+        // If items missing, also fetch to get full data
+        if (!o.items || o.items.length === 0) {
+          fetchOrders(s.restaurant_id);
+        }
       }
     });
     newSocket.on('order-deleted', ({ orderId }) => {
@@ -193,6 +198,11 @@ export default function StaffDashboard() {
     newSocket.on('connect', () => {
       newSocket.emit('join-restaurant', s.restaurant_id);
       fetchOrders(s.restaurant_id);
+      console.log('Socket reconnected, rejoined restaurant room:', s.restaurant_id);
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('Socket disconnected — polling will keep orders fresh');
     });
 
     // ── Print server: QR orders + staff orders — auto-print KOT/Bill ──────
@@ -244,6 +254,7 @@ export default function StaffDashboard() {
     return () => {
       stopped = true;
       if (pollTimer) clearTimeout(pollTimer);
+      clearInterval(refreshInterval);
       newSocket.emit('leave-restaurant', s.restaurant_id);
       newSocket.disconnect();
       btUnsub();
