@@ -176,7 +176,11 @@ export default function StaffDashboard() {
     });
     newSocket.on('new-order', (o) => {
       if (o.status !== 'completed') {
-        if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
+        if (!o.items || o.items.length === 0) {
+          // Fetch to get full order data, but still add to state immediately
+          fetchOrders(s.restaurant_id);
+          return;
+        }
         setOrders(prev => {
           if (prev.find(x => x._id === o._id)) return prev;
           return [o, ...prev];
@@ -191,31 +195,40 @@ export default function StaffDashboard() {
       fetchOrders(s.restaurant_id);
     });
 
-    // ── Print server: this device prints if it has the printer connected ──
+    // ── Print server: QR orders + staff orders — auto-print KOT/Bill ──────
     newSocket.on('print-kot', ({ order }) => {
+      // Re-read settings fresh each time (not stale closure)
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintKitchenBill || !settings.btKitchenPrinter) return;
-      const addr = settings.btKitchenPrinter;
-      const isConnected = sessionStorage.getItem(`bt_connected_${addr}`) === '1';
-      if (!isConnected) return; // not the print server device
+      if (!window.Capacitor?.isNativePlatform?.()) return; // mobile only
+
+      // Get restaurant name from cache
+      const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
+      const restaurantName = cached.name || s.name || 'Restaurant';
+
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
-        const html = `<pre>${(order.items||[]).map(i => `${i.name} x${i.quantity}`).join('\n')}</pre>`;
-        smartPrint(html, 'kitchen', { order, restaurantName: s.name }).catch(() => {});
+        const slotLabel = order.orderType === 'room' ? `ROOM ${order.roomNumber}`
+          : order.tableNumber ? `TABLE ${order.tableNumber}`
+          : (order.orderType || 'ORDER').toUpperCase();
+        const html = `<pre>${slotLabel}\n${(order.items||[]).map(i=>`${i.name} x${i.quantity}`).join('\n')}</pre>`;
+        smartPrint(html, 'kitchen', { order, restaurantName }).catch(() => {});
       });
     });
 
     newSocket.on('print-bill', ({ order, orders }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintFinalBill || !settings.btBillPrinter) return;
-      const addr = settings.btBillPrinter;
-      const isConnected = sessionStorage.getItem(`bt_connected_${addr}`) === '1';
-      if (!isConnected) return;
+      if (!window.Capacitor?.isNativePlatform?.()) return;
+
+      const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
+      const restaurantName = cached.name || s.name || 'Restaurant';
+
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
         const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
           : order?.orderType === 'room' ? `Room ${order.roomNumber}`
           : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
         const html = `<pre>${label}\n${(order?.items||[]).map(i=>`${i.name} x${i.quantity} Rs.${i.price*i.quantity}`).join('\n')}\nTOTAL: Rs.${order?.totalAmount}</pre>`;
-        smartPrint(html, 'bill', { orders: orders||[order], tableLabel: label, total: order?.totalAmount, restaurantName: s.name }).catch(() => {});
+        smartPrint(html, 'bill', { orders: orders||[order], tableLabel: label, total: order?.totalAmount, restaurantName }).catch(() => {});
       });
     });
 
