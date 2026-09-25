@@ -9,23 +9,21 @@ import { requestNotificationPermission, showNewOrderNotification, playOrderSound
 async function registerFcmToken(restaurantId) {
   if (!window.Capacitor?.isNativePlatform?.()) return;
   try {
-    // Use window.Capacitor.Plugins directly (always available in native)
     const FcmToken = window.Capacitor.Plugins.FcmToken;
     if (!FcmToken) {
-      // Fallback to registerPlugin
       const { registerPlugin } = await import('@capacitor/core');
       const p = registerPlugin('FcmToken');
       const { token } = await p.getToken();
       if (!token) return;
       const ax = (await import('../config/axios.js')).default;
-      await ax.post('/api/devices/register', { fcmToken: token, platform: 'android' });
-      console.log('FCM token registered via registerPlugin');
+      await ax.post('/api/devices/register-direct', { fcmToken: token, restaurantId, platform: 'android' });
+      console.log('FCM token registered (registerPlugin)');
       return;
     }
     const { token } = await FcmToken.getToken();
     if (!token) return;
     const ax = (await import('../config/axios.js')).default;
-    await ax.post('/api/devices/register', { fcmToken: token, platform: 'android' });
+    await ax.post('/api/devices/register-direct', { fcmToken: token, restaurantId, platform: 'android' });
     console.log('FCM token registered:', token.substring(0, 20) + '...');
   } catch (e) {
     console.warn('FCM register error:', e.message);

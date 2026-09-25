@@ -13,12 +13,12 @@ async function ensureDeviceTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS staff_devices (
       id SERIAL PRIMARY KEY,
-      staff_id INTEGER REFERENCES staff(id) ON DELETE CASCADE,
+      staff_id INTEGER,
       restaurant_id UUID REFERENCES restaurants(id) ON DELETE CASCADE,
       fcm_token TEXT NOT NULL,
       platform VARCHAR(20) DEFAULT 'android',
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(staff_id, fcm_token)
+      UNIQUE(restaurant_id, fcm_token)
     )
   `);
   await query(`CREATE INDEX IF NOT EXISTS idx_staff_devices_restaurant ON staff_devices(restaurant_id)`);
@@ -35,14 +35,19 @@ router.post('/register', authenticateToken, async (req, res) => {
     const staffId = req.user.staffId || req.user.id;
     const restaurantId = req.user.restaurantId || req.user.restaurant_id;
 
+    if (!staffId || !restaurantId) {
+      return res.status(400).json({ error: 'Invalid token — missing staffId or restaurantId', user: req.user });
+    }
+
     await query(`
       INSERT INTO staff_devices (staff_id, restaurant_id, fcm_token, platform, updated_at)
       VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (staff_id, fcm_token)
+      ON CONFLICT (restaurant_id, fcm_token)
       DO UPDATE SET platform = $4, updated_at = NOW()
     `, [staffId, restaurantId, fcmToken, platform]);
 
-    res.json({ success: true });
+    console.log(`📱 FCM token registered: staff=${staffId} restaurant=${restaurantId} platform=${platform}`);
+    res.json({ success: true, staffId, restaurantId });
   } catch (e) {
     console.error('Device register error:', e);
     res.status(500).json({ error: e.message });
@@ -65,8 +70,29 @@ export async function getRestaurantFcmTokens(restaurantId) {
 
 export default router;
 
-// Test endpoint — send a test push to all devices of a restaurant
-router.post('/test-push/:restaurantId', async (req, res) => {
+// Direct register — no auth needed, uses restaurantId from body (for APK registration)
+router.post('/register-direct', async (req, res) => {
+  try {
+    const { fcmToken, restaurantId, staffId = 0, platform = 'android' } = req.body;
+    if (!fcmToken || !restaurantId) return res.status(400).json({ error: 'fcmToken and restaurantId required' });
+
+    // Use 0 as placeholder staffId if not authenticated
+    await query(`
+      INSERT INTO staff_devices (staff_id, restaurant_id, fcm_token, platform, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (restaurant_id, fcm_token)
+      DO UPDATE SET platform = $4, updated_at = NOW()
+    `, [staffId || 0, restaurantId, fcmToken, platform]);
+
+    console.log(`📱 FCM token registered directly: restaurant=${restaurantId} platform=${platform}`);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Direct register error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Test endpoint — send a test push to all devices of a restaurantrouter.post('/test-push/:restaurantId', async (req, res) => {
   try {
     const { restaurantId } = req.params;
     const tokens = await getRestaurantFcmTokens(restaurantId);
