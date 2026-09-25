@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, ClipboardList, User, Printer, Trash2, Settings, RefreshCw, Wifi, WifiOff, History, TrendingUp } from 'lucide-react';
 import { smartPrint, testBluetoothPrinter, scanBluetoothDevices, stopBluetoothScan, getPairedBluetoothDevices, connectBluetoothPrinter, disconnectBluetoothPrinter, getBluetoothConnectionState, addBluetoothConnectionListener, addBluetoothScanListener, requestBluetoothPairing } from '../utils/qzPrint.js';
 import { buildKOTHTML, buildBillHTML } from '../utils/printTemplates.js';
+import { requestNotificationPermission, showNewOrderNotification, playOrderSound } from '../utils/orderNotification.js';
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
@@ -142,6 +143,8 @@ export default function StaffDashboard() {
 
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);
+    // Request notification permission
+    requestNotificationPermission();
     // Don't auto-scan BT on startup — only scan when user taps the button in Settings
     // But DO auto-reconnect to saved printer silently
     if (window.Capacitor?.isNativePlatform?.()) {
@@ -158,8 +161,25 @@ export default function StaffDashboard() {
     newSocket.emit('join-restaurant', s.restaurant_id);
 
     // Periodic refresh every 15s — catches any missed socket events (QR orders etc)
-    const refreshInterval = setInterval(() => {
-      if (!stopped) fetchOrders(s.restaurant_id);
+    const refreshInterval = setInterval(async () => {
+      if (stopped) return;
+      try {
+        const { data } = await axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 8000 });
+        setOrders(prev => {
+          // Find genuinely new orders not yet in state
+          const newOnes = data.filter(o => !prev.find(x => x._id === o._id));
+          if (newOnes.length > 0) {
+            // Notify for each new order found via polling
+            newOnes.forEach(o => {
+              playOrderSound();
+              showNewOrderNotification(o);
+            });
+            return [...newOnes, ...prev];
+          }
+          // Update existing orders in case status changed
+          return data;
+        });
+      } catch (_) {}
     }, 15000);
     newSocket.on('order-updated', (o) => {
       if (!o.items || o.items.length === 0) { fetchOrders(s.restaurant_id); return; }
@@ -193,6 +213,9 @@ export default function StaffDashboard() {
           if (prev.find(x => x._id === o._id)) return prev;
           return [o, ...prev];
         });
+        // Show notification + sound for every new order (QR or staff)
+        playOrderSound();
+        showNewOrderNotification(o);
         // If items missing, also fetch to get full data
         if (!o.items || o.items.length === 0) {
           fetchOrders(s.restaurant_id);
