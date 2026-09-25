@@ -21,6 +21,7 @@ import feedbackRoutes from './routes/feedback.js';
 import printerSettingsRoutes from './routes/printerSettings.js';
 import discountRoutes from './routes/discounts.js';
 import staffRoutes from './routes/staff.js';
+import deviceRoutes from './routes/devices.js';
 
 dotenv.config();
 
@@ -109,6 +110,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/printer-settings', printerSettingsRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/devices', deviceRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {

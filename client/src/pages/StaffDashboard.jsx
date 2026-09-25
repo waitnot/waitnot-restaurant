@@ -4,6 +4,22 @@ import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, Clipboar
 import { smartPrint, testBluetoothPrinter, scanBluetoothDevices, stopBluetoothScan, getPairedBluetoothDevices, connectBluetoothPrinter, disconnectBluetoothPrinter, getBluetoothConnectionState, addBluetoothConnectionListener, addBluetoothScanListener, requestBluetoothPairing } from '../utils/qzPrint.js';
 import { buildKOTHTML, buildBillHTML } from '../utils/printTemplates.js';
 import { requestNotificationPermission, showNewOrderNotification, playOrderSound } from '../utils/orderNotification.js';
+
+// Register FCM token with server (for background push when app is closed)
+async function registerFcmToken(restaurantId) {
+  if (!window.Capacitor?.isNativePlatform?.()) return;
+  try {
+    const { registerPlugin } = await import('@capacitor/core');
+    const FcmToken = registerPlugin('FcmToken');
+    const { token } = await FcmToken.getToken();
+    if (!token) return;
+    const axios = (await import('../config/axios.js')).default;
+    await axios.post('/api/devices/register', { fcmToken: token, platform: 'android' });
+    console.log('FCM token registered');
+  } catch (e) {
+    console.warn('FCM register error:', e.message);
+  }
+}
 import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
@@ -143,8 +159,9 @@ export default function StaffDashboard() {
 
     setIsMobile(window.Capacitor?.isNativePlatform?.());
     loadPrinterSettings(s.restaurant_id);
-    // Request notification permission
+    // Request notification permission + register FCM token
     requestNotificationPermission();
+    registerFcmToken(s.restaurant_id);
     // Don't auto-scan BT on startup — only scan when user taps the button in Settings
     // But DO auto-reconnect to saved printer silently
     if (window.Capacitor?.isNativePlatform?.()) {

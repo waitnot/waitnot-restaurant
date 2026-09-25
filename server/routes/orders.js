@@ -1,4 +1,6 @@
 import express from 'express';
+import { getRestaurantFcmTokens } from '../routes/devices.js';
+import { sendPushNotification } from '../fcm.js';
 import { orderDB } from '../db.js';
 import { query, withTransaction } from '../database/connection.js';
 
@@ -78,6 +80,27 @@ router.post('/', checkOrderRateLimit, async (req, res) => {
         // Signal the print-server device to print KOT
         io.to(`restaurant-${order.restaurantId}`).emit('print-kot', { order });
         console.log('📡 Real-time notification sent to restaurant and admin');
+
+        // Send FCM push to all staff devices (works when app is closed)
+        getRestaurantFcmTokens(order.restaurantId).then(tokens => {
+          if (tokens.length === 0) return;
+          const slot = order.orderType === 'room' ? `Room ${order.roomNumber}`
+            : order.tableNumber ? `Table ${order.tableNumber}`
+            : order.orderType === 'takeaway' ? 'Takeaway'
+            : order.orderType === 'delivery' ? 'Delivery' : 'New Order';
+          const itemCount = (order.items || []).reduce((s, i) => s + (i.quantity || 1), 0);
+          const itemNames = (order.items || []).slice(0, 2).map(i => i.name).join(', ');
+          sendPushNotification(tokens, {
+            title: `🍽 New Order — ${slot}`,
+            body: `${itemCount} item${itemCount !== 1 ? 's' : ''}: ${itemNames}`,
+            data: {
+              orderId: order._id || '',
+              restaurantId: order.restaurantId || '',
+              tableInfo: `Rs. ${order.totalAmount || 0}`,
+              type: 'new_order',
+            }
+          });
+        }).catch(() => {});
       }
     } catch (socketError) {
       console.log('⚠️ Socket notification failed:', socketError.message);

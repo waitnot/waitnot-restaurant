@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(EscPosPlugin.class);
         registerPlugin(NotificationPlugin.class);
+        registerPlugin(FcmPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
