@@ -3,7 +3,7 @@
  * Staff devices register their FCM token here so the server can push notifications.
  */
 import express from 'express';
-import { query } from '../db.js';
+import { query } from '../database/connection.js';
 import { verifyStaffToken } from '../middleware/auth.js';
 
 const router = express.Router();
