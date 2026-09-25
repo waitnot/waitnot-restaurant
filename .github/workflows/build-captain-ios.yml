@@ -77,6 +77,7 @@ jobs:
 
       - name: Build iOS archive (unsigned)
         run: |
+          set -o pipefail
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
@@ -87,14 +88,30 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            archive 2>&1 | tail -30
+            archive 2>&1 | tee /tmp/xcode_build.log | tail -50
+          echo "xcodebuild exit: $?"
         working-directory: client/ios/App
 
       - name: Package IPA from archive
         run: |
+          echo "=== Archive contents ==="
+          find build/App.xcarchive -name "*.app" -type d 2>/dev/null || echo "No .app found"
+          ls build/App.xcarchive/ 2>/dev/null || echo "No archive found"
+          ls build/App.xcarchive/Products/ 2>/dev/null || echo "No Products"
+          ls build/App.xcarchive/Products/Applications/ 2>/dev/null || echo "No Applications"
+
+          # Find the .app wherever it is
+          APP_PATH=$(find build/App.xcarchive -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app found in archive"
+            exit 1
+          fi
+          echo "Found app at: $APP_PATH"
+
           mkdir -p build/Payload
-          cp -r "build/App.xcarchive/Products/Applications/App.app" build/Payload/
+          cp -r "$APP_PATH" build/Payload/
           cd build && zip -r WaitNot-Captain-iOS.ipa Payload/
+          echo "IPA created successfully"
         working-directory: client
 
       - name: Upload iOS IPA
