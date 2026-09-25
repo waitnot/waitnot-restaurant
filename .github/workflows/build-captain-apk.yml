@@ -8,6 +8,7 @@ on:
       - 'client/android/**'
       - 'client/vite.captain.config.js'
       - 'client/index-captain.html'
+      - 'client/package.json'
       - '.github/workflows/build-captain-apk.yml'
   workflow_dispatch: # allow manual trigger
 
