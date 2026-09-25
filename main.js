@@ -502,34 +502,38 @@ function startOrderPolling() {
           if (!order._id) continue;
           if (printedKotIds.has(order._id)) continue;
 
-          if (!pollingStarted) {
-            // First poll — just record existing orders, don't print them
-            knownOrderIds.add(order._id);
-            continue;
-          }
+          // Use order creation time to decide if it's new
+          // Print KOT if order was created within the last 60 seconds
+          const createdAt = new Date(order.createdAt || Date.now()).getTime();
+          const ageSeconds = (Date.now() - createdAt) / 1000;
+          const isRecent = ageSeconds <= 60;
 
-          if (!knownOrderIds.has(order._id)) {
-            // Genuinely new order
-            knownOrderIds.add(order._id);
-            printedKotIds.add(order._id);
-            console.log(`🖨️ Auto-KOT → "${printer}" | #${order.orderNumber} T${order.tableNumber}`);
+          // Always track order ID
+          const wasKnown = knownOrderIds.has(order._id);
+          knownOrderIds.add(order._id);
 
-            const kotData = {
-              restaurantName,
-              orderId       : (order._id || '').slice(-8).toUpperCase(),
-              tableNumber   : order.tableNumber,
-              roomNumber    : order.roomNumber,
-              orderType     : order.orderType || 'dine-in',
-              customerName  : order.customerName,
-              deliveryAddress: order.deliveryAddress,
-              items         : order.items || [],
-              time          : new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}),
-            };
+          // Skip if we've seen it before OR it's older than 60 seconds
+          if (wasKnown || !isRecent) continue;
 
-            printKOT(kotData, printer)
-              .then(r  => console.log(r && r.success ? `✅ KOT #${order.orderNumber}` : `⚠ KOT fail: ${JSON.stringify(r)}`))
-              .catch(e => console.error('KOT error:', e.message));
-          }
+          // New recent order — print KOT
+          printedKotIds.add(order._id);
+          console.log(`🖨️ Auto-KOT → "${printer}" | #${order.orderNumber} T${order.tableNumber} (${ageSeconds.toFixed(0)}s old)`);
+
+          const kotData = {
+            restaurantName,
+            orderId        : (order._id || '').slice(-8).toUpperCase(),
+            tableNumber    : order.tableNumber,
+            roomNumber     : order.roomNumber,
+            orderType      : order.orderType || 'dine-in',
+            customerName   : order.customerName,
+            deliveryAddress: order.deliveryAddress,
+            items          : order.items || [],
+            time           : new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}),
+          };
+
+          printKOT(kotData, printer)
+            .then(r  => console.log(r && r.success ? `✅ KOT #${order.orderNumber}` : `⚠ KOT fail: ${JSON.stringify(r)}`))
+            .catch(e => console.error('KOT error:', e.message));
         }
       } else {
         activeOrders.forEach(o => o._id && knownOrderIds.add(o._id));

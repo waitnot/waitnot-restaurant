@@ -3,37 +3,28 @@ const { contextBridge, ipcRenderer } = require('electron');
 const API = 'https://waitnot-restaurant.onrender.com';
 
 // ═══════════════════════════════════════════════════════════════════
-// 1. XHR INTERCEPTOR
-//    Patches XMLHttpRequest BEFORE React/Axios loads.
-//    Intercepts:
-//      POST /api/orders          → auto-print KOT  (if enabled)
-//      POST /api/orders/batch-update → auto-print Bill (if enabled)
-//      GET  /api/orders/restaurant/:id?status=active → inject polled orders
+// 1. XHR INTERCEPTOR — only used for UI order refresh injection
+//    Auto-print is handled entirely in main.js via Node.js polling.
+//    This only intercepts GET active-orders to inject polled data.
 // ═══════════════════════════════════════════════════════════════════
 ;(function() {
   const NativeXHR = XMLHttpRequest;
 
   function PatchedXHR() {
-    const xhr  = new NativeXHR();
-    let _method = 'GET';
-    let _url    = '';
-    let _reqBody = null;
+    const xhr    = new NativeXHR();
+    let _method  = 'GET';
+    let _url     = '';
 
-    /* ── open ─────────────────────────────────────── */
     const _open = xhr.open.bind(xhr);
     this.open = function(method, url) {
       _method = (method || 'GET').toUpperCase();
-      // Normalise relative URL → absolute
-      _url = (typeof url === 'string' && url.startsWith('/')) ? API + url : (url || '');
+      _url    = (typeof url === 'string' && url.startsWith('/')) ? API + url : (url || '');
       _open.apply(xhr, arguments);
     };
 
-    /* ── send ─────────────────────────────────────── */
     const _send = xhr.send.bind(xhr);
     this.send = function(body) {
-      _reqBody = body;
-
-      // ── A: inject polled orders into GET active-orders ──────────
+      // Inject polled orders into GET active-orders so React UI refreshes
       const inject    = window.__wn_inject_orders;
       const injectRid = window.__wn_inject_rid;
       if (
@@ -54,61 +45,28 @@ const API = 'https://waitnot-restaurant.onrender.com';
         return;
       }
 
-      // ── B: intercept POST /api/orders → auto-print KOT ──────────
-      if (_method === 'POST' && _url.endsWith('/api/orders')) {
-        _send.apply(xhr, arguments);
-        xhr.addEventListener('load', () => {
-          try {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              const order = JSON.parse(xhr.responseText);
-              ipcRenderer.invoke('auto-print-kot', { order }).catch(() => {});
-            }
-          } catch {}
-        });
-        return;
-      }
-
-      // ── C: intercept POST /api/orders/batch-update → auto-print Bill ─
-      if (_method === 'POST' && _url.includes('/api/orders/batch-update')) {
-        // Capture the orderIds before sending
-        let orderIds = [];
-        try { orderIds = JSON.parse(_reqBody || '{}').orderIds || []; } catch {}
-        _send.apply(xhr, arguments);
-        xhr.addEventListener('load', () => {
-          try {
-            if (xhr.status >= 200 && xhr.status < 300 && orderIds.length > 0) {
-              ipcRenderer.invoke('auto-print-bill', { orderIds }).catch(() => {});
-            }
-          } catch {}
-        });
-        return;
-      }
-
       _send.apply(xhr, arguments);
     };
 
-    /* ── forward all other XHR props ─────────────── */
-    const forward = [
+    // Forward all XHR properties
+    const fwd = [
       'abort','getAllResponseHeaders','getResponseHeader','overrideMimeType',
       'setRequestHeader','timeout','withCredentials','responseType','upload',
       'onloadstart','onprogress','onabort','onerror','onload',
       'ontimeout','onloadend','onreadystatechange',
       'addEventListener','removeEventListener','dispatchEvent',
     ];
-    forward.forEach(p => {
+    fwd.forEach(p => {
       if (p in this) return;
       if (typeof xhr[p] === 'function') {
         this[p] = xhr[p].bind(xhr);
       } else {
         Object.defineProperty(this, p, {
-          get: () => xhr[p],
-          set: v  => { xhr[p] = v; },
-          configurable: true,
+          get: () => xhr[p], set: v => { xhr[p] = v; }, configurable: true,
         });
       }
     });
 
-    // Mirror readyState changes
     xhr.onreadystatechange = () => {
       if (typeof this.onreadystatechange === 'function') this.onreadystatechange();
     };
@@ -124,9 +82,7 @@ const API = 'https://waitnot-restaurant.onrender.com';
 })();
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. SOCKET.IO FIX
-//    Bundle has io("") → connects to waitnot://app (wrong).
-//    Patch to always use the real server.
+// 2. SOCKET.IO FIX — bundle has io("") which hits wrong origin
 // ═══════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   let n = 0;
@@ -135,7 +91,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const orig = window.io;
       window.io = function(url, opts) {
         const u = (!url || url === '' || url === '/') ? API : url;
-        console.log('[WaitNot] Socket →', u);
+        console.log('[WaitNot] Socket.IO →', u);
         const sock = orig(u, opts);
         sock.on('connect', () => {
           window.__wn_sock = sock;
@@ -155,10 +111,8 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// 3. POLLED ORDERS RECEIVER
-//    main.js polls every 3s from Node. When data changes it fires
-//    __waitnot_orders__ here. We inject it via XHR interceptor or
-//    socket callbacks.
+// 3. POLLED ORDERS RECEIVER — main.js fires __waitnot_orders__
+//    Injects into React state via XHR interceptor or socket handlers
 // ═══════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('__waitnot_orders__', (ev) => {
@@ -169,7 +123,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const rid = staffData.restaurant_id;
       if (!rid) return;
 
-      // Try socket handlers first (React's own listener)
+      // Try socket handlers first (fastest path)
       if (window.__wn_sock) {
         const cbs = (window.__wn_sock._callbacks || {})['$order-updated'] || [];
         if (cbs.length > 0) {
@@ -178,7 +132,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Fallback: inject via XHR on next React fetch
+      // Fallback: XHR interceptor will serve data on next Axios poll
       window.__wn_inject_orders = orders;
       window.__wn_inject_rid    = rid;
       document.dispatchEvent(new Event('visibilitychange'));
@@ -187,19 +141,17 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// 4. EXPOSE electronAPI
+// 4. electronAPI
 // ═══════════════════════════════════════════════════════════════════
 contextBridge.exposeInMainWorld('electronAPI', {
-  getVersion     : () => ipcRenderer.invoke('app-version'),
-  showMessageBox : (o) => ipcRenderer.invoke('show-message-box', o),
-  isElectron     : true,
+  getVersion      : () => ipcRenderer.invoke('app-version'),
+  showMessageBox  : (o) => ipcRenderer.invoke('show-message-box', o),
+  isElectron      : true,
 
-  // Printing
-  printKOT    : (data, p) => ipcRenderer.invoke('print-kot',   { data, printerName: p }),
-  printBill   : (data, p) => ipcRenderer.invoke('print-bill',  { data, printerName: p }),
-  silentPrint : (html, p) => ipcRenderer.invoke('silent-print',{ html, printerName: p }),
+  printKOT        : (data, p) => ipcRenderer.invoke('print-kot',    { data, printerName: p }),
+  printBill       : (data, p) => ipcRenderer.invoke('print-bill',   { data, printerName: p }),
+  silentPrint     : (html, p) => ipcRenderer.invoke('silent-print', { html, printerName: p }),
 
-  // Printer management
   getPrinters         : ()  => ipcRenderer.invoke('get-printers'),
   getPrinterSettings  : ()  => ipcRenderer.invoke('get-printer-settings'),
   setPrinter          : (o) => ipcRenderer.invoke('set-printer', o),
