@@ -4,7 +4,7 @@
  */
 import express from 'express';
 import { query } from '../database/connection.js';
-import { verifyStaffToken } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -27,13 +27,13 @@ async function ensureDeviceTable() {
 ensureDeviceTable().catch(e => console.warn('Device table init:', e.message));
 
 // Register or update FCM token for logged-in staff
-router.post('/register', verifyStaffToken, async (req, res) => {
+router.post('/register', authenticateToken, async (req, res) => {
   try {
     const { fcmToken, platform = 'android' } = req.body;
     if (!fcmToken) return res.status(400).json({ error: 'fcmToken required' });
 
-    const staffId = req.staff.id;
-    const restaurantId = req.staff.restaurant_id;
+    const staffId = req.user.staffId || req.user.id;
+    const restaurantId = req.user.restaurantId || req.user.restaurant_id;
 
     await query(`
       INSERT INTO staff_devices (staff_id, restaurant_id, fcm_token, platform, updated_at)
