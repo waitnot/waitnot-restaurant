@@ -232,12 +232,12 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { staffId: staff.id, restaurantId: staff.restaurant_id },
       process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
+      { expiresIn: '30d' }
     );
     
     // Store session
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    expiresAt.setDate(expiresAt.getDate() + 30);
     
     await query(
       'INSERT INTO staff_sessions (staff_id, session_token, expires_at) VALUES ($1, $2, $3)',

@@ -68,8 +68,9 @@ export default function StaffDashboard() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [orderPlacing, setOrderPlacing] = useState(false);
   const [orderContext, setOrderContext] = useState({ orderType: 'dine-in', tableNumber: null, roomNumber: null, customerName: '', customerPhone: '', deliveryAddress: '', packagingCharge: 0, deliveryCharge: 0 });
-  const [editingPriceId, setEditingPriceId] = useState(null); // id of cart item being price-edited
-  const [extraCharge, setExtraCharge] = useState({ label: '', amount: 0 }); // extra charge at billing
+  const [editingPriceId, setEditingPriceId] = useState(null);
+  const [extraCharge, setExtraCharge] = useState({ label: '', amount: 0 });
+  const [editOrderModal, setEditOrderModal] = useState(null); // { order, item, itemIndex }
   const [favourites, setFavourites] = useState(() => {
     try { return JSON.parse(localStorage.getItem('staff_favourites') || '[]'); } catch { return []; }
   });
@@ -650,6 +651,43 @@ export default function StaffDashboard() {
   const updateOrderStatus = async (id, status) => {
     await axios.patch(`${API}/api/orders/${id}/status`, { status });
     fetchOrders(staff.restaurant_id);
+  };
+
+  // Edit/delete individual items in a running order
+  const updateOrderItem = async (orderId, updatedItems) => {
+    try {
+      const newTotal = updatedItems.reduce((s, i) => s + i.price * i.quantity, 0);
+      await axios.patch(`${API}/api/orders/${orderId}/items`, { items: updatedItems, totalAmount: newTotal });
+      fetchOrders(staff.restaurant_id);
+      showToast('Order updated');
+    } catch (e) {
+      showToast('Failed to update order', 'error');
+    }
+  };
+
+  const deleteOrderItem = (order, itemIndex) => {
+    const updatedItems = order.items.filter((_, i) => i !== itemIndex);
+    if (updatedItems.length === 0) {
+      setConfirmModal({
+        message: 'This is the last item. Delete the entire order?',
+        onConfirm: async () => {
+          setConfirmModal(null);
+          await axios.delete(`${API}/api/orders/${order._id}`);
+          fetchOrders(staff.restaurant_id);
+          showToast('Order deleted');
+        }
+      });
+      return;
+    }
+    updateOrderItem(order._id, updatedItems);
+  };
+
+  const changeItemQty = (order, itemIndex, delta) => {
+    const updatedItems = order.items.map((item, i) => {
+      if (i !== itemIndex) return item;
+      return { ...item, quantity: Math.max(1, item.quantity + delta) };
+    });
+    updateOrderItem(order._id, updatedItems);
   };
 
   const cancelOrders = async (ordersToCancel, label) => {
@@ -1357,10 +1395,17 @@ export default function StaffDashboard() {
                             <p className="font-bold text-red-500 text-lg">₹{total}</p>
                           </div>
                           <div className="px-4 py-2 space-y-1">
-                            {Object.entries(items).map(([name, d]) => (
-                              <div key={name} className="flex justify-between text-sm text-gray-600">
-                                <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
-                              </div>
+                            {tableOrders.map(order => (
+                              order.items.map((item, idx) => (
+                                <div key={`${order._id}-${idx}`} className="flex items-center gap-1 py-1 border-b border-gray-50 last:border-0">
+                                  <span className="flex-1 text-xs text-gray-700 truncate">{item.name}</span>
+                                  <button onClick={() => changeItemQty(order, idx, -1)} className="w-6 h-6 rounded bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-bold">−</button>
+                                  <span className="w-5 text-center text-xs font-semibold">{item.quantity}</span>
+                                  <button onClick={() => changeItemQty(order, idx, 1)} className="w-6 h-6 rounded bg-red-50 text-red-500 flex items-center justify-center text-xs font-bold">+</button>
+                                  <span className="w-12 text-right text-xs text-gray-500">₹{item.price * item.quantity}</span>
+                                  <button onClick={() => deleteOrderItem(order, idx)} className="w-5 h-5 text-red-400 hover:text-red-600 flex items-center justify-center ml-1"><X size={11} /></button>
+                                </div>
+                              ))
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
@@ -1402,10 +1447,17 @@ export default function StaffDashboard() {
                             <p className="font-bold text-orange-500 text-lg">₹{total}</p>
                           </div>
                           <div className="px-4 py-2 space-y-1">
-                            {Object.entries(items).map(([name, d]) => (
-                              <div key={name} className="flex justify-between text-sm text-gray-600">
-                                <span>{name} × {d.qty}</span><span>₹{d.price * d.qty}</span>
-                              </div>
+                            {roomOrders.map(order => (
+                              order.items.map((item, idx) => (
+                                <div key={`${order._id}-${idx}`} className="flex items-center gap-1 py-1 border-b border-gray-50 last:border-0">
+                                  <span className="flex-1 text-xs text-gray-700 truncate">{item.name}</span>
+                                  <button onClick={() => changeItemQty(order, idx, -1)} className="w-6 h-6 rounded bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-bold">−</button>
+                                  <span className="w-5 text-center text-xs font-semibold">{item.quantity}</span>
+                                  <button onClick={() => changeItemQty(order, idx, 1)} className="w-6 h-6 rounded bg-orange-50 text-orange-500 flex items-center justify-center text-xs font-bold">+</button>
+                                  <span className="w-12 text-right text-xs text-gray-500">₹{item.price * item.quantity}</span>
+                                  <button onClick={() => deleteOrderItem(order, idx)} className="w-5 h-5 text-red-400 hover:text-red-600 flex items-center justify-center ml-1"><X size={11} /></button>
+                                </div>
+                              ))
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
@@ -1441,9 +1493,14 @@ export default function StaffDashboard() {
                             <p className={`font-bold text-lg ${isTakeaway ? 'text-orange-500' : 'text-blue-500'}`}>₹{order.totalAmount}</p>
                           </div>
                           <div className="px-4 py-2 space-y-1">
-                            {order.items.map((item, i) => (
-                              <div key={i} className="flex justify-between text-sm text-gray-600">
-                                <span>{item.name} × {item.quantity}</span><span>₹{item.price * item.quantity}</span>
+                            {order.items.map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-1 py-1 border-b border-gray-50 last:border-0">
+                                <span className="flex-1 text-xs text-gray-700 truncate">{item.name}</span>
+                                <button onClick={() => changeItemQty(order, idx, -1)} className="w-6 h-6 rounded bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-bold">−</button>
+                                <span className="w-5 text-center text-xs font-semibold">{item.quantity}</span>
+                                <button onClick={() => changeItemQty(order, idx, 1)} className="w-6 h-6 rounded bg-blue-50 text-blue-500 flex items-center justify-center text-xs font-bold">+</button>
+                                <span className="w-12 text-right text-xs text-gray-500">₹{item.price * item.quantity}</span>
+                                <button onClick={() => deleteOrderItem(order, idx)} className="w-5 h-5 text-red-400 hover:text-red-600 flex items-center justify-center ml-1"><X size={11} /></button>
                               </div>
                             ))}
                           </div>
