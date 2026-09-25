@@ -1,21 +1,15 @@
-require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
-
 platform :ios, '15.0'
 use_frameworks!
 
 project 'App.xcodeproj'
 
-# workaround to avoid Xcode caching of Pods that requires
-# temporary direction of Temp folder into /tmp/
 install! 'cocoapods', :disable_input_output_paths => true
 
-def capacitor_pods
-  pod 'Capacitor', :path => '../../node_modules/@capacitor/core'
-  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/core'
-end
-
 target 'App' do
-  capacitor_pods
+  # Capacitor from CocoaPods (matches @capacitor/core 8.5.0)
+  pod 'Capacitor', '8.5.0'
+  pod 'CapacitorCordova', '8.5.0'
+
   # Firebase for push notifications
   pod 'Firebase/Core'
   pod 'Firebase/Messaging'
