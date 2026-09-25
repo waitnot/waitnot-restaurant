@@ -1,0 +1,18 @@
+[
+	{
+		"pkg": "@ascentio-it/capacitor-bluetooth-serial",
+		"classpath": "com.bluetoothserial.plugin.BluetoothSerialPlugin"
+	},
+	{
+		"pkg": "com.waitnot.captain",
+		"classpath": "com.waitnot.captain.FcmPlugin"
+	},
+	{
+		"pkg": "com.waitnot.captain",
+		"classpath": "com.waitnot.captain.NotificationPlugin"
+	},
+	{
+		"pkg": "com.waitnot.captain",
+		"classpath": "com.waitnot.captain.SecureStoragePlugin"
+	}
+]

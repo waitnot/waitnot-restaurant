@@ -9,24 +9,29 @@ import { secureGet, secureRemove } from '../utils/secureStorage.js';
 // Register FCM token with server (for background push when app is closed)
 async function registerFcmToken(restaurantId) {
   if (!window.Capacitor?.isNativePlatform?.()) return;
-  try {
-    const ax = (await import('../config/axios.js')).default;
-    let token = null;
 
-    // Try via Capacitor plugin bridge (works in APK)
+  const doRegister = async () => {
     let plugin = window.Capacitor?.Plugins?.FcmToken;
     if (!plugin) {
       const { registerPlugin } = await import('@capacitor/core');
       plugin = registerPlugin('FcmToken');
     }
-    const result = await plugin.getToken();
-    token = result?.token;
+    if (!plugin) throw new Error('FcmToken plugin not available on bridge');
 
-    if (!token) { console.warn('FCM: no token returned'); return; }
-    await ax.post(`${API}/api/devices/register-direct`, { fcmToken: token, restaurantId, platform: 'android' });
-    console.log('✅ FCM token registered:', token.substring(0, 20) + '...');
+    // Use Java-side HTTP registration — most reliable, works even if axios fails
+    const result = await plugin.registerWithServer({ restaurantId });
+    console.log('✅ FCM registered via Java:', result?.tokenPrefix);
+  };
+
+  // Try immediately, then retry after delay if bridge not ready yet
+  try {
+    await doRegister();
   } catch (e) {
-    console.warn('FCM register error:', e.message);
+    console.warn('FCM first attempt failed, retrying in 4s:', e?.message);
+    setTimeout(async () => {
+      try { await doRegister(); }
+      catch (e2) { console.error('FCM retry failed:', e2?.message); }
+    }, 4000);
   }
 }
 import axios from '../config/axios.js';
