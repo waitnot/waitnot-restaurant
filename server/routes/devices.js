@@ -126,3 +126,24 @@ router.get('/fcm-status', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// List registered devices for a restaurant (debug)
+router.get('/list/:restaurantId', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT staff_id, fcm_token, platform, updated_at FROM staff_devices WHERE restaurant_id = $1 ORDER BY updated_at DESC`,
+      [req.params.restaurantId]
+    );
+    res.json({
+      count: result.rows.length,
+      devices: result.rows.map(r => ({
+        staffId: r.staff_id,
+        tokenPrefix: r.fcm_token?.substring(0, 20) + '...',
+        platform: r.platform,
+        updatedAt: r.updated_at
+      }))
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});

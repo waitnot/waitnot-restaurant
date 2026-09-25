@@ -16,22 +16,20 @@ async function registerFcmToken(restaurantId) {
       const { registerPlugin } = await import('@capacitor/core');
       plugin = registerPlugin('FcmToken');
     }
-    if (!plugin) throw new Error('FcmToken plugin not available on bridge');
-
-    // Use Java-side HTTP registration — most reliable, works even if axios fails
+    if (!plugin) throw new Error('FcmToken plugin not available');
     const result = await plugin.registerWithServer({ restaurantId });
-    console.log('✅ FCM registered via Java:', result?.tokenPrefix);
+    console.log('✅ FCM registered via Java HTTP:', result);
+    return result;
   };
 
-  // Try immediately, then retry after delay if bridge not ready yet
   try {
     await doRegister();
   } catch (e) {
-    console.warn('FCM first attempt failed, retrying in 4s:', e?.message);
+    console.warn('FCM first attempt failed, retrying in 3s:', e?.message);
     setTimeout(async () => {
       try { await doRegister(); }
-      catch (e2) { console.error('FCM retry failed:', e2?.message); }
-    }, 4000);
+      catch (e2) { console.error('FCM retry also failed:', e2?.message); }
+    }, 3000);
   }
 }
 import axios from '../config/axios.js';

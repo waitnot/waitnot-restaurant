@@ -10,7 +10,7 @@ on:
       - 'client/index-captain.html'
       - 'client/package.json'
       - '.github/workflows/build-captain-apk.yml'
-  workflow_dispatch: # allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build-apk:
@@ -48,6 +48,18 @@ jobs:
 
       - name: Sync Capacitor
         run: npx cap sync android
+        working-directory: client
+
+      - name: Patch capacitor.plugins.json with custom plugins
+        run: |
+          cat > android/app/src/main/assets/capacitor.plugins.json << 'EOF'
+          [
+            {"pkg": "@ascentio-it/capacitor-bluetooth-serial", "classpath": "com.bluetoothserial.plugin.BluetoothSerialPlugin"},
+            {"pkg": "com.waitnot.captain", "classpath": "com.waitnot.captain.FcmPlugin"},
+            {"pkg": "com.waitnot.captain", "classpath": "com.waitnot.captain.NotificationPlugin"},
+            {"pkg": "com.waitnot.captain", "classpath": "com.waitnot.captain.SecureStoragePlugin"}
+          ]
+          EOF
         working-directory: client
 
       - name: Set Android SDK path
