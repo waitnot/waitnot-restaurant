@@ -9,27 +9,25 @@ import { secureGet, secureRemove } from '../utils/secureStorage.js';
 // Register FCM token with server (for background push when app is closed)
 async function registerFcmToken(restaurantId) {
   if (!window.Capacitor?.isNativePlatform?.()) return;
-
-  const doRegister = async () => {
-    let plugin = window.Capacitor?.Plugins?.FcmToken;
-    if (!plugin) {
-      const { registerPlugin } = await import('@capacitor/core');
-      plugin = registerPlugin('FcmToken');
-    }
-    if (!plugin) throw new Error('FcmToken plugin not available');
-    const result = await plugin.registerWithServer({ restaurantId });
-    console.log('✅ FCM registered via Java HTTP:', result);
-    return result;
-  };
-
   try {
-    await doRegister();
+    const FcmToken = window.Capacitor.Plugins.FcmToken;
+    if (!FcmToken) {
+      const { registerPlugin } = await import('@capacitor/core');
+      const p = registerPlugin('FcmToken');
+      const { token } = await p.getToken();
+      if (!token) return;
+      const ax = (await import('../config/axios.js')).default;
+      await ax.post('/api/devices/register-direct', { fcmToken: token, restaurantId, platform: 'android' });
+      console.log('FCM token registered (registerPlugin)');
+      return;
+    }
+    const { token } = await FcmToken.getToken();
+    if (!token) return;
+    const ax = (await import('../config/axios.js')).default;
+    await ax.post('/api/devices/register-direct', { fcmToken: token, restaurantId, platform: 'android' });
+    console.log('FCM token registered:', token.substring(0, 20) + '...');
   } catch (e) {
-    console.warn('FCM first attempt failed, retrying in 3s:', e?.message);
-    setTimeout(async () => {
-      try { await doRegister(); }
-      catch (e2) { console.error('FCM retry also failed:', e2?.message); }
-    }, 3000);
+    console.warn('FCM register error:', e.message);
   }
 }
 import axios from '../config/axios.js';
