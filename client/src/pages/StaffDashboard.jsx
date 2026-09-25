@@ -7,7 +7,14 @@ import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
 
-const API = '';
+const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
+const _isCapacitor = typeof window !== 'undefined' && (
+  window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:'
+);
+const _isLocalDev = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  !_isCapacitor;
+const API = _isCapacitor ? PRODUCTION_URL : (_isLocalDev ? 'http://localhost:5001' : '');
 
 export default function StaffDashboard() {
   const navigate = useNavigate();
