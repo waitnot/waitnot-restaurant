@@ -43,7 +43,35 @@ jobs:
         run: npx cap sync ios
         working-directory: client
 
-      - name: Install CocoaPods dependencies
+      - name: Overwrite Package.swift to add Firebase via SPM
+        working-directory: client/ios/App/CapApp-SPM
+        run: |
+          cat > Package.swift << 'SWIFTEOF'
+          // swift-tools-version: 5.9
+          import PackageDescription
+          let package = Package(
+            name: "CapApp-SPM",
+            platforms: [.iOS(.v15)],
+            products: [.library(name: "CapApp-SPM", targets: ["CapApp-SPM"])],
+            dependencies: [
+              .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.2"),
+              .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "11.0.0")
+            ],
+            targets: [
+              .target(
+                name: "CapApp-SPM",
+                dependencies: [
+                  .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                  .product(name: "Cordova", package: "capacitor-swift-pm"),
+                  .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+                  .product(name: "FirebaseCore", package: "firebase-ios-sdk")
+                ]
+              )
+            ]
+          )
+          SWIFTEOF
+
+      - name: Install Firebase via CocoaPods (Firebase only, no Capacitor)
         run: pod install --repo-update
         working-directory: client/ios/App
 
@@ -59,7 +87,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            archive | xcpretty || true
+            archive 2>&1 | tail -30
         working-directory: client/ios/App
 
       - name: Package IPA from archive

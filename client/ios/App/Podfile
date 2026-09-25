@@ -6,11 +6,7 @@ project 'App.xcodeproj'
 install! 'cocoapods', :disable_input_output_paths => true
 
 target 'App' do
-  # Capacitor from CocoaPods (matches @capacitor/core 8.5.0)
-  pod 'Capacitor', '8.5.0'
-  pod 'CapacitorCordova', '8.5.0'
-
-  # Firebase for push notifications
+  # Firebase for push notifications only — Capacitor comes via SPM
   pod 'Firebase/Core'
   pod 'Firebase/Messaging'
 end
