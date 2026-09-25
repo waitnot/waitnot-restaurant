@@ -4,6 +4,7 @@ import { LogOut, Plus, Minus, ShoppingCart, X, Search, UtensilsCrossed, Clipboar
 import { smartPrint, testBluetoothPrinter, scanBluetoothDevices, stopBluetoothScan, getPairedBluetoothDevices, connectBluetoothPrinter, disconnectBluetoothPrinter, getBluetoothConnectionState, addBluetoothConnectionListener, addBluetoothScanListener, requestBluetoothPairing } from '../utils/qzPrint.js';
 import { buildKOTHTML, buildBillHTML } from '../utils/printTemplates.js';
 import { requestNotificationPermission, showNewOrderNotification, playOrderSound } from '../utils/orderNotification.js';
+import { secureGet, secureRemove } from '../utils/secureStorage.js';
 
 // Register FCM token with server (for background push when app is closed)
 async function registerFcmToken(restaurantId) {
@@ -114,8 +115,27 @@ export default function StaffDashboard() {
   }, [selectedTable, orderContext]);
 
   useEffect(() => {
-    const staffData = localStorage.getItem('staffData');
-    const token = localStorage.getItem('staffToken');
+    let cleanup = () => {};
+    (async () => {
+    // Restore from SecureStorage if localStorage was cleared (cache clear on Android)
+    let staffData = localStorage.getItem('staffData');
+    let token = localStorage.getItem('staffToken');
+
+    if ((!staffData || !token) && window.Capacitor?.isNativePlatform?.()) {
+      try {
+        const [savedToken, savedData] = await Promise.all([
+          secureGet('staffToken'),
+          secureGet('staffData'),
+        ]);
+        if (savedToken && savedData) {
+          localStorage.setItem('staffToken', savedToken);
+          localStorage.setItem('staffData', savedData);
+          token = savedToken;
+          staffData = savedData;
+        }
+      } catch (_) {}
+    }
+
     if (!staffData || !token) { navigate('/staff-login'); return; }
     const s = JSON.parse(staffData);
     setStaff(s);
@@ -312,7 +332,7 @@ export default function StaffDashboard() {
         })
       : () => {};
 
-    return () => {
+    cleanup = () => {
       stopped = true;
       if (pollTimer) clearTimeout(pollTimer);
       clearInterval(refreshInterval);
@@ -320,6 +340,8 @@ export default function StaffDashboard() {
       newSocket.disconnect();
       btUnsub();
     };
+    })(); // end async IIFE
+    return () => cleanup();
   }, [navigate]);
 
   const loadPrinterSettings = (restaurantId) => {
@@ -957,7 +979,7 @@ export default function StaffDashboard() {
             <p className="font-bold text-gray-900 text-base leading-tight">{restaurant.name}</p>
             <p className="text-xs text-gray-500">{staff.name} · {staff.waiter_number || staff.role}</p>
           </div>
-          <button onClick={() => { localStorage.removeItem('staffToken'); localStorage.removeItem('staffData'); navigate('/staff-login'); }} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg">
+          <button onClick={async () => { localStorage.removeItem('staffToken'); localStorage.removeItem('staffData'); await secureRemove('staffToken'); await secureRemove('staffData'); navigate('/staff-login'); }} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg">
             <LogOut size={18} />
           </button>
         </div>

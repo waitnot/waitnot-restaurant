@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import axios from '../config/axios.js';
 import SEO from '../components/SEO';
+import { secureSet } from '../utils/secureStorage.js';
 
 export default function StaffLogin() {
   const navigate = useNavigate();
@@ -22,11 +23,12 @@ export default function StaffLogin() {
     try {
       const { data } = await axios.post('/api/staff/login', formData);
       
-      // Store staff data and token
+      // Store in both localStorage AND native SecureStorage (survives cache clears)
       localStorage.setItem('staffToken', data.token);
       localStorage.setItem('staffData', JSON.stringify(data.staff));
+      await secureSet('staffToken', data.token);
+      await secureSet('staffData', JSON.stringify(data.staff));
       
-      // Redirect to staff dashboard
       navigate('/staff-dashboard');
     } catch (error) {
       console.error('Staff login error:', error);

@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(EscPosPlugin.class);
         registerPlugin(NotificationPlugin.class);
         registerPlugin(FcmPlugin.class);
+        registerPlugin(SecureStoragePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
