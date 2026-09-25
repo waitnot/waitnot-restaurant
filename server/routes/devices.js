@@ -91,7 +91,7 @@ router.post('/register-direct', async (req, res) => {
     await query(`
       INSERT INTO staff_devices (staff_id, restaurant_id, fcm_token, platform, updated_at)
       VALUES ($1, $2, $3, $4, NOW())
-    `, [staffId || 0, restaurantId, fcmToken, platform]);
+    `, [staffId || null, restaurantId, fcmToken, platform]);
 
     console.log(`📱 FCM token registered: restaurant=${restaurantId} platform=${platform} token=${fcmToken.substring(0,20)}...`);
     res.json({ success: true });
