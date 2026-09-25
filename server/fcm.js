@@ -32,8 +32,23 @@ function initFirebase() {
         privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       });
     } else {
-      console.log('⚠️ Firebase not configured — push notifications disabled');
-      return null;
+      // Try local file (development only — never commit this file)
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const keyPath = path.join(process.cwd(), 'firebase-service-account.json');
+        if (fs.existsSync(keyPath)) {
+          const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+          credential = admin.credential.cert(serviceAccount);
+          console.log('✅ Firebase loaded from local service account file');
+        } else {
+          console.log('⚠️ Firebase not configured — push notifications disabled');
+          return null;
+        }
+      } catch (fe) {
+        console.log('⚠️ Firebase not configured — push notifications disabled');
+        return null;
+      }
     }
 
     admin.initializeApp({ credential });

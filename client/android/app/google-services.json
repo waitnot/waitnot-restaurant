@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "204249651117",
+    "project_id": "waitnot-dce98",
+    "storage_bucket": "waitnot-dce98.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:204249651117:android:a1402078c356cc2b287324",
+        "android_client_info": {
+          "package_name": "com.waitnot.captain"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvpSYmFQqlvX9VbzMCsNT_Rck7k6flAfI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

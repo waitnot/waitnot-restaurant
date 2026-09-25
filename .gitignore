@@ -50,3 +50,7 @@ server/data/*.json
 client/android/app/build/
 client/android/.gradle/
 client/dist-captain/
+
+# Firebase credentials (never commit these)
+server/firebase-service-account.json
+# google-services.json is safe to commit (client config only, not a private key)
