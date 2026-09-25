@@ -97,16 +97,31 @@ router.post('/test-push/:restaurantId', async (req, res) => {
   try {
     const { restaurantId } = req.params;
     const tokens = await getRestaurantFcmTokens(restaurantId);
-    if (tokens.length === 0) {
-      return res.json({ success: false, message: 'No devices registered for this restaurant', tokens: [] });
+    const { sendPushNotification, getFcmStatus } = await import('../fcm.js');
+    const status = getFcmStatus();
+    if (!status.initialized) {
+      return res.json({ success: false, message: 'Firebase not initialized', status, tokens: tokens.length });
     }
-    const { sendPushNotification } = await import('../fcm.js');
-    await sendPushNotification(tokens, {
+    if (tokens.length === 0) {
+      return res.json({ success: false, message: 'No devices registered for this restaurant', status, tokens: [] });
+    }
+    const result = await sendPushNotification(tokens, {
       title: '🧪 Test Notification',
       body: 'WaitNot push notifications are working!',
       data: { type: 'test' }
     });
-    res.json({ success: true, tokenCount: tokens.length });
+    res.json({ success: result.sent > 0, tokenCount: tokens.length, ...result, status });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// FCM status endpoint — check if Firebase is configured and working
+router.get('/fcm-status', async (req, res) => {
+  try {
+    const { getFcmStatus } = await import('../fcm.js');
+    const status = getFcmStatus();
+    res.json(status);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
