@@ -214,21 +214,24 @@ export default function StaffDashboard() {
 
     // ── Print server: QR orders + staff orders — auto-print KOT/Bill ──────
     newSocket.on('print-kot', ({ order }) => {
-      // Re-read settings fresh each time (not stale closure)
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintKitchenBill || !settings.btKitchenPrinter) return;
-      if (!window.Capacitor?.isNativePlatform?.()) return; // mobile only
+      if (!window.Capacitor?.isNativePlatform?.()) return;
 
-      // Get restaurant name from cache
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
-      const restaurantName = cached.name || s.name || 'Restaurant';
+      const restaurantName = cached.name || 'Restaurant';
 
+      // Use printKOT directly — it already handles ESC/POS + BT routing
+      const fakeOrder = {
+        ...order,
+        items: order.items || [],
+      };
+      // Trigger via the component's printKOT function by dispatching a custom event
+      // Simpler: use the qzPrint module directly
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
-        const slotLabel = order.orderType === 'room' ? `ROOM ${order.roomNumber}`
-          : order.tableNumber ? `TABLE ${order.tableNumber}`
-          : (order.orderType || 'ORDER').toUpperCase();
-        const html = `<pre>${slotLabel}\n${(order.items||[]).map(i=>`${i.name} x${i.quantity}`).join('\n')}</pre>`;
-        smartPrint(html, 'kitchen', { order, restaurantName }).catch(() => {});
+        smartPrint('', 'kitchen', { order: fakeOrder, restaurantName })
+          .then(r => console.log('Auto-KOT:', r?.method))
+          .catch(e => console.error('Auto-KOT error:', e));
       });
     });
 
@@ -238,14 +241,15 @@ export default function StaffDashboard() {
       if (!window.Capacitor?.isNativePlatform?.()) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
-      const restaurantName = cached.name || s.name || 'Restaurant';
+      const restaurantName = cached.name || 'Restaurant';
+      const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
+        : order?.orderType === 'room' ? `Room ${order.roomNumber}`
+        : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
 
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
-        const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
-          : order?.orderType === 'room' ? `Room ${order.roomNumber}`
-          : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
-        const html = `<pre>${label}\n${(order?.items||[]).map(i=>`${i.name} x${i.quantity} Rs.${i.price*i.quantity}`).join('\n')}\nTOTAL: Rs.${order?.totalAmount}</pre>`;
-        smartPrint(html, 'bill', { orders: orders||[order], tableLabel: label, total: order?.totalAmount, restaurantName }).catch(() => {});
+        smartPrint('', 'bill', { orders: orders||[order], tableLabel: label, total: order?.totalAmount, restaurantName })
+          .then(r => console.log('Auto-Bill:', r?.method))
+          .catch(e => console.error('Auto-Bill error:', e));
       });
     });
 

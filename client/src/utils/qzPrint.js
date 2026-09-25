@@ -242,7 +242,7 @@ export async function smartPrint(html, type='bill', orderData=null) {
   if (window.Capacitor?.isNativePlatform?.()) {
     const s=getSavedSettings();
     const address=type==='kitchen'?s.btKitchenPrinter:s.btBillPrinter;
-    if (!address) { alert('No printer selected. Go to Settings → Assign Printers.'); return { method:'none' }; }
+    if (!address) { console.warn('No printer address for type:', type, 'settings:', s); return { method:'none', error:'No printer configured' }; }
 
     let byteArr=null;
     try {
@@ -259,13 +259,13 @@ export async function smartPrint(html, type='bill', orderData=null) {
 
     if (!byteArr) {
       const div=document.createElement('div'); div.innerHTML=html;
-      const t=(div.innerText||div.textContent||'').trim()+'\n\n\n\n';
+      const t=(div.innerText||div.textContent||'').trim()+'\n\n';
       byteArr=[]; for(let i=0;i<t.length;i++) byteArr.push(t.charCodeAt(i)&0xFF);
     }
 
     const res=await escPosPrint(address,byteArr);
     if (res.success) return { method:'escpos-bt' };
-    alert('Print failed: '+(res.error||'Unknown')+'\n\nCheck Settings → Printer is connected.');
+    console.error('BT print failed:', res.error);
     return { method:'none', error:res.error };
   }
 
