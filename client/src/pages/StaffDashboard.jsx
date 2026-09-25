@@ -10,22 +10,21 @@ import { secureGet, secureRemove } from '../utils/secureStorage.js';
 async function registerFcmToken(restaurantId) {
   if (!window.Capacitor?.isNativePlatform?.()) return;
   try {
-    const FcmToken = window.Capacitor.Plugins.FcmToken;
-    if (!FcmToken) {
-      const { registerPlugin } = await import('@capacitor/core');
-      const p = registerPlugin('FcmToken');
-      const { token } = await p.getToken();
-      if (!token) return;
-      const ax = (await import('../config/axios.js')).default;
-      await ax.post('/api/devices/register-direct', { fcmToken: token, restaurantId, platform: 'android' });
-      console.log('FCM token registered (registerPlugin)');
-      return;
-    }
-    const { token } = await FcmToken.getToken();
-    if (!token) return;
     const ax = (await import('../config/axios.js')).default;
-    await ax.post('/api/devices/register-direct', { fcmToken: token, restaurantId, platform: 'android' });
-    console.log('FCM token registered:', token.substring(0, 20) + '...');
+    let token = null;
+
+    // Try via Capacitor plugin bridge (works in APK)
+    let plugin = window.Capacitor?.Plugins?.FcmToken;
+    if (!plugin) {
+      const { registerPlugin } = await import('@capacitor/core');
+      plugin = registerPlugin('FcmToken');
+    }
+    const result = await plugin.getToken();
+    token = result?.token;
+
+    if (!token) { console.warn('FCM: no token returned'); return; }
+    await ax.post(`${API}/api/devices/register-direct`, { fcmToken: token, restaurantId, platform: 'android' });
+    console.log('✅ FCM token registered:', token.substring(0, 20) + '...');
   } catch (e) {
     console.warn('FCM register error:', e.message);
   }

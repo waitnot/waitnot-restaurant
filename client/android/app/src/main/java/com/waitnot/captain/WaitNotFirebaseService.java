@@ -80,7 +80,7 @@ public class WaitNotFirebaseService extends FirebaseMessagingService {
         String fullBody = tableInfo.isEmpty() ? body : body + "\n" + tableInfo;
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(fullBody))
