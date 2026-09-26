@@ -22,7 +22,8 @@ let package = Package(
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseCore", package: "firebase-ios-sdk")
-            ]
+            ],
+            path: "Sources/CapApp-SPM"
         )
     ]
 )
