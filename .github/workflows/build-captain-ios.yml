@@ -44,6 +44,12 @@ jobs:
         run: npx cap sync ios
         working-directory: client
 
+      - name: Ensure xcconfig files exist
+        run: |
+          [ -f ios/debug.xcconfig ] || printf 'CAPACITOR_DEBUG = true\n' > ios/debug.xcconfig
+          [ -f ios/release.xcconfig ] || printf 'CAPACITOR_DEBUG = false\n' > ios/release.xcconfig
+        working-directory: client
+
       - name: Overwrite Package.swift to add Firebase via SPM
         working-directory: client/ios/App/CapApp-SPM
         run: |
