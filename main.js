@@ -443,6 +443,7 @@ function nodeGet(path, token) {
 }
 
 function startOrderPolling() {
+  console.log('🔄 Order polling started — checking every 3s');
   setInterval(async () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     if (pollActive) return;
@@ -450,7 +451,6 @@ function startOrderPolling() {
 
     try {
       // Pull session info from renderer localStorage
-      // Works on any page — credentials persist after login
       const info = await mainWindow.webContents.executeJavaScript(`
         (function() {
           try {
@@ -460,16 +460,16 @@ function startOrderPolling() {
             const staff = JSON.parse(sd);
             if (!staff.restaurant_id) return null;
             const rd = localStorage.getItem('restaurantData');
-            return {
-              rid   : staff.restaurant_id,
-              tk,
-              rname : rd ? JSON.parse(rd).name : null
-            };
+            return { rid: staff.restaurant_id, tk, rname: rd ? JSON.parse(rd).name : null };
           } catch(e) { return null; }
         })()
       `).catch(() => null);
 
-      if (!info || !info.rid) return;
+      if (!info || !info.rid) {
+        pollActive = false;
+        return; // Not logged in yet
+      }
+
       const { rid, tk } = info;
       const restaurantName = info.rname || store.get('restaurantName', 'Restaurant');
       if (info.rname) store.set('restaurantName', info.rname);
@@ -478,7 +478,10 @@ function startOrderPolling() {
       const activeOrders = await nodeGet(
         `/api/orders/restaurant/${rid}?status=active`, tk
       );
-      if (!Array.isArray(activeOrders)) return;
+      if (!Array.isArray(activeOrders)) {
+        pollActive = false;
+        return;
+      }
 
       const body = JSON.stringify(activeOrders);
       const changed = body !== lastOrdersBody;
@@ -490,8 +493,30 @@ function startOrderPolling() {
         mainWindow.webContents.executeJavaScript(`
           (function(){
             try{
-              const o=JSON.parse(\`${safe}\`);
-              if(Array.isArray(o)) window.dispatchEvent(new CustomEvent('__waitnot_orders__',{detail:o}));
+              const orders = JSON.parse(\`${safe}\`);
+              if(!Array.isArray(orders)) return;
+
+              // Method 1: inject via socket callbacks (fastest)
+              if(window.__wn_sock){
+                const cbs = (window.__wn_sock._callbacks||{})['$order-updated']||[];
+                if(cbs.length > 0){
+                  // Trigger a full refresh by sending each order through socket
+                  orders.forEach(o => cbs.forEach(h=>{try{h(o)}catch(e){}}));
+                  return;
+                }
+              }
+
+              // Method 2: store for XHR injection + trigger React re-render
+              const staffData = JSON.parse(localStorage.getItem('staffData')||'{}');
+              const rid = staffData.restaurant_id;
+              if(rid){
+                window.__wn_inject_orders = orders;
+                window.__wn_inject_rid = rid;
+              }
+
+              // Method 3: trigger visibilitychange which some React effects listen to
+              document.dispatchEvent(new Event('visibilitychange'));
+              window.dispatchEvent(new CustomEvent('__waitnot_orders__', {detail: orders}));
             }catch(e){}
           })()
         `).catch(() => {});
