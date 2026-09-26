@@ -112,18 +112,27 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ═══════════════════════════════════════════════════════════════════
 // 3. POLLED ORDERS RECEIVER — main.js fires __waitnot_orders__
-//    Injects into React state via XHR interceptor or socket handlers
+//    Updates React state directly via exposed window functions
 // ═══════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('__waitnot_orders__', (ev) => {
     const orders = ev.detail;
     if (!Array.isArray(orders)) return;
-    try {
-      const staffData = JSON.parse(localStorage.getItem('staffData') || '{}');
-      const rid = staffData.restaurant_id;
-      if (!rid) return;
 
-      // Try socket handlers first (fastest path)
+    try {
+      // Method 1: Directly set React orders state (fastest, no network call)
+      if (typeof window.__wn_setOrders === 'function') {
+        window.__wn_setOrders(orders);
+        return;
+      }
+
+      // Method 2: Call React's own Me() refetch function
+      if (typeof window.__wn_refreshOrders === 'function') {
+        window.__wn_refreshOrders();
+        return;
+      }
+
+      // Method 3: Socket callbacks
       if (window.__wn_sock) {
         const cbs = (window.__wn_sock._callbacks || {})['$order-updated'] || [];
         if (cbs.length > 0) {
@@ -132,10 +141,14 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Fallback: XHR interceptor will serve data on next Axios poll
-      window.__wn_inject_orders = orders;
-      window.__wn_inject_rid    = rid;
-      document.dispatchEvent(new Event('visibilitychange'));
+      // Method 4: XHR injection fallback
+      const staffData = JSON.parse(localStorage.getItem('staffData') || '{}');
+      const rid = staffData.restaurant_id;
+      if (rid) {
+        window.__wn_inject_orders = orders;
+        window.__wn_inject_rid    = rid;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
     } catch {}
   });
 });

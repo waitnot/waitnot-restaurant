@@ -496,25 +496,34 @@ function startOrderPolling() {
               const orders = JSON.parse(\`${safe}\`);
               if(!Array.isArray(orders)) return;
 
-              // Method 1: inject via socket callbacks (fastest)
+              // Method 1: Direct React state update (most reliable)
+              if(typeof window.__wn_setOrders === 'function'){
+                window.__wn_setOrders(orders);
+                return;
+              }
+
+              // Method 2: Call React's own refetch
+              if(typeof window.__wn_refreshOrders === 'function'){
+                window.__wn_refreshOrders();
+                return;
+              }
+
+              // Method 3: socket callbacks
               if(window.__wn_sock){
                 const cbs = (window.__wn_sock._callbacks||{})['$order-updated']||[];
                 if(cbs.length > 0){
-                  // Trigger a full refresh by sending each order through socket
                   orders.forEach(o => cbs.forEach(h=>{try{h(o)}catch(e){}}));
                   return;
                 }
               }
 
-              // Method 2: store for XHR injection + trigger React re-render
-              const staffData = JSON.parse(localStorage.getItem('staffData')||'{}');
-              const rid = staffData.restaurant_id;
+              // Method 4: XHR injection
+              const sd = localStorage.getItem('staffData');
+              const rid = sd ? JSON.parse(sd).restaurant_id : null;
               if(rid){
                 window.__wn_inject_orders = orders;
                 window.__wn_inject_rid = rid;
               }
-
-              // Method 3: trigger visibilitychange which some React effects listen to
               document.dispatchEvent(new Event('visibilitychange'));
               window.dispatchEvent(new CustomEvent('__waitnot_orders__', {detail: orders}));
             }catch(e){}
