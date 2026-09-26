@@ -81,7 +81,13 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            archive 2>&1 | tail -80
+            archive 2>&1 | tee /tmp/xbuild.log | grep -E "error:|warning:|FAILED|SwiftDriver|note:" | tail -60
+          STATUS=${PIPESTATUS[0]}
+          if [ $STATUS -ne 0 ]; then
+            echo "=== FULL ERROR LOG ==="
+            grep -A5 "error:" /tmp/xbuild.log | head -100
+            exit $STATUS
+          fi
 
       - name: Package IPA from archive
         working-directory: client
