@@ -38,6 +38,8 @@ const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
 const _isCapacitor = typeof window !== 'undefined' && (
   window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:'
 );
+const _isIOS = typeof window !== 'undefined' &&
+  (window.Capacitor?.getPlatform?.() === 'ios' || /iPad|iPhone|iPod/.test(navigator.userAgent));
 const _isLocalDev = typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
   !_isCapacitor;
@@ -368,6 +370,10 @@ export default function StaffDashboard() {
   };
 
   const loadBluetoothPrinters = async () => {
+    if (_isIOS) {
+      showToast('Bluetooth printing is not supported on iOS', 'error');
+      return;
+    }
     try {
       if (!_isCapacitor) return;
       setBtScanStatus('scanning');
@@ -1589,6 +1595,57 @@ export default function StaffDashboard() {
                 {!isMobile ? (
                   <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl text-yellow-800 text-sm">
                     ⚠️ Bluetooth printing is only available in the mobile app.
+                  </div>
+                ) : _isIOS ? (
+                  <div className="space-y-5">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                      <p className="text-xs font-bold text-blue-700 mb-1">📱 iOS Printer Setup</p>
+                      <p className="text-xs text-blue-600">Enter your printer's Bluetooth address or IP address manually. Make sure the printer is paired in iPhone Settings → Bluetooth first.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Kitchen Printer (KOT)</label>
+                      <input
+                        type="text"
+                        value={printerSettings.btKitchenPrinter || ''}
+                        onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
+                        placeholder="e.g. 66:22:98:1D:E9:47"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bill Printer</label>
+                      <input
+                        type="text"
+                        value={printerSettings.btBillPrinter || ''}
+                        onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
+                        placeholder="e.g. 66:22:98:1D:E9:47"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-3 pt-1">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className={`w-10 h-6 rounded-full transition-colors relative ${printerSettings.autoPrintKitchenBill ? 'bg-green-500' : 'bg-gray-300'}`}
+                          onClick={() => handlePrinterSettingChange('autoPrintKitchenBill', !printerSettings.autoPrintKitchenBill)}>
+                          <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${printerSettings.autoPrintKitchenBill ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">Auto-print KOT when order is placed</span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className={`w-10 h-6 rounded-full transition-colors relative ${printerSettings.autoPrintFinalBill ? 'bg-green-500' : 'bg-gray-300'}`}
+                          onClick={() => handlePrinterSettingChange('autoPrintFinalBill', !printerSettings.autoPrintFinalBill)}>
+                          <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${printerSettings.autoPrintFinalBill ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">Auto-print Bill when table is cleared</span>
+                      </label>
+                    </div>
+
+                    <button onClick={savePrinterSettings} disabled={savingSettings}
+                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50">
+                      {savingSettings ? 'Saving...' : 'Save Configuration'}
+                    </button>
                   </div>
                 ) : (
                   <div className="space-y-5">

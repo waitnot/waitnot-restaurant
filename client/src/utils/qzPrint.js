@@ -108,7 +108,10 @@ export async function scanBluetoothDevices() {
       p.scanDevices(),
       new Promise((_,r) => setTimeout(()=>r(new Error('Scan timeout')), 15000))
     ]);
-  } catch(e) { return { devices: [], error: e.message }; }
+  } catch(e) {
+    if (e?.code === 'UNIMPLEMENTED') return { devices: [], unsupported: true };
+    return { devices: [], error: e.message };
+  }
 }
 
 export async function stopBluetoothScan() {
@@ -119,7 +122,10 @@ export async function stopBluetoothScan() {
 export async function getPairedBluetoothDevices() {
   if (!window.Capacitor?.isNativePlatform?.()) return { devices: [] };
   try { return await (await getPlugin()).getPairedDevices(); }
-  catch(e) { return { devices: [], error: e.message }; }
+  catch(e) {
+    if (e?.code === 'UNIMPLEMENTED') return { devices: [], unsupported: true };
+    return { devices: [], error: e.message };
+  }
 }
 
 export async function requestBluetoothPairing(address) {
@@ -135,7 +141,10 @@ export async function connectBluetoothPrinter(address) {
       (await getPlugin()).connect({ address }),
       new Promise((_,r) => setTimeout(()=>r(new Error('Connection timeout')), 12000))
     ]);
-  } catch(e) { return { connected: false, error: e.message }; }
+  } catch(e) {
+    if (e?.code === 'UNIMPLEMENTED') return { connected: false, unsupported: true };
+    return { connected: false, error: e.message };
+  }
 }
 
 export async function disconnectBluetoothPrinter(address) {
