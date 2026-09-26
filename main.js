@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, dialog, ipcMain, protocol } = require('electron');
+﻿const { app, BrowserWindow, Menu, shell, dialog, ipcMain, protocol } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
@@ -411,27 +411,23 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
 }
 
-// ─── Real-time order polling + Auto-print ────────────────────────────────────
-const https = require('https');
-let lastOrdersBody   = '';
-let pollActive       = false;
-const knownOrderIds  = new Set();  // all seen active order IDs
-const printedKotIds  = new Set();  // KOTs already printed
-const printedBillIds = new Set();  // Bills already printed
-let pollingStarted   = false;      // skip printing on first poll (existing orders)
+// ─── Order polling + Real-time UI sync + Auto-print ─────────────────────────
+const https        = require('https');
+const knownOrderIds  = new Set();
+const printedKotIds  = new Set();
+const printedBillIds = new Set();
+let   lastOrdersBody = '';
 
-// Generic Node HTTPS GET → parsed JSON
+// Node HTTPS GET with timeout — no renderer/CORS involved
 function nodeGet(path, token) {
   return new Promise((resolve) => {
-    const opts = {
+    const req = https.request({
       hostname: 'waitnot-restaurant.onrender.com',
-      path,
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      path, method: 'GET',
+      headers: Object.assign({ Accept: 'application/json' },
+               token ? { Authorization: `Bearer ${token}` } : {}),
       rejectUnauthorized: false,
-    };
-    if (token) opts.headers['Authorization'] = `Bearer ${token}`;
-    const req = https.request(opts, (res) => {
+    }, (res) => {
       let body = '';
       res.on('data', c => { body += c; });
       res.on('end',  () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
@@ -442,203 +438,157 @@ function nodeGet(path, token) {
   });
 }
 
-function startOrderPolling() {
-  console.log('🔄 Order polling started — checking every 3s');
-  setInterval(async () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (pollActive) return;
-    pollActive = true;
+// Execute JS in renderer with a hard timeout — prevents infinite hangs
+function safeExecJS(js, ms = 2500) {
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve(null);
+  return Promise.race([
+    mainWindow.webContents.executeJavaScript(js).catch(() => null),
+    new Promise(r => setTimeout(() => r(null), ms)),
+  ]);
+}
 
+// Push fresh orders array into React state (tries 4 methods)
+function pushOrdersToUI(orders) {
+  const safe = JSON.stringify(orders)
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${');
+
+  safeExecJS(`(function(){
     try {
-      // Pull session info from renderer localStorage
-      const info = await mainWindow.webContents.executeJavaScript(`
-        (function() {
-          try {
-            const sd = localStorage.getItem('staffData');
-            const tk = localStorage.getItem('staffToken');
-            if (!sd || !tk) return null;
-            const staff = JSON.parse(sd);
-            if (!staff.restaurant_id) return null;
-            const rd = localStorage.getItem('restaurantData');
-            return { rid: staff.restaurant_id, tk, rname: rd ? JSON.parse(rd).name : null };
-          } catch(e) { return null; }
-        })()
-      `).catch(() => null);
-
-      if (!info || !info.rid) {
-        pollActive = false;
-        return; // Not logged in yet
+      const o = JSON.parse(\`${safe}\`);
+      if (!Array.isArray(o)) return;
+      // Method 1: direct setOrders (exposed by our bundle patch)
+      if (typeof window.__wn_setOrders === 'function') { window.__wn_setOrders(o); return; }
+      // Method 2: re-fetch via Me()
+      if (typeof window.__wn_refreshOrders === 'function') { window.__wn_refreshOrders(); return; }
+      // Method 3: socket callbacks
+      if (window.__wn_sock) {
+        const cbs = (window.__wn_sock._callbacks || {})['$order-updated'] || [];
+        if (cbs.length) { o.forEach(x => cbs.forEach(h => { try { h(x); } catch(e) {} })); return; }
       }
+      // Method 4: XHR injection
+      const sd = localStorage.getItem('staffData');
+      const rid = sd ? JSON.parse(sd).restaurant_id : null;
+      if (rid) { window.__wn_inject_orders = o; window.__wn_inject_rid = rid; }
+      document.dispatchEvent(new Event('visibilitychange'));
+    } catch(e) {}
+  })()`);
+}
 
-      const { rid, tk } = info;
-      const restaurantName = info.rname || store.get('restaurantName', 'Restaurant');
-      if (info.rname) store.set('restaurantName', info.rname);
+function startOrderPolling() {
+  console.log('🔄 Order polling started (3s interval)');
+  let running = false;
 
-      // ── Fetch active orders ────────────────────────────────────────────────
-      const activeOrders = await nodeGet(
-        `/api/orders/restaurant/${rid}?status=active`, tk
-      );
-      if (!Array.isArray(activeOrders)) {
-        pollActive = false;
-        return;
-      }
-
-      const body = JSON.stringify(activeOrders);
-      const changed = body !== lastOrdersBody;
-      lastOrdersBody = body;
-
-      // Push to renderer for UI refresh
-      if (changed) {
-        const safe = body.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$\{/g,'\\${');
-        mainWindow.webContents.executeJavaScript(`
-          (function(){
-            try{
-              const orders = JSON.parse(\`${safe}\`);
-              if(!Array.isArray(orders)) return;
-
-              // Method 1: Direct React state update (most reliable)
-              if(typeof window.__wn_setOrders === 'function'){
-                window.__wn_setOrders(orders);
-                return;
-              }
-
-              // Method 2: Call React's own refetch
-              if(typeof window.__wn_refreshOrders === 'function'){
-                window.__wn_refreshOrders();
-                return;
-              }
-
-              // Method 3: socket callbacks
-              if(window.__wn_sock){
-                const cbs = (window.__wn_sock._callbacks||{})['$order-updated']||[];
-                if(cbs.length > 0){
-                  orders.forEach(o => cbs.forEach(h=>{try{h(o)}catch(e){}}));
-                  return;
-                }
-              }
-
-              // Method 4: XHR injection
-              const sd = localStorage.getItem('staffData');
-              const rid = sd ? JSON.parse(sd).restaurant_id : null;
-              if(rid){
-                window.__wn_inject_orders = orders;
-                window.__wn_inject_rid = rid;
-              }
-              document.dispatchEvent(new Event('visibilitychange'));
-              window.dispatchEvent(new CustomEvent('__waitnot_orders__', {detail: orders}));
-            }catch(e){}
-          })()
-        `).catch(() => {});
-      }
-
-      // ── Auto-print KOT for NEW orders ──────────────────────────────────────
-      const autoKot = store.get('autoKot', false);
-      if (autoKot) {
-        const printer = store.get('kitchenPrinter','') || store.get('selectedPrinter','')
-                     || await autoDetectThermalPrinter(mainWindow);
-
-        for (const order of activeOrders) {
-          if (!order._id) continue;
-          if (printedKotIds.has(order._id)) continue;
-
-          // Use order creation time to decide if it's new
-          // Print KOT if order was created within the last 60 seconds
-          const createdAt = new Date(order.createdAt || Date.now()).getTime();
-          const ageSeconds = (Date.now() - createdAt) / 1000;
-          const isRecent = ageSeconds <= 60;
-
-          // Always track order ID
-          const wasKnown = knownOrderIds.has(order._id);
-          knownOrderIds.add(order._id);
-
-          // Skip if we've seen it before OR it's older than 60 seconds
-          if (wasKnown || !isRecent) continue;
-
-          // New recent order — print KOT
-          printedKotIds.add(order._id);
-          console.log(`🖨️ Auto-KOT → "${printer}" | #${order.orderNumber} T${order.tableNumber} (${ageSeconds.toFixed(0)}s old)`);
-
-          const kotData = {
-            restaurantName,
-            orderId        : (order._id || '').slice(-8).toUpperCase(),
-            tableNumber    : order.tableNumber,
-            roomNumber     : order.roomNumber,
-            orderType      : order.orderType || 'dine-in',
-            customerName   : order.customerName,
-            deliveryAddress: order.deliveryAddress,
-            items          : order.items || [],
-            time           : new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}),
-          };
-
-          printKOT(kotData, printer)
-            .then(r  => console.log(r && r.success ? `✅ KOT #${order.orderNumber}` : `⚠ KOT fail: ${JSON.stringify(r)}`))
-            .catch(e => console.error('KOT error:', e.message));
-        }
-      } else {
-        activeOrders.forEach(o => o._id && knownOrderIds.add(o._id));
-      }
-
-      pollingStarted = true;
-
-      // ── Auto-print Bill for recently COMPLETED orders ──────────────────────
-      const autoBill = store.get('autoBill', false);
-      if (autoBill) {
-        const printer = store.get('billPrinter','') || store.get('selectedPrinter','')
-                     || await autoDetectThermalPrinter(mainWindow);
-
-        const completedOrders = await nodeGet(
-          `/api/orders/restaurant/${rid}?status=completed&limit=20`, tk
-        );
-
-        if (Array.isArray(completedOrders)) {
-          for (const order of completedOrders) {
-            if (!order._id) continue;
-            if (printedBillIds.has(order._id)) continue;
-
-            // Only print if completed within the last 30 seconds
-            const updatedAt  = new Date(order.updatedAt || order.createdAt).getTime();
-            const ageSec     = (Date.now() - updatedAt) / 1000;
-            if (ageSec > 30) continue;
-
-            printedBillIds.add(order._id);
-            console.log(`🖨️ Auto-Bill → "${printer}" | #${order.orderNumber} (${ageSec.toFixed(0)}s ago)`);
-
-            const slotLabel = order.roomNumber ? `Room ${order.roomNumber}`
-                            : order.tableNumber ? `Table ${order.tableNumber}` : '';
-            const items = (order.items || []).map(i => ({
-              name : i.name,
-              qty  : i.quantity,
-              price: parseFloat(i.price) || 0,
-            }));
-            const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-            const now   = new Date();
-
-            const billData = {
-              restaurantName,
-              tableLabel    : slotLabel,
-              items,
-              total,
-              paymentMethod : (order.paymentMethod || 'CASH').toUpperCase(),
-              time          : now.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}),
-              date          : now.toLocaleDateString('en-IN'),
-              footerText    : 'Thank you! Please Visit Again',
-            };
-
-            printBill(billData, printer)
-              .then(r  => console.log(r && r.success ? `✅ Bill #${order.orderNumber}` : `⚠ Bill fail: ${JSON.stringify(r)}`))
-              .catch(e => console.error('Bill error:', e.message));
-          }
-        }
-      }
-
-    } catch (e) {
-      console.error('Polling error:', e.message);
-    } finally {
-      pollActive = false;
-    }
+  setInterval(async () => {
+    if (running) return;
+    running = true;
+    try { await doPoll(); }
+    catch(e) { console.error('Poll error:', e.message); }
+    finally  { running = false; }
   }, 3000);
 }
 
+async function doPoll() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  // Get session credentials from renderer (with timeout — never hangs)
+  const info = await safeExecJS(`(function(){
+    try {
+      const sd = localStorage.getItem('staffData');
+      const tk = localStorage.getItem('staffToken');
+      if (!sd || !tk) return null;
+      const staff = JSON.parse(sd);
+      if (!staff.restaurant_id) return null;
+      const rd = localStorage.getItem('restaurantData');
+      return { rid: staff.restaurant_id, tk, rname: rd ? JSON.parse(rd).name : null };
+    } catch(e) { return null; }
+  })()`);
+
+  if (!info || !info.rid) return;  // not logged in yet — running=false in finally
+
+  const { rid, tk } = info;
+  const restaurantName = info.rname || store.get('restaurantName', 'Restaurant');
+  if (info.rname) store.set('restaurantName', info.rname);
+
+  // Fetch active orders via Node (bypasses CORS, no browser involved)
+  const activeOrders = await nodeGet(`/api/orders/restaurant/${rid}?status=active`, tk);
+  if (!Array.isArray(activeOrders)) return;
+
+  const body    = JSON.stringify(activeOrders);
+  const changed = body !== lastOrdersBody;
+  lastOrdersBody = body;
+
+  // Sync UI — runs on every change, regardless of auto-print settings
+  if (changed) {
+    console.log(`📦 Orders synced: ${activeOrders.length} active`);
+    pushOrdersToUI(activeOrders);
+  }
+
+  // ── Auto-print KOT ─────────────────────────────────────────────────────────
+  if (store.get('autoKot', false)) {
+    const printer = store.get('kitchenPrinter','') || store.get('selectedPrinter','')
+                 || await autoDetectThermalPrinter(mainWindow);
+
+    for (const order of activeOrders) {
+      if (!order._id || printedKotIds.has(order._id)) continue;
+      const age     = (Date.now() - new Date(order.createdAt||0).getTime()) / 1000;
+      const wasKnown = knownOrderIds.has(order._id);
+      knownOrderIds.add(order._id);
+      if (wasKnown || age > 60) continue;
+
+      printedKotIds.add(order._id);
+      console.log(`🖨️ KOT → "${printer}" | #${order.orderNumber} T${order.tableNumber} (${age.toFixed(0)}s)`);
+      printKOT({
+        restaurantName,
+        orderId        : (order._id||'').slice(-8).toUpperCase(),
+        tableNumber    : order.tableNumber,
+        roomNumber     : order.roomNumber,
+        orderType      : order.orderType || 'dine-in',
+        customerName   : order.customerName,
+        deliveryAddress: order.deliveryAddress,
+        items          : order.items || [],
+        time           : new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
+      }, printer)
+        .then(r  => console.log(r?.success ? `✅ KOT #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
+        .catch(e => console.error('KOT err:', e.message));
+    }
+  } else {
+    activeOrders.forEach(o => o._id && knownOrderIds.add(o._id));
+  }
+
+  // ── Auto-print Bill ────────────────────────────────────────────────────────
+  if (store.get('autoBill', false)) {
+    const printer = store.get('billPrinter','') || store.get('selectedPrinter','')
+                 || await autoDetectThermalPrinter(mainWindow);
+
+    const completed = await nodeGet(`/api/orders/restaurant/${rid}?status=completed`, tk);
+    if (!Array.isArray(completed)) return;
+
+    for (const order of completed) {
+      if (!order._id || printedBillIds.has(order._id)) continue;
+      const age = (Date.now() - new Date(order.updatedAt||order.createdAt||0).getTime()) / 1000;
+      if (age > 30) continue;
+      printedBillIds.add(order._id);
+      console.log(`🖨️ Bill → "${printer}" | #${order.orderNumber} (${age.toFixed(0)}s ago)`);
+
+      const items = (order.items||[]).map(i=>({name:i.name,qty:i.quantity,price:parseFloat(i.price)||0}));
+      const total = items.reduce((s,i)=>s+i.price*i.qty, 0);
+      const now   = new Date();
+      printBill({
+        restaurantName,
+        tableLabel   : order.roomNumber ? `Room ${order.roomNumber}` : order.tableNumber ? `Table ${order.tableNumber}` : '',
+        items, total,
+        paymentMethod: (order.paymentMethod||'CASH').toUpperCase(),
+        time         : now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
+        date         : now.toLocaleDateString('en-IN'),
+        footerText   : 'Thank you! Please Visit Again',
+      }, printer)
+        .then(r  => console.log(r?.success ? `✅ Bill #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
+        .catch(e => console.error('Bill err:', e.message));
+    }
+  }
+}
 // App event handlers
 app.whenReady().then(() => {
   // ── Intercept all HTTP responses from the backend and inject CORS headers.
