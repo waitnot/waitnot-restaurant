@@ -49,6 +49,10 @@ jobs:
           [ -f debug.xcconfig ]   || printf 'CAPACITOR_DEBUG = true\n'  > debug.xcconfig
           [ -f release.xcconfig ] || printf 'CAPACITOR_DEBUG = false\n' > release.xcconfig
 
+      - name: Add GoogleService-Info.plist from secret
+        if: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST != '' }}
+        run: echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}" | base64 --decode > client/ios/App/App/GoogleService-Info.plist
+
       - name: Fix SPM package - add source file and path
         working-directory: client/ios/App/CapApp-SPM
         run: |

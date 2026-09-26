@@ -11,12 +11,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-
-        // Initialize Firebase
-        FirebaseApp.configure()
-
-        // FCM delegate
-        Messaging.messaging().delegate = self
+        // Initialize Firebase only if GoogleService-Info.plist is present in the bundle
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+            Messaging.messaging().delegate = self
+        }
 
         // Request notification permission
         UNUserNotificationCenter.current().delegate = self
@@ -35,11 +34,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         guard let token = fcmToken else { return }
         print("FCM token: \(token.prefix(20))...")
-
-        // Store token
         UserDefaults.standard.set(token, forKey: "fcm_token")
-
-        // Register with WaitNot server if we know the restaurant
         if let restaurantId = UserDefaults.standard.string(forKey: "restaurant_id") {
             registerTokenWithServer(token: token, restaurantId: restaurantId)
         }
@@ -51,16 +46,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 10
-
         let body: [String: Any] = ["fcmToken": token, "restaurantId": restaurantId, "platform": "ios"]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
         URLSession.shared.dataTask(with: request) { _, response, error in
-            if let error = error {
-                print("FCM register error: \(error.localizedDescription)")
-            } else if let http = response as? HTTPURLResponse {
-                print("FCM registered, HTTP \(http.statusCode)")
-            }
+            if let error = error { print("FCM register error: \(error.localizedDescription)") }
+            else if let http = response as? HTTPURLResponse { print("FCM registered, HTTP \(http.statusCode)") }
         }.resume()
     }
 
@@ -74,7 +64,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         print("Failed to register for remote notifications: \(error)")
     }
 
-    // Show notification even when app is in foreground
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
