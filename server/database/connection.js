@@ -212,6 +212,19 @@ export async function initDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_staff_sessions_token ON staff_sessions(session_token)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_staff_activity_restaurant ON staff_activity_logs(restaurant_id)');
 
+    // Printer settings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS printer_settings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        settings JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(restaurant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_printer_settings_restaurant_id ON printer_settings(restaurant_id)');
+
     client.release();
     console.log('✅ Database tables created successfully');
     
