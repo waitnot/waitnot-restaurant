@@ -42,13 +42,17 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:3002',
+      'capacitor://localhost',
+      'ionic://localhost',
     ] 
   : [
       'http://localhost:3000', 
       'http://localhost:3001', 
       'http://localhost:3002',
       'https://localhost',
-      'http://localhost'
+      'http://localhost',
+      'capacitor://localhost',
+      'ionic://localhost',
     ];
 
 app.use(cors({
@@ -56,6 +60,10 @@ app.use(cors({
     if (!origin) return callback(null, true);
     // Allow any localhost port for development
     if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+      return callback(null, true);
+    }
+    // Allow Capacitor and Ionic native app origins
+    if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
       return callback(null, true);
     }
     if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
