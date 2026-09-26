@@ -23,11 +23,13 @@ export default function StaffLogin() {
     try {
       const { data } = await axios.post('/api/staff/login', formData);
       
-      // Store in both localStorage AND native SecureStorage (survives cache clears)
+      // Store auth data
       localStorage.setItem('staffToken', data.token);
       localStorage.setItem('staffData', JSON.stringify(data.staff));
-      await secureSet('staffToken', data.token);
-      await secureSet('staffData', JSON.stringify(data.staff));
+      try {
+        await secureSet('staffToken', data.token);
+        await secureSet('staffData', JSON.stringify(data.staff));
+      } catch (_) {}
       
       navigate('/staff-dashboard');
     } catch (error) {
