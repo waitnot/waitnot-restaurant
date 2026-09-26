@@ -47,13 +47,8 @@ jobs:
       - name: Overwrite Package.swift to add Firebase via SPM
         working-directory: client/ios/App/CapApp-SPM
         run: |
-          # Ensure Sources directory exists with a dummy Swift file
           mkdir -p Sources/CapApp-SPM
-          cat > Sources/CapApp-SPM/CapAppSPM.swift << 'SOURCEEOF'
-// Required by SPM — every target must have at least one source file
-import Foundation
-SOURCEEOF
-
+          printf '// Required by SPM\nimport Foundation\n' > Sources/CapApp-SPM/CapAppSPM.swift
           cat > Package.swift << 'SWIFTEOF'
 // swift-tools-version: 5.9
 import PackageDescription
