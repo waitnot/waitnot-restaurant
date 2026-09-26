@@ -40,8 +40,12 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
+      - name: Swap to captain capacitor config
+        run: cp capacitor.captain.json capacitor.config.json
+        working-directory: client
+
       - name: Sync Capacitor
-        run: npx cap sync android --capacitorconfig capacitor.captain.json
+        run: npx cap sync android
         working-directory: client
 
       - name: Make gradlew executable
