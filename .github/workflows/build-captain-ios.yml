@@ -53,36 +53,39 @@ jobs:
         if: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST != '' }}
         run: echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}" | base64 --decode > client/ios/App/App/GoogleService-Info.plist
 
-      - name: Fix SPM package - add source file and path
+      - name: Fix SPM package
         working-directory: client/ios/App/CapApp-SPM
         run: |
           mkdir -p Sources/CapApp-SPM
           printf '// Required by SPM\nimport Foundation\n' > Sources/CapApp-SPM/CapAppSPM.swift
-          cat > Package.swift << 'SWIFTEOF'
-// swift-tools-version: 5.9
+          python3 -c "
+content = '''// swift-tools-version: 5.9
 import PackageDescription
 let package = Package(
-  name: "CapApp-SPM",
+  name: \"CapApp-SPM\",
   platforms: [.iOS(.v15)],
-  products: [.library(name: "CapApp-SPM", targets: ["CapApp-SPM"])],
+  products: [.library(name: \"CapApp-SPM\", targets: [\"CapApp-SPM\"])],
   dependencies: [
-    .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.0"),
-    .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "11.0.0")
+    .package(url: \"https://github.com/ionic-team/capacitor-swift-pm.git\", exact: \"8.5.0\"),
+    .package(url: \"https://github.com/firebase/firebase-ios-sdk.git\", from: \"11.0.0\")
   ],
   targets: [
     .target(
-      name: "CapApp-SPM",
+      name: \"CapApp-SPM\",
       dependencies: [
-        .product(name: "Capacitor", package: "capacitor-swift-pm"),
-        .product(name: "Cordova", package: "capacitor-swift-pm"),
-        .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
-        .product(name: "FirebaseCore", package: "firebase-ios-sdk")
+        .product(name: \"Capacitor\", package: \"capacitor-swift-pm\"),
+        .product(name: \"Cordova\", package: \"capacitor-swift-pm\"),
+        .product(name: \"FirebaseMessaging\", package: \"firebase-ios-sdk\"),
+        .product(name: \"FirebaseCore\", package: \"firebase-ios-sdk\")
       ],
-      path: "Sources/CapApp-SPM"
+      path: \"Sources/CapApp-SPM\"
     )
   ]
 )
-SWIFTEOF
+'''
+open('Package.swift', 'w').write(content)
+print('Package.swift written')
+"
 
       - name: Install CocoaPods dependencies
         run: pod install --repo-update
