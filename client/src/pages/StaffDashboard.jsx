@@ -286,7 +286,7 @@ export default function StaffDashboard() {
     newSocket.on('print-kot', ({ order }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintKitchenBill || !settings.btKitchenPrinter) return;
-      if (!_isCapacitor) return;
+      if (!_isCapacitor || _isIOS) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -308,7 +308,7 @@ export default function StaffDashboard() {
     newSocket.on('print-bill', ({ order, orders }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintFinalBill || !settings.btBillPrinter) return;
-      if (!_isCapacitor) return;
+      if (!_isCapacitor || _isIOS) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -324,7 +324,7 @@ export default function StaffDashboard() {
     });
 
     // Listen for BT connection state changes
-    const btUnsub = _isCapacitor
+    const btUnsub = (_isCapacitor && !_isIOS)
       ? addBluetoothConnectionListener(({ address, state }) => {
           setConnectedPrinters(prev => ({ ...prev, [address]: state === 'connected' }));
           sessionStorage.setItem(`bt_connected_${address}`, state === 'connected' ? '1' : '0');
@@ -352,7 +352,7 @@ export default function StaffDashboard() {
 
   // Auto-reconnect to saved printer on startup — runs silently in background
   const autoReconnectPrinter = async (settings) => {
-    if (!_isCapacitor) return;
+    if (!_isCapacitor || _isIOS) return;
     // Connect to both KOT and Bill printers (may be same or different devices)
     const addresses = [...new Set([settings.btKitchenPrinter, settings.btBillPrinter].filter(Boolean))];
     for (const address of addresses) {
@@ -375,8 +375,7 @@ export default function StaffDashboard() {
       return;
     }
     try {
-      if (!_isCapacitor) return;
-      setBtScanStatus('scanning');
+      if (!_isCapacitor) return;      setBtScanStatus('scanning');
       setBtPrinters([]);
 
       // First load already-paired devices instantly
