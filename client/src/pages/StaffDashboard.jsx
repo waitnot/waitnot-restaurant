@@ -187,14 +187,12 @@ export default function StaffDashboard() {
 
     loadData();
 
-    setIsMobile(window.Capacitor?.isNativePlatform?.());
+    setIsMobile(_isCapacitor);
     loadPrinterSettings(s.restaurant_id);
     // Request notification permission + register FCM token
     requestNotificationPermission();
     registerFcmToken(s.restaurant_id);
-    // Don't auto-scan BT on startup — only scan when user taps the button in Settings
-    // But DO auto-reconnect to saved printer silently
-    if (window.Capacitor?.isNativePlatform?.()) {
+    if (_isCapacitor) {
       const saved = localStorage.getItem(`printer_settings_${s.restaurant_id}`);
       if (saved) {
         const settings = JSON.parse(saved);
@@ -286,7 +284,7 @@ export default function StaffDashboard() {
     newSocket.on('print-kot', ({ order }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintKitchenBill || !settings.btKitchenPrinter) return;
-      if (!window.Capacitor?.isNativePlatform?.()) return;
+      if (!_isCapacitor) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -308,7 +306,7 @@ export default function StaffDashboard() {
     newSocket.on('print-bill', ({ order, orders }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintFinalBill || !settings.btBillPrinter) return;
-      if (!window.Capacitor?.isNativePlatform?.()) return;
+      if (!_isCapacitor) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -324,10 +322,9 @@ export default function StaffDashboard() {
     });
 
     // Listen for BT connection state changes
-    const btUnsub = window.Capacitor?.isNativePlatform?.()
+    const btUnsub = _isCapacitor
       ? addBluetoothConnectionListener(({ address, state }) => {
           setConnectedPrinters(prev => ({ ...prev, [address]: state === 'connected' }));
-          // Store in sessionStorage so socket print-server listener can read it
           sessionStorage.setItem(`bt_connected_${address}`, state === 'connected' ? '1' : '0');
         })
       : () => {};
@@ -353,7 +350,7 @@ export default function StaffDashboard() {
 
   // Auto-reconnect to saved printer on startup — runs silently in background
   const autoReconnectPrinter = async (settings) => {
-    if (!window.Capacitor?.isNativePlatform?.()) return;
+    if (!_isCapacitor) return;
     // Connect to both KOT and Bill printers (may be same or different devices)
     const addresses = [...new Set([settings.btKitchenPrinter, settings.btBillPrinter].filter(Boolean))];
     for (const address of addresses) {
@@ -372,7 +369,7 @@ export default function StaffDashboard() {
 
   const loadBluetoothPrinters = async () => {
     try {
-      if (!window.Capacitor?.isNativePlatform?.()) return;
+      if (!_isCapacitor) return;
       setBtScanStatus('scanning');
       setBtPrinters([]);
 
@@ -766,7 +763,7 @@ export default function StaffDashboard() {
   // Iframe-based print — works even when browser blocks popups
   const printViaIframe = (html, type = 'kitchen', orderData = null) => {
     // On mobile (Capacitor) — route through smartPrint which uses BT ESC/POS
-    if (window.Capacitor?.isNativePlatform?.()) {
+    if (_isCapacitor) {
       smartPrint(html, type, orderData);
       return;
     }
