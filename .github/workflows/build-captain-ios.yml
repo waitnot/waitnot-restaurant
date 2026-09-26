@@ -50,7 +50,7 @@ jobs:
           [ -f release.xcconfig ] || printf 'CAPACITOR_DEBUG = false\n' > release.xcconfig
 
       - name: Add GoogleService-Info.plist from secret
-        if: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST != '' }}
+        if: secrets.GOOGLE_SERVICE_INFO_PLIST != ''
         run: echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}" | base64 --decode > client/ios/App/App/GoogleService-Info.plist
 
       - name: Fix SPM package
