@@ -1598,7 +1598,7 @@ export default function StaffDashboard() {
                   <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl text-yellow-800 text-sm">
                     ⚠️ Bluetooth printing is only available in the mobile app.
                   </div>
-                ) : (
+                ) : _isIOS ? (
                   <div className="space-y-5">
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                       <p className="text-xs font-bold text-blue-700 mb-1">📶 WiFi Printer Setup (iOS)</p>
