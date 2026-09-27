@@ -204,6 +204,9 @@ export default function PrinterSettings() {
     // Bluetooth direct printing (mobile)
     btKitchenPrinter: '',
     btBillPrinter: '',
+    // WiFi/TCP direct printing (iOS)
+    wifiPrinterIp: '',
+    wifiPrinterPort: 9100,
     // UPI Payment Settings
     enableUpiPayments: true,
     upiBaseUrl: 'upi://pay?pa=Q582735754@ybl&pn=PhonePeMerchant&mc=0000&mode=02&purpose=00',
@@ -575,8 +578,57 @@ export default function PrinterSettings() {
           )}
         </div>
 
+        {/* iOS WiFi Printer Settings */}
+        {isMobile && _isIOS && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-purple-500">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-purple-100 p-2 rounded-lg">
+                <Wifi size={24} className="text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">WiFi Thermal Printer (iOS)</h2>
+                <p className="text-gray-500 text-sm">Connect to a WiFi/LAN thermal printer via TCP (port 9100)</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Printer IP Address</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 192.168.1.100"
+                  value={settings.wifiPrinterIp || ''}
+                  onChange={e => handleSettingChange('wifiPrinterIp', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Port (default 9100)</label>
+                <input
+                  type="number"
+                  placeholder="9100"
+                  value={settings.wifiPrinterPort || 9100}
+                  onChange={e => handleSettingChange('wifiPrinterPort', parseInt(e.target.value) || 9100)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                />
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (!settings.wifiPrinterIp) { alert('Enter printer IP first'); return; }
+                const { testWifiPrinter } = await import('../utils/qzPrint.js');
+                const r = await testWifiPrinter(settings.wifiPrinterIp, settings.wifiPrinterPort || 9100);
+                alert(r.success ? '✅ Printer connected!' : '❌ Failed: ' + r.error);
+              }}
+              className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-100"
+            >
+              <Wifi size={15} /> Test WiFi Printer
+            </button>
+            <p className="text-xs text-gray-500 mt-3">Make sure your iPhone and the printer are on the same WiFi network.</p>
+          </div>
+        )}
+
         {/* Mobile Bluetooth Printer Settings */}
-        {isMobile && (
+        {isMobile && !_isIOS && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -584,7 +636,7 @@ export default function PrinterSettings() {
                   <Printer size={24} className="text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800">Bluetooth Thermal Printer (Mobile)</h2>
+                  <h2 className="text-lg font-bold text-gray-800">Bluetooth Thermal Printer (Android)</h2>
                   <p className="text-gray-500 text-sm">Direct printing from Android Captain App</p>
                 </div>
               </div>
