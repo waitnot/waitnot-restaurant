@@ -5,6 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "rebuild": "electron-rebuild -v 28.3.3 -w better-sqlite3",
+    "postinstall": "electron-rebuild -v 28.3.3 -w better-sqlite3",
     "build": "electron-builder",
     "build-win": "electron-builder --win",
     "build-mac": "electron-builder --mac",
@@ -12,14 +14,22 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder --publish=never"
   },
-  "keywords": ["restaurant", "management", "waitnot", "staff", "orders"],
+  "keywords": [
+    "restaurant",
+    "management",
+    "waitnot",
+    "staff",
+    "orders"
+  ],
   "author": "WaitNot Team",
   "license": "MIT",
   "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
+    "better-sqlite3": "^9.4.3",
     "electron-updater": "^6.1.7",
     "node-thermal-printer": "^4.3.3",
     "pdf-to-printer": "^5.3.1"
@@ -36,8 +46,11 @@
       "main.js",
       "preload.js",
       "printer.js",
+      "offline-db.js",
       "printer-settings.html",
       "fallback.html",
+      "OFFLINE_IMPLEMENTATION_STATUS.md",
+      "OFFLINE_PHASE_1_PLAN.md",
       "renderer/**/*",
       "fonts/**/*",
       "sounds/**/*",
@@ -45,7 +58,14 @@
       "node_modules/**/*"
     ],
     "win": {
-      "target": [{"target": "portable", "arch": ["x64"]}],
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "logo.png",
       "requestedExecutionLevel": "asInvoker",
       "publisherName": "WaitNot Team",
@@ -54,12 +74,27 @@
       "sign": null
     },
     "mac": {
-      "target": [{"target": "dmg", "arch": ["x64", "arm64"]}],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "category": "public.app-category.business",
       "icon": "logo.png"
     },
     "linux": {
-      "target": [{"target": "AppImage", "arch": ["x64"]}],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "category": "Office",
       "icon": "logo.png"
     },
@@ -79,13 +114,3 @@
     }
   }
 }
-
-
-
-
-
-
-
-
-
-

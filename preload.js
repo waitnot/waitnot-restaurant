@@ -172,6 +172,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPrinterSettings : ()  => ipcRenderer.invoke('open-printer-settings'),
   cacheRestaurantData : (d) => ipcRenderer.invoke('cache-restaurant-data', d),
 
+  // ── Offline database ───────────────────────────────────────────────────────
+  offline: {
+    getStatus      : ()    => ipcRenderer.invoke('offline:getStatus'),
+    getMenu        : (rid) => ipcRenderer.invoke('offline:getMenu', rid),
+    getCategories  : (rid) => ipcRenderer.invoke('offline:getCategories', rid),
+    getTables      : (rid) => ipcRenderer.invoke('offline:getTables', rid),
+    getRestaurant  : (rid) => ipcRenderer.invoke('offline:getRestaurant', rid),
+  },
+
   showNotification: (title, body) => {
     if (Notification.permission === 'granted') {
       new Notification(title, { body });
@@ -184,71 +193,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// 6. AUTO-REFRESH BUTTON — spins and triggers refresh every 3s
-// ═══════════════════════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => {
-  let refreshTimer = null;
-  let isSpinning   = false;
-
-  function spinRefreshBtn() {
-    const btn = document.getElementById('wn-refresh-btn');
-    if (!btn || isSpinning) return;
-    isSpinning = true;
-    const svg = btn.querySelector('svg');
-    if (svg) {
-      svg.style.transition  = 'transform 0.5s ease';
-      svg.style.transform   = 'rotate(360deg)';
-      setTimeout(() => {
-        if (svg) { svg.style.transition = 'none'; svg.style.transform = 'rotate(0deg)'; }
-        isSpinning = false;
-      }, 600);
-    } else {
-      isSpinning = false;
-    }
-  }
-
-  function doRefresh() {
-    spinRefreshBtn();
-    if (typeof window.__wn_refreshOrders === 'function') {
-      window.__wn_refreshOrders();
-    }
-  }
-
-  function startAutoRefresh() {
-    if (refreshTimer) return;
-    refreshTimer = setInterval(() => {
-      // Only auto-refresh when on the tables tab
-      const hash = window.location.hash || '';
-      if (hash.includes('staff-dashboard') || hash === '' || hash === '#/') {
-        // Check if tables tab is active (F state = "tables")
-        const btn = document.getElementById('wn-refresh-btn');
-        if (btn) doRefresh();
-      }
-    }, 3000);
-  }
-
-  function stopAutoRefresh() {
-    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-  }
-
-  // Start auto-refresh when navigating to dashboard
-  window.addEventListener('hashchange', () => {
-    const hash = window.location.hash || '';
-    if (hash.includes('staff-dashboard')) startAutoRefresh();
-    else stopAutoRefresh();
-  });
-
-  // Also watch for the button appearing in DOM (React mounts it later)
-  const observer = new MutationObserver(() => {
-    const btn = document.getElementById('wn-refresh-btn');
-    if (btn && !refreshTimer) {
-      startAutoRefresh();
-      // Wire up manual click
-      btn.addEventListener('click', () => doRefresh(), { passive: true });
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-});
+// 5. DESKTOP STYLES
 // ═══════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   const s = document.createElement('style');
