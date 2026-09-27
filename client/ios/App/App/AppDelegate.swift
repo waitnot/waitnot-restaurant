@@ -12,7 +12,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         configureFirebaseIfAvailable()
         return true
     }
-
     private func configureFirebaseIfAvailable() {
         // Only configure if GoogleService-Info.plist is bundled
         guard Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil else { return }

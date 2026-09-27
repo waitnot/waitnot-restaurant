@@ -90,6 +90,8 @@ export default function StaffDashboard() {
   const [printerSettings, setPrinterSettings] = useState({
     btKitchenPrinter: '',
     btBillPrinter: '',
+    wifiPrinterIp: '',
+    wifiPrinterPort: 9100,
     autoPrintKitchenBill: false,
     autoPrintFinalBill: false
   });
@@ -285,8 +287,10 @@ export default function StaffDashboard() {
     // ── Print server: QR orders + staff orders — auto-print KOT/Bill ──────
     newSocket.on('print-kot', ({ order }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
-      if (!settings.autoPrintKitchenBill || !settings.btKitchenPrinter) return;
-      if (!_isCapacitor || _isIOS) return;
+      if (!settings.autoPrintKitchenBill) return;
+      if (!_isCapacitor) return;
+      if (_isIOS && !settings.wifiPrinterIp) return;
+      if (!_isIOS && !settings.btKitchenPrinter) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -307,8 +311,10 @@ export default function StaffDashboard() {
 
     newSocket.on('print-bill', ({ order, orders }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
-      if (!settings.autoPrintFinalBill || !settings.btBillPrinter) return;
-      if (!_isCapacitor || _isIOS) return;
+      if (!settings.autoPrintFinalBill) return;
+      if (!_isCapacitor) return;
+      if (_isIOS && !settings.wifiPrinterIp) return;
+      if (!_isIOS && !settings.btBillPrinter) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -1598,31 +1604,51 @@ export default function StaffDashboard() {
                 ) : _isIOS ? (
                   <div className="space-y-5">
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                      <p className="text-xs font-bold text-blue-700 mb-1">📱 iOS Printer Setup</p>
-                      <p className="text-xs text-blue-600">Enter your printer's Bluetooth address or IP address manually. Make sure the printer is paired in iPhone Settings → Bluetooth first.</p>
+                      <p className="text-xs font-bold text-blue-700 mb-1">📶 WiFi Printer Setup (iOS)</p>
+                      <p className="text-xs text-blue-600">On iOS, printing works over WiFi. Connect your thermal printer to the same WiFi network, then enter its IP address below. Most printers use port 9100.</p>
+                      <p className="text-xs text-blue-500 mt-1">💡 Print a test page from your printer to find its IP address.</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Kitchen Printer (KOT)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Printer IP Address</label>
                       <input
                         type="text"
-                        value={printerSettings.btKitchenPrinter || ''}
-                        onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
-                        placeholder="e.g. 66:22:98:1D:E9:47"
+                        inputMode="decimal"
+                        value={printerSettings.wifiPrinterIp || ''}
+                        onChange={e => handlePrinterSettingChange('wifiPrinterIp', e.target.value.trim())}
+                        placeholder="e.g. 192.168.1.105"
                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Bill Printer</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Printer Port</label>
                       <input
-                        type="text"
-                        value={printerSettings.btBillPrinter || ''}
-                        onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
-                        placeholder="e.g. 66:22:98:1D:E9:47"
+                        type="number"
+                        inputMode="numeric"
+                        value={printerSettings.wifiPrinterPort || 9100}
+                        onChange={e => handlePrinterSettingChange('wifiPrinterPort', parseInt(e.target.value) || 9100)}
+                        placeholder="9100"
                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
                       />
                     </div>
+
+                    {printerSettings.wifiPrinterIp && (
+                      <button
+                        onClick={async () => {
+                          showToast('Testing connection...', 'success');
+                          try {
+                            const { testWifiPrinter } = await import('../utils/qzPrint.js');
+                            const r = await testWifiPrinter(printerSettings.wifiPrinterIp, printerSettings.wifiPrinterPort || 9100);
+                            if (r.success) showToast('✓ Test print sent!');
+                            else showToast('Failed: ' + r.error, 'error');
+                          } catch (e) { showToast('Error: ' + e.message, 'error'); }
+                        }}
+                        className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors"
+                      >
+                        Test Connection & Print
+                      </button>
+                    )}
 
                     <div className="space-y-3 pt-1">
                       <label className="flex items-center gap-3 cursor-pointer">

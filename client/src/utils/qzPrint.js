@@ -216,6 +216,45 @@ async function qzPrintHTML(html, printerName) {
   } catch(e) { return false; }
 }
 
+// ─── WiFi TCP Print (iOS) ─────────────────────────────────────────────────────
+const _isIOS = typeof window !== 'undefined' &&
+  (window.Capacitor?.getPlatform?.() === 'ios' || /iPad|iPhone|iPod/.test(navigator.userAgent || ''));
+
+async function getWifiPrinterPlugin() {
+  if (window.Capacitor?.Plugins?.WifiPrinter) return window.Capacitor.Plugins.WifiPrinter;
+  const { registerPlugin } = await import('@capacitor/core');
+  return registerPlugin('WifiPrinter');
+}
+
+export async function wifiTcpPrint(host, port, byteArr) {
+  if (!host) return { success: false, error: 'No printer IP configured' };
+  try {
+    const hex = toHex(byteArr);
+    const plugin = await getWifiPrinterPlugin();
+    await Promise.race([
+      plugin.print({ host, port: port || 9100, hex }),
+      new Promise((_, r) => setTimeout(() => r(new Error('Print timeout after 15s')), 15000))
+    ]);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message || String(e) };
+  }
+}
+
+export async function testWifiPrinter(host, port) {
+  if (!host) return { success: false, error: 'No printer IP configured' };
+  try {
+    const plugin = await getWifiPrinterPlugin();
+    await Promise.race([
+      plugin.testConnection({ host, port: port || 9100 }),
+      new Promise((_, r) => setTimeout(() => r(new Error('Connection timeout')), 8000))
+    ]);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message || String(e) };
+  }
+}
+
 // ─── Browser fallback ─────────────────────────────────────────────────────────
 function browserPrint(html) {
   const w = window.open('','_blank','width=420,height=700');
@@ -247,7 +286,39 @@ export async function smartPrint(html, type='bill', orderData=null) {
     if (r?.success) return { method:'electron-html' };
   }
 
-  // 2. Android BT
+  // 2. iOS WiFi TCP printing
+  if (_isIOS && window.Capacitor?.isNativePlatform?.()) {
+    const s = getSavedSettings();
+    const host = s.wifiPrinterIp;
+    const port = s.wifiPrinterPort || 9100;
+    if (!host) return { method: 'none', error: 'No WiFi printer IP configured' };
+
+    let byteArr = null;
+    try {
+      if (type === 'kitchen' && orderData?.order) {
+        const o = orderData.order;
+        byteArr = buildKOTBytes({ restaurantName: orderData.restaurantName, slotLabel: o.tableNumber ? 'TABLE '+o.tableNumber : o.roomNumber ? 'ROOM '+o.roomNumber : (o.orderType||'').toUpperCase(), orderId: o._id, orderType: o.orderType, customerName: o.customerName, deliveryAddress: o.deliveryAddress, specialInstructions: o.specialInstructions, items: o.items });
+      } else if (type === 'bill' && orderData?.orders) {
+        const im = {};
+        orderData.orders.forEach(o => o.items?.forEach(i => { if (im[i.name]) im[i.name].quantity += i.quantity; else im[i.name] = { name: i.name, quantity: i.quantity, price: i.price }; }));
+        const o0 = orderData.orders[0] || {};
+        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: o0.orderType, customerName: o0.customerName, customerPhone: o0.customerPhone, deliveryAddress: o0.deliveryAddress, items: Object.values(im), packagingCharge: o0.packagingCharge, deliveryCharge: o0.deliveryCharge, paymentMethod: o0.paymentMethod });
+      }
+    } catch (e) { console.warn('iOS byte build error:', e); }
+
+    if (!byteArr) {
+      const div = document.createElement('div'); div.innerHTML = html;
+      const t = (div.innerText || div.textContent || '').trim() + '\n\n';
+      byteArr = []; for (let i = 0; i < t.length; i++) byteArr.push(t.charCodeAt(i) & 0xFF);
+    }
+
+    const res = await wifiTcpPrint(host, port, byteArr);
+    if (res.success) return { method: 'wifi-tcp' };
+    console.error('WiFi print failed:', res.error);
+    return { method: 'none', error: res.error };
+  }
+
+  // 3. Android BT
   if (window.Capacitor?.isNativePlatform?.()) {
     const s=getSavedSettings();
     const address=type==='kitchen'?s.btKitchenPrinter:s.btBillPrinter;
@@ -278,14 +349,14 @@ export async function smartPrint(html, type='bill', orderData=null) {
     return { method:'none', error:res.error };
   }
 
-  // 3. QZ Tray
+  // 4. QZ Tray
   const s=getSavedSettings();
   if (s.useQZTray) {
     const pn=type==='kitchen'?s.qzKitchenPrinter:s.qzBillPrinter;
     if (pn) { const ok=await qzPrintHTML(html,pn); if(ok) return { method:'qz' }; }
   }
 
-  // 4. Browser
+  // 5. Browser
   browserPrint(html);
   return { method:'browser' };
 }
