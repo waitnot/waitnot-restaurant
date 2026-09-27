@@ -519,10 +519,15 @@ async function doPoll() {
   const changed = body !== lastOrdersBody;
   lastOrdersBody = body;
 
-  // Sync UI — runs on every change, regardless of auto-print settings
+  // Sync UI — only when on staff-dashboard page
   if (changed) {
-    console.log(`📦 Orders synced: ${activeOrders.length} active`);
-    pushOrdersToUI(activeOrders);
+    const onDashboard = await safeExecJS(`
+      (window.location.hash||'').includes('staff-dashboard')
+    `);
+    if (onDashboard) {
+      console.log(`📦 Orders synced: ${activeOrders.length} active`);
+      pushOrdersToUI(activeOrders);
+    }
   }
 
   // ── Auto-print KOT ─────────────────────────────────────────────────────────
