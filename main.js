@@ -118,68 +118,6 @@ function createWindow() {
       `).catch(() => {});
     });
 
-      // ── Real-time order polling (fallback if socket still fails) ──────────
-      // Polls every 3s from Node.js (no CORS), dispatches results to renderer
-      const https = require('https');
-      let lastOrders = '';
-      let pollActive = false;
-
-      setInterval(() => {
-        if (pollActive) return;
-        mainWindow.webContents.executeJavaScript(`
-          (function() {
-            try {
-              const hash = window.location.hash || '';
-              if (!hash.includes('staff-dashboard')) return null;
-              const sd = localStorage.getItem('staffData');
-              const tk = localStorage.getItem('staffToken');
-              if (!sd || !tk) return null;
-              const rid = JSON.parse(sd).restaurant_id;
-              // Also grab restaurant data for auto-print bills
-              const rd = localStorage.getItem('restaurantData');
-              return rid ? { rid, tk, rd: rd ? JSON.parse(rd) : null } : null;
-            } catch(e) { return null; }
-          })()
-        `).then((info) => {
-          if (!info) return;
-          const { rid, tk, rd } = info;
-
-          // Cache restaurant data so auto-print bill can use the name
-          if (rd && rd.name) store.set('restaurantData', rd);
-          pollActive = true;
-
-          const req = https.request({
-            hostname: 'waitnot-restaurant.onrender.com',
-            path: `/api/orders/restaurant/${rid}?status=active`,
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${tk}` },
-            rejectUnauthorized: false,
-          }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => {
-              pollActive = false;
-              if (!body || body === lastOrders) return;
-              lastOrders = body;
-              // Inject updated orders into renderer
-              const safe = body.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
-              mainWindow.webContents.executeJavaScript(`
-                (function() {
-                  try {
-                    const orders = JSON.parse(\`${safe}\`);
-                    if (Array.isArray(orders)) {
-                      window.dispatchEvent(new CustomEvent('__waitnot_orders__', { detail: orders }));
-                    }
-                  } catch(e) {}
-                })()
-              `).catch(() => {});
-            });
-          });
-          req.on('error', () => { pollActive = false; });
-          req.end();
-        }).catch(() => { pollActive = false; });
-      }, 3000);
-
     mainWindow.loadURL('waitnot://app/index.html').catch((error) => {
       console.error('❌ waitnot:// failed, trying loadFile fallback:', error);
       const indexPath = path.join(app.getAppPath(), 'renderer', 'index.html');
@@ -1049,6 +987,9 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
       ? printerName.trim()
       : (savedForType || await autoDetectThermalPrinter(mainWindow));
     console.log(`🖨️ Target printer: "${targetPrinter}" (${data.isKOT ? 'KOT' : 'BILL'})`);
+
+    // Write ESC/POS buffer to a temp binary file then send via COPY /B
+    const tmpBin = path.join(require('os').tmpdir(), `waitnot-escpos-${Date.now()}.bin`);
     fs.writeFileSync(tmpBin, buf);
 
     const result = await new Promise((res) => {
@@ -1149,149 +1090,6 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
 // ─── Get available printers ──────────────────────────────────────────────────
 ipcMain.handle('get-printers', async () => {
   return await listPrinters(mainWindow.webContents);
-});
-
-// ─── Auto-print KOT ──────────────────────────────────────────────────────────
-// Called by preload after POST /api/orders succeeds.
-// Checks autoKot setting → builds ESC/POS KOT → sends to kitchenPrinter.
-ipcMain.handle('auto-print-kot', async (event, { order }) => {
-  try {
-    if (!store.get('autoKot', false)) return { skipped: true }; // feature off
-
-    const printerName = store.get('kitchenPrinter', '') || store.get('selectedPrinter', '')
-                     || await autoDetectThermalPrinter(mainWindow);
-    if (!printerName) return { skipped: true, reason: 'no printer' };
-
-    if (!order || !order._id) return { skipped: true, reason: 'no order data' };
-
-    console.log(`🖨️ Auto-KOT → "${printerName}" | order #${order.orderNumber}`);
-
-    const data = {
-      restaurantName : order.restaurantName || 'Restaurant',
-      orderId        : order._id.slice(-8).toUpperCase(),
-      tableNumber    : order.tableNumber,
-      roomNumber     : order.roomNumber,
-      orderType      : order.orderType || 'dine-in',
-      customerName   : order.customerName,
-      deliveryAddress: order.deliveryAddress,
-      items          : order.items || [],
-      time           : new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }),
-    };
-
-    // Enrich with restaurant name from cached data if not present
-    if (!data.restaurantName || data.restaurantName === 'Restaurant') {
-      try {
-        const rd = store.get('restaurantData', null);
-        if (rd && rd.name) data.restaurantName = rd.name;
-      } catch {}
-    }
-
-    return await printKOT(data, printerName);
-  } catch (e) {
-    console.error('auto-print-kot error:', e.message);
-    return { success: false, error: e.message };
-  }
-});
-
-// ─── Auto-print Bill ─────────────────────────────────────────────────────────
-// Called by preload after POST /api/orders/batch-update succeeds.
-// Fetches the full order data, builds ESC/POS bill, sends to billPrinter.
-ipcMain.handle('auto-print-bill', async (event, { orderIds }) => {
-  try {
-    if (!store.get('autoBill', false)) return { skipped: true }; // feature off
-    if (!orderIds || orderIds.length === 0) return { skipped: true, reason: 'no orderIds' };
-
-    const printerName = store.get('billPrinter', '') || store.get('selectedPrinter', '')
-                     || await autoDetectThermalPrinter(mainWindow);
-    if (!printerName) return { skipped: true, reason: 'no printer' };
-
-    console.log(`🖨️ Auto-Bill → "${printerName}" | orders: ${orderIds.join(',')}`);
-
-    // Fetch order details from server
-    const firstId = orderIds[0];
-    const orderData = await new Promise((resolve) => {
-      const req = https.request({
-        hostname: 'waitnot-restaurant.onrender.com',
-        path: `/api/orders/${firstId}`,
-        method: 'GET',
-        rejectUnauthorized: false,
-      }, (res) => {
-        let body = '';
-        res.on('data', c => { body += c; });
-        res.on('end', () => {
-          try { resolve(JSON.parse(body)); } catch { resolve(null); }
-        });
-      });
-      req.on('error', () => resolve(null));
-      req.setTimeout(5000, () => { req.destroy(); resolve(null); });
-      req.end();
-    });
-
-    if (!orderData) return { success: false, error: 'Could not fetch order' };
-
-    // If multiple orders on table, fetch all and combine items
-    let allOrders = [orderData];
-    if (orderIds.length > 1) {
-      const extras = await Promise.all(
-        orderIds.slice(1).map(id => new Promise((resolve) => {
-          const req = https.request({
-            hostname: 'waitnot-restaurant.onrender.com',
-            path: `/api/orders/${id}`,
-            method: 'GET',
-            rejectUnauthorized: false,
-          }, (res) => {
-            let body = '';
-            res.on('data', c => { body += c; });
-            res.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
-          });
-          req.on('error', () => resolve(null));
-          req.setTimeout(5000, () => { req.destroy(); resolve(null); });
-          req.end();
-        }))
-      );
-      allOrders = [orderData, ...extras.filter(Boolean)];
-    }
-
-    // Merge all items from all orders
-    const allItems = allOrders.flatMap(o => (o.items || []).map(i => ({
-      name  : i.name,
-      qty   : i.quantity,
-      price : parseFloat(i.price) || 0,
-    })));
-    const total = allItems.filter(i => !i.complimentary)
-                          .reduce((s, i) => s + i.price * i.qty, 0);
-
-    // Enrich restaurant name
-    let restaurantName = orderData.restaurantName || '';
-    if (!restaurantName) {
-      try {
-        const rd = store.get('restaurantData', null);
-        if (rd && rd.name) restaurantName = rd.name;
-      } catch {}
-    }
-    if (!restaurantName) restaurantName = 'Restaurant';
-
-    const slotLabel = orderData.roomNumber
-      ? `Room ${orderData.roomNumber}`
-      : orderData.tableNumber ? `Table ${orderData.tableNumber}` : '';
-
-    const now  = new Date();
-    const data = {
-      restaurantName,
-      tableLabel    : slotLabel,
-      items         : allItems,
-      total,
-      paymentMethod : orderData.paymentMethod || 'CASH',
-      time          : now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }),
-      date          : now.toLocaleDateString('en-IN'),
-      footerText    : 'Thank you! Please Visit Again',
-    };
-
-    return await printBill(data, printerName);
-  } catch (e) {
-    console.error('auto-print-bill error:', e.message);
-    return { success: false, error: e.message };
-  }
 });
 
 // Handle certificate errors
