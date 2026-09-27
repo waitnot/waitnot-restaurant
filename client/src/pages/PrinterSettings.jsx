@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Settings, Printer, Save, ArrowLeft, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { connectQZ, getPrinters, isQZAvailable } from '../utils/qzPrint.js';
-import { BluetoothSerial } from '@ascentio-it/capacitor-bluetooth-serial';
+
+const _isIOS = typeof window !== 'undefined' && (
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+);
 
 // Function to generate custom bill preview
 const generateCustomBillPreview = (customization) => {
@@ -369,24 +373,18 @@ export default function PrinterSettings() {
   };
 
   const loadBluetoothPrinters = async () => {
-    if (!window.Capacitor?.isNativePlatform?.()) return;
+    if (!window.Capacitor?.isNativePlatform?.() || _isIOS) return;
     try {
-      // Check/Request Permissions
-      const hasPermission = await BluetoothSerial.checkBluetoothPermissions();
-
-      const state = await BluetoothSerial.isEnabled();
-      if (!state.enabled) {
-        await BluetoothSerial.enable();
-      }
-      const result = await BluetoothSerial.getPairedDevices();
+      const { getPairedBluetoothDevices } = await import('../utils/qzPrint.js');
+      const result = await getPairedBluetoothDevices();
       setBtPrinters(result.devices || []);
     } catch (error) {
-      console.error('Failed to load Bluetooth printers:', error);
+      console.error('Failed to load BT printers:', error);
     }
   };
 
   useEffect(() => {
-    if (window.Capacitor?.isNativePlatform?.()) {
+    if (window.Capacitor?.isNativePlatform?.() && !_isIOS) {
       loadBluetoothPrinters();
     }
   }, []);
