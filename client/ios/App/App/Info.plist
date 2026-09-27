@@ -71,6 +71,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>WaitNot Captain requires Bluetooth access to connect and print to thermal printers.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>WaitNot Captain requires Bluetooth access to connect and print to thermal printers.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

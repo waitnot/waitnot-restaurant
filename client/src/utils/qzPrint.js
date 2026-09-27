@@ -290,12 +290,12 @@ export async function smartPrint(html, type='bill', orderData=null) {
     if (r?.success) return { method:'electron-html' };
   }
 
-  // 2. iOS WiFi TCP printing
-  if (isIOSDevice() && window.Capacitor?.isNativePlatform?.()) {
+  // 2. Mobile Native Printing (Android & iOS)
+  if (window.Capacitor?.isNativePlatform?.()) {
     const s = getSavedSettings();
-    const host = s.wifiPrinterIp;
-    const port = s.wifiPrinterPort || 9100;
-    if (!host) return { method: 'none', error: 'No WiFi printer IP configured' };
+    const btAddress = type === 'kitchen' ? s.btKitchenPrinter : s.btBillPrinter;
+    const wifiHost = s.wifiPrinterIp;
+    const wifiPort = s.wifiPrinterPort || 9100;
 
     let byteArr = null;
     try {
@@ -308,7 +308,7 @@ export async function smartPrint(html, type='bill', orderData=null) {
         const o0 = orderData.orders[0] || {};
         byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: o0.orderType, customerName: o0.customerName, customerPhone: o0.customerPhone, deliveryAddress: o0.deliveryAddress, items: Object.values(im), packagingCharge: o0.packagingCharge, deliveryCharge: o0.deliveryCharge, paymentMethod: o0.paymentMethod });
       }
-    } catch (e) { console.warn('iOS byte build error:', e); }
+    } catch (e) { console.warn('byte build error:', e); }
 
     if (!byteArr) {
       const div = document.createElement('div'); div.innerHTML = html;
@@ -316,41 +316,26 @@ export async function smartPrint(html, type='bill', orderData=null) {
       byteArr = []; for (let i = 0; i < t.length; i++) byteArr.push(t.charCodeAt(i) & 0xFF);
     }
 
-    const res = await wifiTcpPrint(host, port, byteArr);
-    if (res.success) return { method: 'wifi-tcp' };
-    console.error('WiFi print failed:', res.error);
-    return { method: 'none', error: res.error };
-  }
-
-  // 3. Android BT
-  if (window.Capacitor?.isNativePlatform?.() && !isIOSDevice()) {
-    const s=getSavedSettings();
-    const address=type==='kitchen'?s.btKitchenPrinter:s.btBillPrinter;
-    if (!address) { console.warn('No printer address for type:', type, 'settings:', s); return { method:'none', error:'No printer configured' }; }
-
-    let byteArr=null;
-    try {
-      if (type==='kitchen'&&orderData?.order) {
-        const o=orderData.order;
-        byteArr=buildKOTBytes({ restaurantName:orderData.restaurantName, slotLabel:o.tableNumber?'TABLE '+o.tableNumber:o.roomNumber?'ROOM '+o.roomNumber:(o.orderType||'').toUpperCase(), orderId:o._id, orderType:o.orderType, customerName:o.customerName, deliveryAddress:o.deliveryAddress, specialInstructions:o.specialInstructions, items:o.items });
-      } else if (type==='bill'&&orderData?.orders) {
-        const im={};
-        orderData.orders.forEach(o=>o.items?.forEach(i=>{ if(im[i.name]) im[i.name].quantity+=i.quantity; else im[i.name]={name:i.name,quantity:i.quantity,price:i.price}; }));
-        const o0=orderData.orders[0]||{};
-        byteArr=buildBillBytes({ restaurantName:orderData.restaurantName, slotLabel:orderData.tableLabel, orderType:o0.orderType, customerName:o0.customerName, customerPhone:o0.customerPhone, deliveryAddress:o0.deliveryAddress, items:Object.values(im), packagingCharge:o0.packagingCharge, deliveryCharge:o0.deliveryCharge, paymentMethod:o0.paymentMethod });
-      }
-    } catch(e) { console.warn('byte build error:',e); }
-
-    if (!byteArr) {
-      const div=document.createElement('div'); div.innerHTML=html;
-      const t=(div.innerText||div.textContent||'').trim()+'\n\n';
-      byteArr=[]; for(let i=0;i<t.length;i++) byteArr.push(t.charCodeAt(i)&0xFF);
+    // Attempt Bluetooth printing first if address is set
+    if (btAddress) {
+      const res = await escPosPrint(btAddress, byteArr);
+      if (res.success) return { method: 'escpos-bt' };
+      console.warn('BT print failed:', res.error, '— checking WiFi fallback...');
     }
 
-    const res=await escPosPrint(address,byteArr);
-    if (res.success) return { method:'escpos-bt' };
-    console.error('BT print failed:', res.error);
-    return { method:'none', error:res.error };
+    // Fallback to WiFi TCP print if WiFi IP is set
+    if (wifiHost) {
+      const res = await wifiTcpPrint(wifiHost, wifiPort, byteArr);
+      if (res.success) return { method: 'wifi-tcp' };
+      console.error('WiFi print failed:', res.error);
+    }
+
+    if (!btAddress && !wifiHost) {
+      console.warn('No mobile printer configured for type:', type);
+      return { method: 'none', error: 'No Bluetooth or WiFi printer configured' };
+    }
+
+    return { method: 'none', error: 'Mobile print failed' };
   }
 
   // 4. QZ Tray

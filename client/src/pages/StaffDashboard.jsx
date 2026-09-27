@@ -293,8 +293,7 @@ export default function StaffDashboard() {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintKitchenBill) return;
       if (!_isCapacitor) return;
-      if (_isIOS && !settings.wifiPrinterIp) return;
-      if (!_isIOS && !settings.btKitchenPrinter) return;
+      if (!settings.btKitchenPrinter && !settings.wifiPrinterIp) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -304,8 +303,6 @@ export default function StaffDashboard() {
         ...order,
         items: order.items || [],
       };
-      // Trigger via the component's printKOT function by dispatching a custom event
-      // Simpler: use the qzPrint module directly
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
         smartPrint('', 'kitchen', { order: fakeOrder, restaurantName })
           .then(r => console.log('Auto-KOT:', r?.method))
@@ -317,8 +314,7 @@ export default function StaffDashboard() {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintFinalBill) return;
       if (!_isCapacitor) return;
-      if (_isIOS && !settings.wifiPrinterIp) return;
-      if (!_isIOS && !settings.btBillPrinter) return;
+      if (!settings.btBillPrinter && !settings.wifiPrinterIp) return;
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
@@ -334,7 +330,7 @@ export default function StaffDashboard() {
     });
 
     // Listen for BT connection state changes
-    const btUnsub = (_isCapacitor && !_isIOS)
+    const btUnsub = _isCapacitor
       ? addBluetoothConnectionListener(({ address, state }) => {
           setConnectedPrinters(prev => ({ ...prev, [address]: state === 'connected' }));
           sessionStorage.setItem(`bt_connected_${address}`, state === 'connected' ? '1' : '0');
@@ -362,7 +358,7 @@ export default function StaffDashboard() {
 
   // Auto-reconnect to saved printer on startup — runs silently in background
   const autoReconnectPrinter = async (settings) => {
-    if (!_isCapacitor || _isIOS) return;
+    if (!_isCapacitor) return;
     // Connect to both KOT and Bill printers (may be same or different devices)
     const addresses = [...new Set([settings.btKitchenPrinter, settings.btBillPrinter].filter(Boolean))];
     for (const address of addresses) {
@@ -380,12 +376,9 @@ export default function StaffDashboard() {
   };
 
   const loadBluetoothPrinters = async () => {
-    if (_isIOS) {
-      showToast('Bluetooth printing is not supported on iOS', 'error');
-      return;
-    }
     try {
-      if (!_isCapacitor) return;      setBtScanStatus('scanning');
+      if (!_isCapacitor) return;
+      setBtScanStatus('scanning');
       setBtPrinters([]);
 
       // First load already-paired devices instantly
@@ -413,6 +406,8 @@ export default function StaffDashboard() {
       console.error('BT scan failed:', error);
       setBtScanStatus('error');
       showToast('Scan failed: ' + error.message, 'error');
+    }
+  };
     }
   };
 
@@ -1589,12 +1584,12 @@ export default function StaffDashboard() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-800">Printer Settings</h2>
-                    <p className="text-gray-500 text-sm">{_isIOS ? 'Configure WiFi printer' : 'Configure Bluetooth printers'}</p>
+                    <p className="text-gray-500 text-sm">Configure Bluetooth & WiFi printers</p>
                   </div>
                 </div>
 
-                {/* Multi-mobile info banner — Android only */}
-                {isMobile && !_isIOS && (
+                {/* Multi-mobile info banner */}
+                {isMobile && (
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-2">
                     <p className="text-xs font-bold text-blue-700 mb-1">📱 Multi-Mobile Setup</p>
                     <p className="text-xs text-blue-600">Bluetooth printers support only <strong>one phone connection</strong> at a time. Set up one phone as the <strong>print server</strong> — connect it to the printer and enable Auto-Print. All other phones place orders normally and this phone will print automatically.</p>
@@ -1605,7 +1600,7 @@ export default function StaffDashboard() {
                   <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl text-yellow-800 text-sm">
                     ⚠️ Bluetooth printing is only available in the mobile app.
                   </div>
-                ) : _isIOS ? (
+                ) : (
                   <div className="space-y-5">
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                       <p className="text-xs font-bold text-blue-700 mb-1">📶 WiFi Printer Setup (iOS)</p>

@@ -376,10 +376,13 @@ export default function PrinterSettings() {
   };
 
   const loadBluetoothPrinters = async () => {
-    if (!window.Capacitor?.isNativePlatform?.() || _isIOS) return;
+    if (!window.Capacitor?.isNativePlatform?.()) return;
     try {
-      const { getPairedBluetoothDevices } = await import('../utils/qzPrint.js');
-      const result = await getPairedBluetoothDevices();
+      const { getPairedBluetoothDevices, scanBluetoothDevices } = await import('../utils/qzPrint.js');
+      let result = await getPairedBluetoothDevices();
+      if (!result.devices || result.devices.length === 0) {
+        result = await scanBluetoothDevices();
+      }
       setBtPrinters(result.devices || []);
     } catch (error) {
       console.error('Failed to load BT printers:', error);
@@ -387,7 +390,7 @@ export default function PrinterSettings() {
   };
 
   useEffect(() => {
-    if (window.Capacitor?.isNativePlatform?.() && !_isIOS) {
+    if (window.Capacitor?.isNativePlatform?.()) {
       loadBluetoothPrinters();
     }
   }, []);
@@ -628,7 +631,7 @@ export default function PrinterSettings() {
         )}
 
         {/* Mobile Bluetooth Printer Settings */}
-        {isMobile && !_isIOS && (
+        {isMobile && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -636,8 +639,8 @@ export default function PrinterSettings() {
                   <Printer size={24} className="text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800">Bluetooth Thermal Printer (Android)</h2>
-                  <p className="text-gray-500 text-sm">Direct printing from Android Captain App</p>
+                  <h2 className="text-lg font-bold text-gray-800">Bluetooth Thermal Printer</h2>
+                  <p className="text-gray-500 text-sm">Direct printing from Captain Mobile App ({_isIOS ? 'iOS BLE' : 'Android'})</p>
                 </div>
               </div>
               <button
@@ -659,7 +662,7 @@ export default function PrinterSettings() {
                   <option value="">— Select device —</option>
                   {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address})</option>)}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Make sure the printer is paired in Android Settings</p>
+                <p className="text-xs text-gray-500 mt-1">{_isIOS ? 'Tap Scan Devices to find nearby Bluetooth printers' : 'Make sure the printer is paired in Android Settings'}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Bill Bluetooth Printer</label>
