@@ -2,18 +2,13 @@ import Foundation
 import Capacitor
 
 /// WifiPrinterPlugin
-/// Capacitor plugin that sends raw ESC/POS bytes to a WiFi/TCP thermal printer.
-/// Works on iOS where Bluetooth Classic SPP is unavailable.
+/// Sends raw ESC/POS bytes to a WiFi/TCP thermal printer from iOS.
+/// Registered via CAPPlugin — no additional Podfile entry needed.
 @objc(WifiPrinterPlugin)
-public class WifiPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "WifiPrinterPlugin"
-    public let jsName = "WifiPrinter"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "print", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "testConnection", returnType: CAPPluginReturnPromise)
-    ]
+public class WifiPrinterPlugin: CAPPlugin {
 
-    /// print(host, port, hex) — sends ESC/POS hex bytes to printer via TCP
+    /// print(options) — sends ESC/POS hex bytes to printer via TCP socket
+    /// options: { host: String, port: Int, hex: String }
     @objc func print(_ call: CAPPluginCall) {
         guard let host = call.getString("host"), !host.isEmpty else {
             call.reject("host is required")
@@ -24,7 +19,6 @@ public class WifiPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("hex is required")
             return
         }
-
         guard let data = hexToData(hex) else {
             call.reject("Invalid hex string")
             return
@@ -43,7 +37,8 @@ public class WifiPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// testConnection(host, port) — checks if TCP connection can be established
+    /// testConnection(options) — sends a test page to confirm printer is reachable
+    /// options: { host: String, port: Int }
     @objc func testConnection(_ call: CAPPluginCall) {
         guard let host = call.getString("host"), !host.isEmpty else {
             call.reject("host is required")
@@ -51,16 +46,15 @@ public class WifiPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         let port = UInt32(call.getInt("port") ?? 9100)
 
-        // Send a minimal ESC/POS init + 3 line feeds + cut
         let testBytes: [UInt8] = [
-            0x1B, 0x40,             // ESC @ — Init
-            0x1B, 0x61, 0x01,       // Center align
-            0x1B, 0x45, 0x01,       // Bold on
+            0x1B, 0x40,
+            0x1B, 0x61, 0x01,
+            0x1B, 0x45, 0x01
         ] + Array("WIFI PRINTER TEST\n".utf8) + [
-            0x1B, 0x45, 0x00,       // Bold off
+            0x1B, 0x45, 0x00
         ] + Array("WaitNot POS\n".utf8) + Array("Connection OK\n".utf8) + [
-            0x0A, 0x0A, 0x0A,       // 3 line feeds
-            0x1D, 0x56, 0x42, 0x03  // Cut
+            0x0A, 0x0A, 0x0A,
+            0x1D, 0x56, 0x42, 0x03
         ]
 
         let data = Data(testBytes)
@@ -77,28 +71,21 @@ public class WifiPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    // MARK: - TCP helpers
+    // MARK: - TCP
 
     private func sendTCP(host: String, port: UInt32, data: Data, completion: @escaping (Bool, String?) -> Void) {
         var readStream: Unmanaged<CFReadStream>?
         var writeStream: Unmanaged<CFWriteStream>?
 
-        CFStreamCreatePairWithSocketToHost(
-            kCFAllocatorDefault,
-            host as CFString,
-            port,
-            &readStream,
-            &writeStream
-        )
+        CFStreamCreatePairWithSocketToHost(kCFAllocatorDefault, host as CFString, port, &readStream, &writeStream)
 
         guard let outputStream = writeStream?.takeRetainedValue() as? OutputStream else {
-            completion(false, "Could not create output stream")
+            completion(false, "Could not create output stream to \(host):\(port)")
             return
         }
 
         outputStream.open()
 
-        // Wait for stream to be ready (max 8 seconds)
         let deadline = Date().addingTimeInterval(8)
         while outputStream.streamStatus == .opening && Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)
@@ -106,8 +93,7 @@ public class WifiPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
 
         guard outputStream.streamStatus == .open else {
             outputStream.close()
-            let status = outputStream.streamStatus.rawValue
-            completion(false, "Connection failed (status \(status)): \(host):\(port)")
+            completion(false, "Connection failed to \(host):\(port) (status \(outputStream.streamStatus.rawValue))")
             return
         }
 
@@ -131,14 +117,13 @@ public class WifiPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
 
-        // Small delay to let printer buffer flush before closing
         Thread.sleep(forTimeInterval: 0.3)
         outputStream.close()
 
         if totalWritten >= bytes.count {
             completion(true, nil)
         } else {
-            completion(false, "Write timeout — only \(totalWritten)/\(bytes.count) bytes sent")
+            completion(false, "Write timeout — sent \(totalWritten)/\(bytes.count) bytes")
         }
     }
 

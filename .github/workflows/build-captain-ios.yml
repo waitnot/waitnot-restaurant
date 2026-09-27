@@ -59,8 +59,6 @@ jobs:
 
       - name: Fix SPM package
         run: |
-          mkdir -p client/ios/App/CapApp-SPM/Sources/CapApp-SPM
-          printf '// Required by SPM\nimport Foundation\n' > client/ios/App/CapApp-SPM/Sources/CapApp-SPM/CapAppSPM.swift
           cp .github/workflows/Package.swift client/ios/App/CapApp-SPM/Package.swift
 
       - name: Install CocoaPods dependencies
@@ -80,7 +78,12 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            archive 2>&1 | tee /tmp/xbuild.log || (grep "error:" /tmp/xbuild.log && exit 65)
+            archive 2>&1 | tee /tmp/xbuild.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "=== BUILD ERRORS ==="
+            grep -E "error:|warning:.*error" /tmp/xbuild.log | head -40
+            exit 65
+          fi
 
       - name: Package IPA from archive
         working-directory: client
