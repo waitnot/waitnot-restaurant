@@ -408,8 +408,6 @@ export default function StaffDashboard() {
       showToast('Scan failed: ' + error.message, 'error');
     }
   };
-    }
-  };
 
   const savePrinterSettings = () => {
     setSavingSettings(true);
