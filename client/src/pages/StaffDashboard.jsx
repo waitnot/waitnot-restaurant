@@ -38,8 +38,12 @@ const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
 const _isCapacitor = typeof window !== 'undefined' && (
   window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:'
 );
-const _isIOS = typeof window !== 'undefined' &&
-  (window.Capacitor?.getPlatform?.() === 'ios' || /iPad|iPhone|iPod/.test(navigator.userAgent));
+// _isIOS: check both navigator.userAgent (reliable) and Capacitor platform
+// navigator.userAgent check works even before Capacitor initializes
+const _isIOS = typeof window !== 'undefined' && (
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) // iPadOS
+);
 const _isLocalDev = typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
   !_isCapacitor;
@@ -1585,12 +1589,12 @@ export default function StaffDashboard() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-800">Printer Settings</h2>
-                    <p className="text-gray-500 text-sm">Configure Bluetooth printers</p>
+                    <p className="text-gray-500 text-sm">{_isIOS ? 'Configure WiFi printer' : 'Configure Bluetooth printers'}</p>
                   </div>
                 </div>
 
-                {/* Multi-mobile info banner */}
-                {isMobile && (
+                {/* Multi-mobile info banner — Android only */}
+                {isMobile && !_isIOS && (
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-2">
                     <p className="text-xs font-bold text-blue-700 mb-1">📱 Multi-Mobile Setup</p>
                     <p className="text-xs text-blue-600">Bluetooth printers support only <strong>one phone connection</strong> at a time. Set up one phone as the <strong>print server</strong> — connect it to the printer and enable Auto-Print. All other phones place orders normally and this phone will print automatically.</p>

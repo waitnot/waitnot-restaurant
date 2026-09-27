@@ -217,8 +217,12 @@ async function qzPrintHTML(html, printerName) {
 }
 
 // ─── WiFi TCP Print (iOS) ─────────────────────────────────────────────────────
-const _isIOS = typeof window !== 'undefined' &&
-  (window.Capacitor?.getPlatform?.() === 'ios' || /iPad|iPhone|iPod/.test(navigator.userAgent || ''));
+// Use navigator.userAgent for reliable iOS detection before Capacitor initializes
+function isIOSDevice() {
+  if (typeof window === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
 
 async function getWifiPrinterPlugin() {
   if (window.Capacitor?.Plugins?.WifiPrinter) return window.Capacitor.Plugins.WifiPrinter;
@@ -287,7 +291,7 @@ export async function smartPrint(html, type='bill', orderData=null) {
   }
 
   // 2. iOS WiFi TCP printing
-  if (_isIOS && window.Capacitor?.isNativePlatform?.()) {
+  if (isIOSDevice() && window.Capacitor?.isNativePlatform?.()) {
     const s = getSavedSettings();
     const host = s.wifiPrinterIp;
     const port = s.wifiPrinterPort || 9100;
@@ -319,7 +323,7 @@ export async function smartPrint(html, type='bill', orderData=null) {
   }
 
   // 3. Android BT
-  if (window.Capacitor?.isNativePlatform?.()) {
+  if (window.Capacitor?.isNativePlatform?.() && !isIOSDevice()) {
     const s=getSavedSettings();
     const address=type==='kitchen'?s.btKitchenPrinter:s.btBillPrinter;
     if (!address) { console.warn('No printer address for type:', type, 'settings:', s); return { method:'none', error:'No printer configured' }; }
