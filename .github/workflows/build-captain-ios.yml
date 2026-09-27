@@ -46,8 +46,9 @@ jobs:
       - name: Ensure xcconfig files exist
         working-directory: client/ios
         run: |
-          [ -f debug.xcconfig ]   || printf 'CAPACITOR_DEBUG = true\n'  > debug.xcconfig
-          [ -f release.xcconfig ] || printf 'CAPACITOR_DEBUG = false\n' > release.xcconfig
+          # Write xcconfig files — always include the CocoaPods-generated xcconfig
+          printf '#include "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"\n\nCAPACITOR_DEBUG = true\n' > debug.xcconfig
+          printf '#include "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"\n\nCAPACITOR_DEBUG = false\n' > release.xcconfig
 
       - name: Add GoogleService-Info.plist from secret
         run: |
@@ -62,7 +63,7 @@ jobs:
           cp .github/workflows/Package.swift client/ios/App/CapApp-SPM/Package.swift
 
       - name: Install CocoaPods dependencies
-        run: pod install --repo-update
+        run: pod install --repo-update --clean-install
         working-directory: client/ios/App
 
       - name: Build iOS archive (unsigned)
