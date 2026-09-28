@@ -527,16 +527,16 @@ async function doPoll() {
   if (!Array.isArray(activeOrders)) return;
 
   const body    = JSON.stringify(activeOrders);
-  const changed = body !== lastOrdersBody;
   lastOrdersBody = body;
 
   // Sync UI — only when on staff-dashboard page
-  if (changed) {
+  {
     const onDashboard = await safeExecJS(`
       (window.location.hash||'').includes('staff-dashboard')
     `);
     if (onDashboard) {
       // Merge server orders with pending offline orders so table grid is complete
+      // Only include offline orders that are truly LOCAL_PENDING (not yet uploaded)
       const offlineOrders = offlineDb.isReady()
         ? offlineDb.getOfflineOrders(rid, 'LOCAL_PENDING').map(o => {
             const items = offlineDb.getOfflineOrderItems(o.id).map(i => ({
@@ -555,9 +555,19 @@ async function doPoll() {
           })
         : [];
 
-      // Only include offline orders not yet on server
-      const serverIds = new Set(activeOrders.map(o => o._id));
-      const pendingOffline = offlineOrders.filter(o => !serverIds.has(o.server_id));
+      // Dedup: exclude offline orders that already appear on the server.
+      // Match by tableNumber + totalAmount + createdAt within 120s
+      // (catches the race where upload just finished).
+      const pendingOffline = offlineOrders.filter(offlineOrder => {
+        const alreadyOnServer = activeOrders.some(serverOrder => {
+          const sameTable  = serverOrder.tableNumber === offlineOrder.tableNumber;
+          const sameAmount = Math.abs((serverOrder.totalAmount || serverOrder.total || 0) - offlineOrder.totalAmount) < 1;
+          const timeDiff   = Math.abs(new Date(serverOrder.createdAt).getTime() - new Date(offlineOrder.createdAt).getTime());
+          return sameTable && sameAmount && timeDiff < 120000; // within 2 minutes
+        });
+        return !alreadyOnServer;
+      });
+
       const merged = [...activeOrders, ...pendingOffline];
 
       console.log(`📦 Orders synced: ${activeOrders.length} server + ${pendingOffline.length} offline pending`);
