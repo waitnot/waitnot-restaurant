@@ -14,10 +14,11 @@ public class EscPosPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripheralDele
     private var discoveredPeripherals: [String: CBPeripheral] = [:]
     private var activePeripherals: [String: CBPeripheral] = [:]
     private var writeCharacteristics: [String: CBCharacteristic] = [:]
-    private var connectionCalls: [String: PluginCall] = [:]
+    private var connectionCalls: [String: CAPPluginCall] = [:]
     private var pendingPrintHex: [String: String] = [:]
 
-    private var pendingScanCall: PluginCall?
+    private var pendingScanCall: CAPPluginCall?
+    private var savedScanCallId: String?
     private var isScanning = false
 
     override public func load() {
@@ -182,7 +183,7 @@ public class EscPosPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripheralDele
         isScanning = true
         centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
 
-        call.setKeepAlive(true)
+        call.keepAlive = true  // keep call alive so we can resolve later via pendingScanCall
         pendingScanCall = call
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) { [weak self] in
