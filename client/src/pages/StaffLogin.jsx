@@ -13,15 +13,7 @@ export default function StaffLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [serverWaking, setServerWaking] = useState(false);
-  const [debugLog, setDebugLog] = useState([]);
-
-  const addLog = (msg) => {
-    console.log('[StaffLogin]', msg);
-    setDebugLog(prev => [...prev.slice(-4), msg]);
-  };
-
   useEffect(() => {
-    addLog('Component mounted');
     let cancelled = false;
 
     const fetchWithTimeout = (url, ms) => {
@@ -32,19 +24,13 @@ export default function StaffLogin() {
 
     const ping = async () => {
       try {
-        addLog('Pinging server...');
         const res = await fetchWithTimeout(`${PRODUCTION_URL}/health`, 5000);
-        addLog(`Server responded: ${res.status}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       } catch (err) {
-        addLog(`Server waking: ${err.message}`);
         if (!cancelled) setServerWaking(true);
         try {
           await fetchWithTimeout(`${PRODUCTION_URL}/health`, 60000);
-          addLog('Server awake');
-        } catch (e) {
-          addLog(`Wake failed: ${e.message}`);
-        }
+        } catch (_) {}
         if (!cancelled) setServerWaking(false);
       }
     };
@@ -57,25 +43,18 @@ export default function StaffLogin() {
     setLoading(true);
     setError('');
     setServerWaking(false);
-    addLog(`Submitting: ${formData.email}`);
 
     try {
-      addLog('Calling /api/staff/login...');
       const { data } = await axios.post('/api/staff/login', formData);
-      addLog('Success, storing token...');
       localStorage.setItem('staffToken', data.token);
       localStorage.setItem('staffData', JSON.stringify(data.staff));
       try {
         await secureSet('staffToken', data.token);
         await secureSet('staffData', JSON.stringify(data.staff));
-      } catch (se) {
-        addLog(`SecureSet warn: ${se.message}`);
-      }
-      addLog('Navigating...');
+      } catch (_) {}
       navigate('/staff-dashboard');
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Login failed';
-      addLog(`Error ${err.response?.status}: ${msg}`);
       setError(msg);
     } finally {
       setLoading(false);
@@ -115,12 +94,6 @@ export default function StaffLogin() {
               <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 shrink-0"></div>
                 Server is starting up, please wait a moment...
-              </div>
-            )}
-
-            {debugLog.length > 0 && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-gray-500 font-mono space-y-0.5">
-                {debugLog.map((l, i) => <div key={i}>{l}</div>)}
               </div>
             )}
 
