@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import axios from '../config/axios.js';
 import SEO from '../components/SEO';
 import { secureSet } from '../utils/secureStorage.js';
+
+const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
 
 export default function StaffLogin() {
   const navigate = useNavigate();
@@ -14,11 +16,33 @@ export default function StaffLogin() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [serverWaking, setServerWaking] = useState(false);
+
+  // Ping server on mount so Render wakes up before the user hits submit
+  useEffect(() => {
+    let cancelled = false;
+    const ping = async () => {
+      try {
+        const res = await fetch(`${PRODUCTION_URL}/health`, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) throw new Error();
+      } catch {
+        // Server is waking — show subtle indicator
+        if (!cancelled) setServerWaking(true);
+        try {
+          await fetch(`${PRODUCTION_URL}/health`, { signal: AbortSignal.timeout(60000) });
+        } catch {}
+        if (!cancelled) setServerWaking(false);
+      }
+    };
+    ping();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setServerWaking(false);
 
     try {
       const { data } = await axios.post('/api/staff/login', formData);
@@ -77,6 +101,13 @@ export default function StaffLogin() {
                 </div>
               )}
 
+              {serverWaking && !loading && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 shrink-0"></div>
+                  Server is starting up, please wait a moment...
+                </div>
+              )}
+
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                   Email Address
@@ -130,7 +161,7 @@ export default function StaffLogin() {
                 {loading ? (
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    Signing In...
+                    {serverWaking ? 'Server starting...' : 'Signing In...'}
                   </div>
                 ) : (
                   'Sign In'
