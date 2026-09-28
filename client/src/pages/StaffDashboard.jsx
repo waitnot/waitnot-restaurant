@@ -2208,7 +2208,6 @@ export default function StaffDashboard() {
             { id: 'sales', label: 'Sales', icon: TrendingUp },
             { id: 'profile', label: 'Profile', icon: User },
             ...(_isIOS ? [] : [{ id: 'settings', label: 'Settings', icon: Settings }]),
-            ...(_isIOS ? [] : [{ id: 'settings', label: 'Settings', icon: Settings }]),
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeView === tab.id;
