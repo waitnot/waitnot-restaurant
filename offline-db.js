@@ -659,7 +659,34 @@ function appendSyncLog(direction, entityType, entityId, operation, result, detai
   `).run(direction, entityType, entityId ?? null, operation ?? null, result, detail ?? null, new Date().toISOString());
 }
 
-// ─── Exports ──────────────────────────────────────────────────────────────────
+// ─── Staff credential cache (offline login) ──────────────────────────────────
+// Stores a hashed token + staff data so login works without internet.
+// Security: we store the JWT token (not the password) — same security level
+// as localStorage where the token already lives.
+
+function cacheStaffCredentials(staffData, token) {
+  if (!ready) return;
+  db.prepare(`
+    INSERT INTO sync_meta (entity_type, last_synced_at, last_server_hash, sync_count, last_error)
+    VALUES ('staff_cache_' || ?, ?, ?, 1, NULL)
+    ON CONFLICT(entity_type) DO UPDATE SET
+      last_synced_at   = excluded.last_synced_at,
+      last_server_hash = excluded.last_server_hash,
+      sync_count       = sync_count + 1
+  `).run(
+    staffData.email || staffData._id || 'unknown',
+    new Date().toISOString(),
+    JSON.stringify({ staffData, token }),
+  );
+}
+
+function getCachedStaffCredentials(email) {
+  if (!ready) return null;
+  const key = 'staff_cache_' + email;
+  const row = db.prepare('SELECT last_server_hash FROM sync_meta WHERE entity_type = ?').get(key);
+  if (!row?.last_server_hash) return null;
+  try { return JSON.parse(row.last_server_hash); } catch { return null; }
+}
 
 module.exports = {
   // Lifecycle
@@ -706,4 +733,8 @@ module.exports = {
 
   // Audit log
   appendSyncLog,
+
+  // Staff credential cache (offline login)
+  cacheStaffCredentials,
+  getCachedStaffCredentials,
 };

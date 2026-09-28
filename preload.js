@@ -3,9 +3,85 @@ const { contextBridge, ipcRenderer } = require('electron');
 const API = 'https://waitnot-restaurant.onrender.com';
 
 // ═══════════════════════════════════════════════════════════════════
-// 1. XHR INTERCEPTOR — only used for UI order refresh injection
-//    Auto-print is handled entirely in main.js via Node.js polling.
-//    This only intercepts GET active-orders to inject polled data.
+// 0. OFFLINE FETCH INTERCEPTOR
+//    Patches window.fetch BEFORE any page scripts run.
+//    Intercepts POST /api/orders when network fails → offline order.
+//    Intercepts POST /api/staff/login when offline → cached credentials.
+//    All other requests pass through normally.
+// ═══════════════════════════════════════════════════════════════════
+const _nativeFetch = window.fetch.bind(window);
+
+window.fetch = async function(input, init) {
+  const url    = typeof input === 'string' ? input : (input?.url || '');
+  const method = ((init?.method) || (input?.method) || 'GET').toUpperCase();
+  const fullUrl = url.startsWith('/') ? API + url : url;
+
+  // ── Intercept POST /api/orders ────────────────────────────────────
+  if (method === 'POST' && fullUrl.endsWith('/api/orders')) {
+    // Try the real request first
+    try {
+      const resp = await _nativeFetch(input, init);
+      return resp; // online — return normally
+    } catch (netErr) {
+      // Network error — save offline
+      console.log('[offline] fetch POST /api/orders failed, saving locally...');
+      try {
+        const bodyText = typeof init?.body === 'string' ? init.body
+                       : (init?.body instanceof Uint8Array ? new TextDecoder().decode(init.body) : null);
+        const payload = bodyText ? JSON.parse(bodyText) : null;
+
+        if (payload && window.electronAPI?.offline?.createOrder) {
+          const result = await window.electronAPI.offline.createOrder(payload);
+          if (result?.success) {
+            // Return synthetic Response matching server shape
+            const responseBody = JSON.stringify(result.order);
+            return new Response(responseBody, {
+              status : 201,
+              headers: new Headers({ 'Content-Type': 'application/json' }),
+            });
+          }
+        }
+      } catch (ipcErr) {
+        console.error('[offline] createOrder IPC failed:', ipcErr.message);
+      }
+      throw netErr; // re-throw original error if offline save also fails
+    }
+  }
+
+  // ── Intercept POST /api/staff/login when offline ──────────────────
+  if (method === 'POST' && fullUrl.includes('/api/staff/login')) {
+    try {
+      const resp = await _nativeFetch(input, init);
+      return resp; // online — return normally
+    } catch (netErr) {
+      // Offline — try cached credentials
+      console.log('[offline] Staff login offline — checking cached credentials');
+      try {
+        const bodyText = typeof init?.body === 'string' ? init.body : null;
+        const { email, password } = bodyText ? JSON.parse(bodyText) : {};
+        const cached = window.electronAPI?.offline
+          ? await window.electronAPI.offline.getCachedStaff(email, password)
+          : null;
+
+        if (cached?.success) {
+          console.log('[offline] Offline login granted for:', cached.staff?.name);
+          return new Response(JSON.stringify({ token: cached.token, staff: cached.staff }), {
+            status : 200,
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+          });
+        }
+      } catch {}
+      throw netErr; // no cached creds — show normal login error
+    }
+  }
+
+  // All other requests — pass through
+  return _nativeFetch(input, init);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 1. XHR INTERCEPTOR — for UI order refresh injection only
+//    (XHR is used by some Axios GET requests for active-orders)
 // ═══════════════════════════════════════════════════════════════════
 ;(function() {
   const NativeXHR = XMLHttpRequest;
@@ -298,6 +374,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getRestaurant  : (rid)    => ipcRenderer.invoke('offline:getRestaurant', rid),
     createOrder    : (payload)=> ipcRenderer.invoke('offline:createOrder', payload),
     getOrders      : (rid)    => ipcRenderer.invoke('offline:getOrders', rid),
+    getCachedStaff : (email, password) => ipcRenderer.invoke('offline:getCachedStaff', { email, password }),
+    cacheStaff     : (data)   => ipcRenderer.invoke('offline:cacheStaff', data),
   },
 
   // ── Sync engine ────────────────────────────────────────────────────────────

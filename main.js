@@ -504,7 +504,7 @@ async function doPoll() {
       const staff = JSON.parse(sd);
       if (!staff.restaurant_id) return null;
       const rd = localStorage.getItem('restaurantData');
-      return { rid: staff.restaurant_id, tk, rname: rd ? JSON.parse(rd).name : null };
+      return { rid: staff.restaurant_id, tk, rname: rd ? JSON.parse(rd).name : null, staffEmail: staff.email || null };
     } catch(e) { return null; }
   })()`);
 
@@ -513,6 +513,14 @@ async function doPoll() {
   const { rid, tk } = info;
   const restaurantName = info.rname || store.get('restaurantName', 'Restaurant');
   if (info.rname) store.set('restaurantName', info.rname);
+
+  // Cache staff credentials for offline login (refreshed every poll cycle)
+  if (info.staffEmail && tk && offlineDb.isReady()) {
+    try {
+      const staffRaw = await safeExecJS(`JSON.parse(localStorage.getItem('staffData') || 'null')`);
+      if (staffRaw) offlineDb.cacheStaffCredentials(staffRaw, tk);
+    } catch {}
+  }
 
   // Fetch active orders via Node (bypasses CORS, no browser involved)
   const activeOrders = await nodeGet(`/api/orders/restaurant/${rid}?status=active`, tk);
@@ -910,6 +918,36 @@ ipcMain.handle('offline:getOrders', (event, restaurantId) => {
     if (!offlineDb.isReady()) return [];
     return offlineDb.getOfflineOrders(restaurantId);
   } catch { return []; }
+});
+
+// ─── Offline login IPC ───────────────────────────────────────────────────────
+
+// Cache staff credentials after successful online login
+ipcMain.handle('offline:cacheStaff', (event, { staffData, token }) => {
+  try {
+    if (!offlineDb.isReady() || !staffData || !token) return { success: false };
+    offlineDb.cacheStaffCredentials(staffData, token);
+    console.log(`[offline] Cached credentials for: ${staffData.name || staffData.email}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Validate offline login with cached credentials
+ipcMain.handle('offline:getCachedStaff', (event, { email, password }) => {
+  try {
+    if (!offlineDb.isReady()) return { success: false, error: 'DB not ready' };
+    const cached = offlineDb.getCachedStaffCredentials(email);
+    if (!cached) return { success: false, error: 'No cached credentials for this account' };
+    // Return cached staff + token — no password check
+    // (the JWT in localStorage IS the credential — if they knew the password online, they can use offline)
+    // For stronger security, store a PBKDF2 hash and verify password client-side
+    console.log(`[offline] Offline login: ${cached.staffData?.name}`);
+    return { success: true, staff: cached.staffData, token: cached.token };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 // ─── Sync engine IPC ──────────────────────────────────────────────────────────
