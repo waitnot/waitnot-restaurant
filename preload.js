@@ -63,6 +63,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     trigger   : () => ipcRenderer.invoke('upload:trigger'),
   },
 
+  // Network events
+  notifyReconnected: () => ipcRenderer.invoke('network:reconnected'),
+
   showNotification: (title, body) => {
     if (Notification.permission === 'granted') {
       new Notification(title, { body });
@@ -228,6 +231,20 @@ window.addEventListener('DOMContentLoaded', () => {
   document.head.appendChild(_s);
 
   console.log('[WaitNot] Preload v3.6 ready ✅');
+});
+
+// ── Network online/offline detection ────────────────────────────────────────
+// When the browser detects internet is back, immediately tell the main process
+// to upload any pending offline orders and re-sync.
+window.addEventListener('online', () => {
+  console.log('[WaitNot] 🌐 Network back online — triggering instant upload + sync');
+  if (window.electronAPI && window.electronAPI.notifyReconnected) {
+    window.electronAPI.notifyReconnected().catch(() => {});
+  }
+});
+
+window.addEventListener('offline', () => {
+  console.log('[WaitNot] 📴 Network went offline');
 });
 
 window.addEventListener('error',             e => console.error('Desktop Error:',     e.error));

@@ -371,9 +371,31 @@ function init(db, win) {
   // Run upload cycle 10 seconds after startup (let sync complete first)
   setTimeout(() => runUploadCycle(), 10000);
 
-  // Then every 30 seconds
+  // Then every 30 seconds as the base interval
   uploadTimer = setInterval(() => runUploadCycle(), UPLOAD_INTERVAL_MS);
-  console.log('[upload] Engine initialised — checking every 30s');
+
+  // Fast-retry loop: every 5 seconds, but ONLY when there are pending items.
+  // This ensures orders placed offline upload within seconds of reconnection.
+  setInterval(() => {
+    if (!offlineDb || !offlineDb.isReady()) return;
+    const pending = offlineDb.getPendingQueue().filter(q => q.entity_type === 'order');
+    if (pending.length > 0) {
+      runUploadCycle();
+    }
+  }, 5000);
+
+  console.log('[upload] Engine initialised — checking every 30s (fast-retry every 5s when pending)');
+}
+
+/**
+ * Returns true if there are orders waiting to be uploaded.
+ * Used by main.js to decide whether to run an immediate cycle.
+ */
+function hasPending() {
+  if (!offlineDb || !offlineDb.isReady()) return false;
+  try {
+    return offlineDb.getPendingQueue().some(q => q.entity_type === 'order');
+  } catch { return false; }
 }
 
 function stop() {
@@ -406,4 +428,4 @@ function getQueueStatus() {
   } catch { return { pending:0, unknown:0, done:0, failed:0 }; }
 }
 
-module.exports = { init, stop, triggerUpload, getQueueStatus };
+module.exports = { init, stop, triggerUpload, getQueueStatus, hasPending };

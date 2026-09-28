@@ -876,6 +876,9 @@ ipcMain.handle('offline:createOrder', (event, payload) => {
 
     console.log(`[offline] Order ${orderId} saved locally | T${order.tableNumber} | ₹${totalAmount} | ${items.length} items`);
 
+    // Trigger an immediate upload attempt — don't wait for the 30s timer
+    setImmediate(() => uploadEngine.triggerUpload());
+
     // Return response shaped like server would return
     return {
       success    : true,
@@ -970,6 +973,20 @@ ipcMain.handle('upload:getStatus', () => {
 
 ipcMain.handle('upload:trigger', async () => {
   return uploadEngine.triggerUpload();
+});
+
+// ─── Network reconnection IPC ────────────────────────────────────────────────
+// Called by preload when window.addEventListener('online') fires in renderer.
+// Immediately uploads any pending offline orders and re-syncs restaurant data.
+ipcMain.handle('network:reconnected', async () => {
+  console.log('[main] 🌐 Network reconnected — triggering immediate upload + sync');
+  try {
+    // Upload pending offline orders right away
+    uploadEngine.triggerUpload().catch(() => {});
+    // Re-sync menu/restaurant in case anything changed while offline
+    syncEngine.triggerSync().catch(() => {});
+  } catch {}
+  return { ok: true };
 });
 
 ipcMain.handle('show-message-box', async (event, options) => {
