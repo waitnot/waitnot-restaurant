@@ -1600,10 +1600,67 @@ export default function StaffDashboard() {
                   </div>
                 ) : _isIOS ? (
                   <div className="space-y-5">
+                    {/* iOS: Bluetooth BLE printer */}
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                      <p className="text-xs font-bold text-blue-700 mb-1">📶 WiFi Printer Setup (iOS)</p>
-                      <p className="text-xs text-blue-600">On iOS, printing works over WiFi. Connect your thermal printer to the same WiFi network, then enter its IP address below. Most printers use port 9100.</p>
-                      <p className="text-xs text-blue-500 mt-1">💡 Print a test page from your printer to find its IP address.</p>
+                      <p className="text-xs font-bold text-blue-700 mb-1">🔵 Bluetooth Printer (iOS BLE)</p>
+                      <p className="text-xs text-blue-600">Tap "Scan Devices" to discover nearby Bluetooth thermal printers. Make sure the printer is powered on and in pairing mode.</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={loadBluetoothPrinters}
+                        disabled={btScanStatus === 'scanning'}
+                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      >
+                        {btScanStatus === 'scanning' ? '🔄 Scanning...' : '🔍 Scan Devices'}
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Kitchen Bluetooth Printer</label>
+                      <select
+                        value={printerSettings.btKitchenPrinter || ''}
+                        onChange={e => handlePrinterSettingChange('btKitchenPrinter', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">— Select device —</option>
+                        {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address.substring(0, 8)}...)</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bill Bluetooth Printer</label>
+                      <select
+                        value={printerSettings.btBillPrinter || ''}
+                        onChange={e => handlePrinterSettingChange('btBillPrinter', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">— Select device —</option>
+                        {btPrinters.map(p => <option key={p.address} value={p.address}>{p.name} ({p.address.substring(0, 8)}...)</option>)}
+                      </select>
+                    </div>
+
+                    {(printerSettings.btKitchenPrinter || printerSettings.btBillPrinter) && (
+                      <button
+                        onClick={async () => {
+                          const addr = printerSettings.btKitchenPrinter || printerSettings.btBillPrinter;
+                          showToast('Testing...', 'success');
+                          const r = await testBluetoothPrinter(addr);
+                          if (r.success) showToast('✓ Test print sent!');
+                          else showToast('Failed: ' + r.error, 'error');
+                        }}
+                        className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors"
+                      >
+                        Test Bluetooth Print
+                      </button>
+                    )}
+
+                    <hr className="border-gray-200" />
+
+                    {/* iOS: WiFi fallback */}
+                    <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                      <p className="text-xs font-bold text-purple-700 mb-1">📶 WiFi Printer (fallback)</p>
+                      <p className="text-xs text-purple-600">If your printer supports WiFi/LAN, enter its IP. Used as fallback when Bluetooth is unavailable.</p>
                     </div>
 
                     <div>
@@ -1614,7 +1671,7 @@ export default function StaffDashboard() {
                         value={printerSettings.wifiPrinterIp || ''}
                         onChange={e => handlePrinterSettingChange('wifiPrinterIp', e.target.value.trim())}
                         placeholder="e.g. 192.168.1.105"
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 outline-none font-mono"
                       />
                     </div>
 
@@ -1626,7 +1683,7 @@ export default function StaffDashboard() {
                         value={printerSettings.wifiPrinterPort || 9100}
                         onChange={e => handlePrinterSettingChange('wifiPrinterPort', parseInt(e.target.value) || 9100)}
                         placeholder="9100"
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 outline-none font-mono"
                       />
                     </div>
 
@@ -1643,7 +1700,7 @@ export default function StaffDashboard() {
                         }}
                         className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors"
                       >
-                        Test Connection & Print
+                        Test WiFi Connection & Print
                       </button>
                     )}
 
@@ -2153,7 +2210,6 @@ export default function StaffDashboard() {
             { id: 'history', label: 'History', icon: History },
             { id: 'sales', label: 'Sales', icon: TrendingUp },
             { id: 'profile', label: 'Profile', icon: User },
-            { id: 'settings', label: 'Settings', icon: Settings },
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeView === tab.id;

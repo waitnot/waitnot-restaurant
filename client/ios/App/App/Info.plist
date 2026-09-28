@@ -75,6 +75,19 @@
 	<string>WaitNot Captain requires Bluetooth access to connect and print to thermal printers.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>WaitNot Captain requires Bluetooth access to connect and print to thermal printers.</string>
+	<key>CAPPlugins</key>
+	<dict>
+		<key>EscPosPlugin</key>
+		<dict>
+			<key>Class</key>
+			<string>App.EscPosPlugin</string>
+		</dict>
+		<key>WifiPrinterPlugin</key>
+		<dict>
+			<key>Class</key>
+			<string>App.WifiPrinterPlugin</string>
+		</dict>
+	</dict>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>
