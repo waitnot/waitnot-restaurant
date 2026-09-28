@@ -19,17 +19,25 @@ export default function StaffLogin() {
   const [serverWaking, setServerWaking] = useState(false);
 
   // Ping server on mount so Render wakes up before the user hits submit
+  // Uses AbortController instead of AbortSignal.timeout (iOS 15 compatible)
   useEffect(() => {
     let cancelled = false;
+
+    const fetchWithTimeout = (url, ms) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+    };
+
     const ping = async () => {
       try {
-        const res = await fetch(`${PRODUCTION_URL}/health`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetchWithTimeout(`${PRODUCTION_URL}/health`, 5000);
         if (!res.ok) throw new Error();
       } catch {
         // Server is waking — show subtle indicator
         if (!cancelled) setServerWaking(true);
         try {
-          await fetch(`${PRODUCTION_URL}/health`, { signal: AbortSignal.timeout(60000) });
+          await fetchWithTimeout(`${PRODUCTION_URL}/health`, 60000);
         } catch {}
         if (!cancelled) setServerWaking(false);
       }
