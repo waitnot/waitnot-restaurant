@@ -659,11 +659,8 @@ export default function StaffDashboard() {
       showToast('Order placed!');
       // Add to local state immediately for instant feedback
       setOrders(prev => prev.find(x => x._id === newOrder._id) ? prev : [newOrder, ...prev]);
-      // Auto-print KOT if enabled
-      const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
-      if (savedSettings.autoPrintKitchenBill) {
-        printKOT(newOrder);
-      }
+      // Auto-print KOT is handled by the server's print-kot socket event
+      // (avoids double-printing since server emits print-kot for all orders including staff orders)
       // Also fetch from server to ensure DB sync
       fetchOrders(staff.restaurant_id);
     } catch (err) {
