@@ -307,6 +307,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isOfflineReady : (rid) => ipcRenderer.invoke('sync:isOfflineReady', rid),
   },
 
+  // ── Upload engine ──────────────────────────────────────────────────────────
+  upload: {
+    getStatus : () => ipcRenderer.invoke('upload:getStatus'),
+    trigger   : () => ipcRenderer.invoke('upload:trigger'),
+  },
+
   showNotification: (title, body) => {
     if (Notification.permission === 'granted') {
       new Notification(title, { body });

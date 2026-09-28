@@ -3,8 +3,9 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const { listPrinters, printKOT, printBill } = require('./printer');
-const offlineDb   = require('./offline-db');
-const syncEngine  = require('./sync-engine');
+const offlineDb     = require('./offline-db');
+const syncEngine    = require('./sync-engine');
+const uploadEngine  = require('./upload-engine');
 
 // Register 'waitnot' as a privileged scheme BEFORE app is ready.
 // This gives it the same permissions as https:// — localStorage, cookies,
@@ -699,6 +700,8 @@ app.whenReady().then(() => {
     console.log(`[offline-db] Initialised at ${dbResult.dbPath}`);
     // Start sync engine — runs initial sync after window loads, then every 5min
     syncEngine.init(offlineDb, mainWindow);
+    // Start upload engine — uploads pending offline orders every 30s
+    uploadEngine.init(offlineDb, mainWindow);
   } else {
     console.error(`[offline-db] Failed to init: ${dbResult.error} — offline features disabled`);
   }
@@ -713,6 +716,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    uploadEngine.stop();
     syncEngine.stop();
     offlineDb.close();
     app.quit();
@@ -919,6 +923,15 @@ ipcMain.handle('sync:trigger', async () => {
 
 ipcMain.handle('sync:isOfflineReady', (event, restaurantId) => {
   return syncEngine.isOfflineReady(restaurantId);
+});
+
+// ─── Upload engine IPC ────────────────────────────────────────────────────────
+ipcMain.handle('upload:getStatus', () => {
+  return uploadEngine.getQueueStatus();
+});
+
+ipcMain.handle('upload:trigger', async () => {
+  return uploadEngine.triggerUpload();
 });
 
 ipcMain.handle('show-message-box', async (event, options) => {

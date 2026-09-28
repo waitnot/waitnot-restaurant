@@ -47,6 +47,8 @@
       "preload.js",
       "printer.js",
       "offline-db.js",
+      "sync-engine.js",
+      "upload-engine.js",
       "printer-settings.html",
       "fallback.html",
       "OFFLINE_IMPLEMENTATION_STATUS.md",
