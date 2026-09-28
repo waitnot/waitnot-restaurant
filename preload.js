@@ -115,6 +115,12 @@ window.addEventListener('DOMContentLoaded', () => {
 //    Updates React state directly via exposed window functions
 // ═══════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
+  // Sync status events from main process via __wn_sync_status__
+  window.addEventListener('__wn_sync_status__', (ev) => {
+    // Store latest sync state globally so React components can read it
+    window.__wn_sync_state = ev.detail;
+  });
+
   window.addEventListener('__waitnot_orders__', (ev) => {
     const orders = ev.detail;
     if (!Array.isArray(orders)) return;
@@ -179,6 +185,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCategories  : (rid) => ipcRenderer.invoke('offline:getCategories', rid),
     getTables      : (rid) => ipcRenderer.invoke('offline:getTables', rid),
     getRestaurant  : (rid) => ipcRenderer.invoke('offline:getRestaurant', rid),
+  },
+
+  // ── Sync engine ────────────────────────────────────────────────────────────
+  sync: {
+    getState       : ()    => ipcRenderer.invoke('sync:getState'),
+    trigger        : ()    => ipcRenderer.invoke('sync:trigger'),
+    isOfflineReady : (rid) => ipcRenderer.invoke('sync:isOfflineReady', rid),
   },
 
   showNotification: (title, body) => {

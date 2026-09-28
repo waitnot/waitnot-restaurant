@@ -3,7 +3,8 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const { listPrinters, printKOT, printBill } = require('./printer');
-const offlineDb = require('./offline-db');
+const offlineDb   = require('./offline-db');
+const syncEngine  = require('./sync-engine');
 
 // Register 'waitnot' as a privileged scheme BEFORE app is ready.
 // This gives it the same permissions as https:// — localStorage, cookies,
@@ -672,6 +673,8 @@ app.whenReady().then(() => {
   const dbResult = offlineDb.init(app.getPath('userData'));
   if (dbResult.success) {
     console.log(`[offline-db] Initialised at ${dbResult.dbPath}`);
+    // Start sync engine — runs initial sync after window loads, then every 5min
+    syncEngine.init(offlineDb, mainWindow);
   } else {
     console.error(`[offline-db] Failed to init: ${dbResult.error} — offline features disabled`);
   }
@@ -685,8 +688,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // On macOS, keep app running even when all windows are closed
   if (process.platform !== 'darwin') {
+    syncEngine.stop();
     offlineDb.close();
     app.quit();
   }
@@ -768,6 +771,19 @@ ipcMain.handle('offline:getTables', (event, restaurantId) => {
 
 ipcMain.handle('offline:getRestaurant', (event, restaurantId) => {
   return offlineDb.getRestaurant(restaurantId);
+});
+
+// ─── Sync engine IPC ──────────────────────────────────────────────────────────
+ipcMain.handle('sync:getState', () => {
+  return syncEngine.getState();
+});
+
+ipcMain.handle('sync:trigger', async () => {
+  return syncEngine.triggerSync();
+});
+
+ipcMain.handle('sync:isOfflineReady', (event, restaurantId) => {
+  return syncEngine.isOfflineReady(restaurantId);
 });
 
 ipcMain.handle('show-message-box', async (event, options) => {
