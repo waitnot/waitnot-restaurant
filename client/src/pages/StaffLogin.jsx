@@ -2,25 +2,27 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import axios from '../config/axios.js';
-import SEO from '../components/SEO';
 import { secureSet } from '../utils/secureStorage.js';
 
 const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
 
 export default function StaffLogin() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [serverWaking, setServerWaking] = useState(false);
+  const [debugLog, setDebugLog] = useState([]);
+
+  const addLog = (msg) => {
+    console.log('[StaffLogin]', msg);
+    setDebugLog(prev => [...prev.slice(-4), msg]);
+  };
 
   // Ping server on mount so Render wakes up before the user hits submit
-  // Uses AbortController instead of AbortSignal.timeout (iOS 15 compatible)
   useEffect(() => {
+    addLog('Component mounted');
     let cancelled = false;
 
     const fetchWithTimeout = (url, ms) => {
@@ -31,14 +33,19 @@ export default function StaffLogin() {
 
     const ping = async () => {
       try {
+        addLog('Pinging server...');
         const res = await fetchWithTimeout(`${PRODUCTION_URL}/health`, 5000);
-        if (!res.ok) throw new Error();
-      } catch {
-        // Server is waking — show subtle indicator
+        addLog(`Server responded: ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch (err) {
+        addLog(`Server waking: ${err.message}`);
         if (!cancelled) setServerWaking(true);
         try {
           await fetchWithTimeout(`${PRODUCTION_URL}/health`, 60000);
-        } catch {}
+          addLog('Server awake');
+        } catch (e) {
+          addLog(`Wake failed: ${e.message}`);
+        }
         if (!cancelled) setServerWaking(false);
       }
     };
@@ -51,22 +58,28 @@ export default function StaffLogin() {
     setLoading(true);
     setError('');
     setServerWaking(false);
+    addLog(`Submitting login for: ${formData.email}`);
 
     try {
+      addLog('Calling /api/staff/login...');
       const { data } = await axios.post('/api/staff/login', formData);
-      
-      // Store auth data
+      addLog('Login API success, storing token...');
+
       localStorage.setItem('staffToken', data.token);
       localStorage.setItem('staffData', JSON.stringify(data.staff));
       try {
         await secureSet('staffToken', data.token);
         await secureSet('staffData', JSON.stringify(data.staff));
-      } catch (_) {}
-      
+      } catch (se) {
+        addLog(`SecureSet warn: ${se.message}`);
+      }
+
+      addLog('Navigating to /staff-dashboard...');
       navigate('/staff-dashboard');
-    } catch (error) {
-      console.error('Staff login error:', error);
-      setError(error.response?.data?.error || 'Login failed. Please try again.');
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message || 'Login failed';
+      addLog(`Error: ${err.response?.status} - ${msg}`);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -83,38 +96,39 @@ export default function StaffLogin() {
   };
 
   return (
-    <>
-      <SEO 
-        title="Staff Login - WaitNot"
-        description="Staff login portal for WaitNot restaurant management system"
-      />
-      
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4">
-              <Users className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Staff Login</h1>
-            <p className="text-gray-600">Access your staff dashboard</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4">
+            <Users className="w-8 h-8 text-white" />
           </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Staff Login</h1>
+          <p className="text-gray-600">Access your staff dashboard</p>
+        </div>
 
-          {/* Login Form */}
-          <div className="bg-white rounded-lg shadow-xl p-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                  {error}
-                </div>
-              )}
+        {/* Login Form */}
+        <div className="bg-white rounded-lg shadow-xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
 
-              {serverWaking && !loading && (
-                <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 shrink-0"></div>
-                  Server is starting up, please wait a moment...
-                </div>
-              )}
+            {serverWaking && !loading && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 shrink-0"></div>
+                Server is starting up, please wait a moment...
+              </div>
+            )}
+
+            {/* Debug log — visible on device to diagnose issues */}
+            {debugLog.length > 0 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-gray-500 font-mono space-y-0.5">
+                {debugLog.map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            )}
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -197,6 +211,6 @@ export default function StaffLogin() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
