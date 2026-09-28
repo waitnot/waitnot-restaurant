@@ -527,8 +527,32 @@ async function doPoll() {
       (window.location.hash||'').includes('staff-dashboard')
     `);
     if (onDashboard) {
-      console.log(`📦 Orders synced: ${activeOrders.length} active`);
-      pushOrdersToUI(activeOrders);
+      // Merge server orders with pending offline orders so table grid is complete
+      const offlineOrders = offlineDb.isReady()
+        ? offlineDb.getOfflineOrders(rid, 'LOCAL_PENDING').map(o => {
+            const items = offlineDb.getOfflineOrderItems(o.id).map(i => ({
+              _id: i.id, name: i.name_snapshot, price: i.price_snapshot,
+              quantity: i.quantity, printedToKitchen: false,
+            }));
+            return {
+              _id: o.id, orderNumber: 0, restaurantId: o.restaurant_id,
+              tableNumber: o.table_number, roomNumber: o.room_number,
+              orderType: o.order_type, customerName: o.customer_name,
+              items, total: o.total_amount, totalAmount: o.total_amount,
+              status: 'pending', paymentMethod: o.payment_method,
+              paymentStatus: 'pending', source: 'staff',
+              isOffline: true, createdAt: o.created_at, updatedAt: o.updated_at,
+            };
+          })
+        : [];
+
+      // Only include offline orders not yet on server
+      const serverIds = new Set(activeOrders.map(o => o._id));
+      const pendingOffline = offlineOrders.filter(o => !serverIds.has(o.server_id));
+      const merged = [...activeOrders, ...pendingOffline];
+
+      console.log(`📦 Orders synced: ${activeOrders.length} server + ${pendingOffline.length} offline pending`);
+      pushOrdersToUI(merged);
     }
   }
 
@@ -771,6 +795,117 @@ ipcMain.handle('offline:getTables', (event, restaurantId) => {
 
 ipcMain.handle('offline:getRestaurant', (event, restaurantId) => {
   return offlineDb.getRestaurant(restaurantId);
+});
+
+// ─── Offline order creation IPC ──────────────────────────────────────────────
+// Called by preload when POST /api/orders fails with a network error.
+// Saves the order atomically to SQLite with a client-generated UUID.
+// Price snapshots are captured here — immutable thereafter.
+// Returns a synthetic order object that matches the server response shape.
+ipcMain.handle('offline:createOrder', (event, payload) => {
+  try {
+    if (!offlineDb.isReady()) {
+      return { success: false, error: 'Offline database not ready' };
+    }
+    if (!payload || !payload.restaurantId) {
+      return { success: false, error: 'Invalid order payload' };
+    }
+
+    const crypto = require('crypto');
+    const orderId  = crypto.randomUUID();
+    const now      = new Date().toISOString();
+
+    // Build items with IMMUTABLE price snapshots
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    const items    = rawItems.map(item => ({
+      id            : crypto.randomUUID(),
+      menuItemId    : item.menuItemId ?? null,
+      nameSnapshot  : String(item.name  ?? ''),
+      priceSnapshot : parseFloat(item.price ?? 0),
+      quantity      : parseInt(item.quantity ?? 1, 10),
+      lineTotal     : parseFloat(item.price ?? 0) * parseInt(item.quantity ?? 1, 10),
+    }));
+
+    const totalAmount = items.reduce((s, i) => s + i.lineTotal, 0)
+                      + (parseFloat(payload.packagingCharge) || 0)
+                      + (parseFloat(payload.deliveryCharge)  || 0);
+
+    // Get a local order number (negative = offline, won't clash with server)
+    // We use a monotonic counter stored in sync_meta
+    let localMeta = offlineDb.getSyncMeta('offline_order_counter');
+    const counter = localMeta ? (parseInt(localMeta.last_server_hash || '0', 10) + 1) : 1;
+    offlineDb.setSyncMeta('offline_order_counter', { lastSyncedAt: now, lastServerHash: String(counter) });
+
+    const order = {
+      id                  : orderId,
+      restaurantId        : payload.restaurantId,
+      tableNumber         : payload.tableNumber  ?? null,
+      roomNumber          : payload.roomNumber   ?? null,
+      orderType           : payload.orderType    ?? 'dine-in',
+      customerName        : payload.customerName ?? '',
+      customerPhone       : payload.customerPhone ?? null,
+      deliveryAddress     : payload.deliveryAddress ?? null,
+      totalAmount,
+      packagingCharge     : parseFloat(payload.packagingCharge) || 0,
+      deliveryCharge      : parseFloat(payload.deliveryCharge)  || 0,
+      paymentMethod       : payload.paymentMethod ?? 'cash',
+      paymentStatus       : 'pending',
+      source              : 'staff',
+      createdByStaffId    : null,  // populated if staffData available
+      createdAt           : now,
+      updatedAt           : now,
+    };
+
+    // Save atomically to SQLite
+    offlineDb.createOfflineOrder(order, items);
+
+    // Enqueue for upload (Phase 4 will process this)
+    offlineDb.enqueue('order', orderId, 'CREATE', JSON.stringify({ order, items, originalPayload: payload }));
+
+    console.log(`[offline] Order ${orderId} saved locally | T${order.tableNumber} | ₹${totalAmount} | ${items.length} items`);
+
+    // Return response shaped like server would return
+    return {
+      success    : true,
+      order      : {
+        _id          : orderId,
+        orderNumber  : counter,   // local counter (negative from server perspective)
+        restaurantId : order.restaurantId,
+        tableNumber  : order.tableNumber,
+        roomNumber   : order.roomNumber,
+        orderType    : order.orderType,
+        customerName : order.customerName,
+        items        : items.map(i => ({
+          _id             : i.id,
+          name            : i.nameSnapshot,
+          price           : i.priceSnapshot,
+          quantity        : i.quantity,
+          printedToKitchen: false,
+        })),
+        total          : totalAmount,
+        totalAmount    : totalAmount,
+        status         : 'pending',
+        paymentMethod  : order.paymentMethod,
+        paymentStatus  : 'pending',
+        source         : 'staff',
+        isOffline      : true,
+        createdAt      : now,
+        updatedAt      : now,
+      },
+    };
+
+  } catch (err) {
+    console.error('[offline] createOrder IPC error:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// Get offline orders for a restaurant
+ipcMain.handle('offline:getOrders', (event, restaurantId) => {
+  try {
+    if (!offlineDb.isReady()) return [];
+    return offlineDb.getOfflineOrders(restaurantId);
+  } catch { return []; }
 });
 
 // ─── Sync engine IPC ──────────────────────────────────────────────────────────

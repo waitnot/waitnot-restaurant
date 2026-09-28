@@ -14,6 +14,7 @@ const API = 'https://waitnot-restaurant.onrender.com';
     const xhr    = new NativeXHR();
     let _method  = 'GET';
     let _url     = '';
+    let _reqBody = null;
 
     const _open = xhr.open.bind(xhr);
     this.open = function(method, url) {
@@ -24,7 +25,9 @@ const API = 'https://waitnot-restaurant.onrender.com';
 
     const _send = xhr.send.bind(xhr);
     this.send = function(body) {
-      // Inject polled orders into GET active-orders so React UI refreshes
+      _reqBody = body;
+
+      // ── A. Inject polled orders into GET active-orders (UI refresh) ──────
       const inject    = window.__wn_inject_orders;
       const injectRid = window.__wn_inject_rid;
       if (
@@ -42,6 +45,22 @@ const API = 'https://waitnot-restaurant.onrender.com';
           if (typeof self.onreadystatechange === 'function') self.onreadystatechange();
           if (typeof self.onload === 'function') self.onload();
         }, 8);
+        return;
+      }
+
+      // ── B. Offline order creation intercept ──────────────────────────────
+      // If POST /api/orders fails due to network error, save locally instead.
+      if (_method === 'POST' && _url.endsWith('/api/orders')) {
+        _send.apply(xhr, arguments);
+
+        // Listen for error (network offline) on the real XHR
+        xhr.addEventListener('error', () => {
+          _handleOfflineOrder(body, this);
+        });
+        // Also handle timeout
+        xhr.addEventListener('timeout', () => {
+          _handleOfflineOrder(body, this);
+        });
         return;
       }
 
@@ -76,6 +95,77 @@ const API = 'https://waitnot-restaurant.onrender.com';
     Object.entries(map).forEach(([k, v]) => {
       Object.defineProperty(obj, k, { get: () => v, configurable: true });
     });
+  }
+
+  // ── Offline order creation ───────────────────────────────────────────────
+  // Called when POST /api/orders fails with a network error (offline).
+  // Saves the order to SQLite via IPC and returns a synthetic server response
+  // so React sees no difference — cart clears, order appears in table grid.
+  function _handleOfflineOrder(requestBody, xhrProxy) {
+    try {
+      const payload = typeof requestBody === 'string' ? JSON.parse(requestBody) : requestBody;
+      if (!payload || !payload.restaurantId) return; // not a valid order
+
+      // Invoke the offline:createOrder IPC handler
+      if (window.electronAPI && window.electronAPI.offline && window.electronAPI.offline.createOrder) {
+        window.electronAPI.offline.createOrder(payload).then((result) => {
+          if (!result || !result.success) {
+            console.warn('[offline] createOrder failed:', result?.error);
+            // Let XHR error propagate normally — React will show "Failed to place order"
+            return;
+          }
+
+          // Build a synthetic response that looks like the server would have returned
+          const syntheticOrder = {
+            _id            : result.order._id,
+            restaurantId   : payload.restaurantId,
+            orderNumber    : result.order.orderNumber,
+            tableNumber    : payload.tableNumber ?? null,
+            roomNumber     : payload.roomNumber  ?? null,
+            orderType      : payload.orderType   ?? 'dine-in',
+            customerName   : payload.customerName ?? '',
+            customerPhone  : payload.customerPhone ?? null,
+            deliveryAddress: payload.deliveryAddress ?? null,
+            items          : result.order.items,
+            total          : result.order.totalAmount,
+            totalAmount    : result.order.totalAmount,
+            status         : 'pending',
+            paymentMethod  : payload.paymentMethod ?? 'cash',
+            paymentStatus  : 'pending',
+            source         : 'staff',
+            isOffline      : true,   // flag so UI can show indicator if needed
+            createdAt      : result.order.createdAt,
+            updatedAt      : result.order.createdAt,
+          };
+
+          const responseData = JSON.stringify(syntheticOrder);
+          console.log(`[offline] Order saved locally: ${syntheticOrder._id} T${syntheticOrder.tableNumber}`);
+
+          // Inject as successful XHR response (status 201)
+          _defineProps(xhrProxy, {
+            readyState  : 4,
+            status      : 201,
+            statusText  : 'Created (offline)',
+            responseText: responseData,
+            response    : responseData,
+          });
+          if (typeof xhrProxy.onreadystatechange === 'function') xhrProxy.onreadystatechange();
+          if (typeof xhrProxy.onload === 'function') xhrProxy.onload();
+
+          // Also push this order into React's active orders state immediately
+          if (typeof window.__wn_setOrders === 'function') {
+            // Get current orders and prepend this one
+            // We dispatch via event so the listener in DOMContentLoaded picks it up
+            window.dispatchEvent(new CustomEvent('__wn_offline_order__', { detail: syntheticOrder }));
+          }
+        }).catch((err) => {
+          console.error('[offline] IPC createOrder error:', err);
+          // Let the original XHR error stand
+        });
+      }
+    } catch (e) {
+      console.error('[offline] _handleOfflineOrder error:', e.message);
+    }
   }
 
   window.XMLHttpRequest = PatchedXHR;
@@ -119,6 +209,27 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('__wn_sync_status__', (ev) => {
     // Store latest sync state globally so React components can read it
     window.__wn_sync_state = ev.detail;
+  });
+
+  // Offline order created locally — inject into React orders state
+  window.addEventListener('__wn_offline_order__', (ev) => {
+    const order = ev.detail;
+    if (!order || !order._id) return;
+    // Add to React's orders state (z) so table grid shows as occupied immediately
+    if (typeof window.__wn_setOrders === 'function') {
+      try {
+        // We need the current orders — read from __wn_latest_orders if available
+        // and prepend this offline order
+        window.__wn_setOrders((prev) => {
+          if (!Array.isArray(prev)) return [order];
+          if (prev.find(o => o._id === order._id)) return prev;
+          return [order, ...prev];
+        });
+      } catch {
+        // __wn_setOrders may not accept a function — try direct approach
+        try { window.__wn_refreshOrders && window.__wn_refreshOrders(); } catch {}
+      }
+    }
   });
 
   window.addEventListener('__waitnot_orders__', (ev) => {
@@ -180,11 +291,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Offline database ───────────────────────────────────────────────────────
   offline: {
-    getStatus      : ()    => ipcRenderer.invoke('offline:getStatus'),
-    getMenu        : (rid) => ipcRenderer.invoke('offline:getMenu', rid),
-    getCategories  : (rid) => ipcRenderer.invoke('offline:getCategories', rid),
-    getTables      : (rid) => ipcRenderer.invoke('offline:getTables', rid),
-    getRestaurant  : (rid) => ipcRenderer.invoke('offline:getRestaurant', rid),
+    getStatus      : ()       => ipcRenderer.invoke('offline:getStatus'),
+    getMenu        : (rid)    => ipcRenderer.invoke('offline:getMenu', rid),
+    getCategories  : (rid)    => ipcRenderer.invoke('offline:getCategories', rid),
+    getTables      : (rid)    => ipcRenderer.invoke('offline:getTables', rid),
+    getRestaurant  : (rid)    => ipcRenderer.invoke('offline:getRestaurant', rid),
+    createOrder    : (payload)=> ipcRenderer.invoke('offline:createOrder', payload),
+    getOrders      : (rid)    => ipcRenderer.invoke('offline:getOrders', rid),
   },
 
   // ── Sync engine ────────────────────────────────────────────────────────────
