@@ -1,18 +1,21 @@
 'use strict';
 
 /**
- * preload.js — WaitNot Staff Software v3.4.0
+ * preload.js — WaitNot Staff Software v3.5.0
  *
- * KEY FIX: The renderer uses Axios, which uses XMLHttpRequest — NOT window.fetch.
- * The old approach of patching window.fetch was dead code for Axios calls.
- * This version patches XMLHttpRequest to handle ALL offline cases:
- *   - POST /api/staff/login  → on network failure, serve cached JWT from SQLite
- *   - POST /api/orders       → on network failure, save to SQLite and return synthetic response
- *   - GET  active orders     → inject polled orders from Node process
+ * ROOT CAUSE OF OFFLINE FAILURE (v3.4.0 bug):
+ *   Axios sets xhr.onerror = handler directly as a property.
+ *   Our proxy forwarded that setter straight to _xhr.onerror.
+ *   When network failed, _xhr.onerror fired → Axios got the error
+ *   BEFORE our addEventListener('error') listener could intercept it.
+ *   Both ran simultaneously. Axios rejected the promise. Offline failed.
  *
- * Architecture:
- *   contextBridge.exposeInMainWorld()  ← FIRST (sync, before any scripts run)
- *   DOMContentLoaded                   ← XHR patch + Socket.IO patch + styles
+ * FIX (v3.5.0):
+ *   Intercept the onerror/ontimeout SETTERS on the proxy object itself.
+ *   Store whatever Axios sets into _axiosOnerror/_axiosOntimeout.
+ *   In _xhr.onerror, we run OUR offline logic FIRST (async).
+ *   Only if offline logic fails do we call Axios's handler.
+ *   Axios never sees the error when we handle it offline.
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -20,19 +23,17 @@ const { contextBridge, ipcRenderer } = require('electron');
 const API = 'https://waitnot-restaurant.onrender.com';
 
 // ═══════════════════════════════════════════════════════════════════
-// 1. EXPOSE electronAPI — MUST be first so renderer can use it
+// 1. EXPOSE electronAPI — MUST be first
 // ═══════════════════════════════════════════════════════════════════
 contextBridge.exposeInMainWorld('electronAPI', {
   getVersion     : () => ipcRenderer.invoke('app-version'),
   showMessageBox : (o) => ipcRenderer.invoke('show-message-box', o),
   isElectron     : true,
 
-  // Printing
   printKOT    : (data, p) => ipcRenderer.invoke('print-kot',    { data, printerName: p }),
   printBill   : (data, p) => ipcRenderer.invoke('print-bill',   { data, printerName: p }),
   silentPrint : (html, p) => ipcRenderer.invoke('silent-print', { html, printerName: p }),
 
-  // Printer management
   getPrinters         : ()  => ipcRenderer.invoke('get-printers'),
   getPrinterSettings  : ()  => ipcRenderer.invoke('get-printer-settings'),
   setPrinter          : (o) => ipcRenderer.invoke('set-printer', o),
@@ -40,27 +41,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPrinterSettings : ()  => ipcRenderer.invoke('open-printer-settings'),
   cacheRestaurantData : (d) => ipcRenderer.invoke('cache-restaurant-data', d),
 
-  // Offline database
   offline: {
-    getStatus      : ()       => ipcRenderer.invoke('offline:getStatus'),
-    getMenu        : (rid)    => ipcRenderer.invoke('offline:getMenu', rid),
-    getCategories  : (rid)    => ipcRenderer.invoke('offline:getCategories', rid),
-    getTables      : (rid)    => ipcRenderer.invoke('offline:getTables', rid),
-    getRestaurant  : (rid)    => ipcRenderer.invoke('offline:getRestaurant', rid),
-    createOrder    : (payload)=> ipcRenderer.invoke('offline:createOrder', payload),
-    getOrders      : (rid)    => ipcRenderer.invoke('offline:getOrders', rid),
-    getCachedStaff : (email)  => ipcRenderer.invoke('offline:getCachedStaff', { email }),
-    cacheStaff     : (data)   => ipcRenderer.invoke('offline:cacheStaff', data),
+    getStatus      : ()        => ipcRenderer.invoke('offline:getStatus'),
+    getMenu        : (rid)     => ipcRenderer.invoke('offline:getMenu', rid),
+    getCategories  : (rid)     => ipcRenderer.invoke('offline:getCategories', rid),
+    getTables      : (rid)     => ipcRenderer.invoke('offline:getTables', rid),
+    getRestaurant  : (rid)     => ipcRenderer.invoke('offline:getRestaurant', rid),
+    createOrder    : (payload) => ipcRenderer.invoke('offline:createOrder', payload),
+    getOrders      : (rid)     => ipcRenderer.invoke('offline:getOrders', rid),
+    getCachedStaff : (email)   => ipcRenderer.invoke('offline:getCachedStaff', { email }),
+    cacheStaff     : (data)    => ipcRenderer.invoke('offline:cacheStaff', data),
   },
 
-  // Sync engine
   sync: {
     getState       : ()    => ipcRenderer.invoke('sync:getState'),
     trigger        : ()    => ipcRenderer.invoke('sync:trigger'),
     isOfflineReady : (rid) => ipcRenderer.invoke('sync:isOfflineReady', rid),
   },
 
-  // Upload engine
   upload: {
     getStatus : () => ipcRenderer.invoke('upload:getStatus'),
     trigger   : () => ipcRenderer.invoke('upload:trigger'),
@@ -79,48 +77,86 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. ALL PATCHES inside DOMContentLoaded
-//    window.XMLHttpRequest and window.fetch both exist here.
 // ═══════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
 
-  // ── 2a. XHR Interceptor (Axios uses XHR, not fetch) ─────────────
+  // ─────────────────────────────────────────────────────────────────
+  // 2a.  OfflineXHR — wraps XMLHttpRequest for offline fallback
   //
-  // Handles three cases:
-  //   A) POST /api/staff/login  — on network failure, serve cached creds
-  //   B) POST /api/orders       — on network failure, save to SQLite
-  //   C) GET  active-orders     — inject pre-polled orders from Node process
+  // Axios flow (confirmed from bundle inspection):
+  //   1. v = new XMLHttpRequest()
+  //   2. v.open(method, url, true)
+  //   3. v.timeout = N
+  //   4. "onloadend" in v  → true (we have it) → v.onloadend = successHandler
+  //   5. v.onerror   = axiosErrorHandler     ← we intercept this setter
+  //   6. v.ontimeout = axiosTimeoutHandler   ← we intercept this setter
+  //   7. v.send(body)
   //
-  // How Axios error detection works:
-  //   Axios sets xhr.onerror and xhr.ontimeout before calling xhr.send().
-  //   We intercept those setters so we can wrap them with our offline fallback.
-  //   When the underlying XHR fires onerror (no network), we intercept it,
-  //   call IPC, and synthesize a successful response instead of propagating
-  //   the error to Axios — which makes Axios think the request succeeded.
+  // When network fails:
+  //   _xhr fires its onerror.
+  //   We run OUR offline fallback FIRST (async IPC call).
+  //   If it succeeds → synthesize HTTP 200/201 → call v.onloadend (success).
+  //   If it fails    → call axiosErrorHandler (Axios sees error normally).
+  // ─────────────────────────────────────────────────────────────────
 
   const _NativeXHR = window.XMLHttpRequest;
 
   function OfflineXHR() {
-    const _xhr  = new _NativeXHR();
-    let _method = 'GET';
-    let _url    = '';
-    let _body   = null;
+    const _xhr = new _NativeXHR();
 
-    // ── open(): capture method + url ──────────────────────────────
-    this.open = function(method, url, ...rest) {
+    // State captured at open() time
+    let _method  = 'GET';
+    let _url     = '';
+    let _body    = null;
+
+    // Axios's own error handlers — stored here instead of forwarded to _xhr
+    let _axiosOnerror   = null;
+    let _axiosOntimeout = null;
+    let _axiosOnloadend = null;
+
+    // ── open() ────────────────────────────────────────────────────
+    this.open = function (method, url) {
       _method = (method || 'GET').toUpperCase();
-      // Normalise relative URLs to absolute so matching is simple
-      _url = (typeof url === 'string' && url.startsWith('/')) ? (API + url) : (url || '');
-      _xhr.open(method, url, ...rest);
+      _url    = (typeof url === 'string' && url.startsWith('/')) ? (API + url) : (url || '');
+      _xhr.open.apply(_xhr, arguments);
     };
 
-    // ── setRequestHeader(): forward straight through ──────────────
-    this.setRequestHeader = function(k, v) { _xhr.setRequestHeader(k, v); };
+    // ── setRequestHeader() ────────────────────────────────────────
+    this.setRequestHeader = function (k, v) { _xhr.setRequestHeader(k, v); };
 
-    // ── send(): core intercept logic ──────────────────────────────
-    this.send = function(body) {
+    // ── Intercept onerror setter ──────────────────────────────────
+    // Axios sets v.onerror = handler. We capture it instead of passing to _xhr.
+    Object.defineProperty(this, 'onerror', {
+      get: () => _axiosOnerror,
+      set: (fn) => { _axiosOnerror = fn; },
+      configurable: true, enumerable: true,
+    });
+
+    // ── Intercept ontimeout setter ────────────────────────────────
+    Object.defineProperty(this, 'ontimeout', {
+      get: () => _axiosOntimeout,
+      set: (fn) => { _axiosOntimeout = fn; },
+      configurable: true, enumerable: true,
+    });
+
+    // ── Intercept onloadend setter ────────────────────────────────
+    // Axios uses onloadend as its success handler (readyState === 4, status > 0).
+    // We store it so we can call it when synthesizing a success response.
+    Object.defineProperty(this, 'onloadend', {
+      get: () => _axiosOnloadend,
+      set: (fn) => {
+        _axiosOnloadend = fn;
+        // Forward to _xhr so real responses still trigger it
+        _xhr.onloadend = fn;
+      },
+      configurable: true, enumerable: true,
+    });
+
+    // ── send() ────────────────────────────────────────────────────
+    this.send = function (body) {
       _body = body || null;
 
-      // ── Case C: GET active orders injection ────────────────────
+      // ── Case C: GET active-orders injection ───────────────────
       const inject    = window.__wn_inject_orders;
       const injectRid = window.__wn_inject_rid;
       if (
@@ -133,212 +169,169 @@ window.addEventListener('DOMContentLoaded', () => {
         const data = JSON.stringify(inject);
         const self = this;
         setTimeout(() => {
-          _defineReadOnly(self, 'readyState',   4);
-          _defineReadOnly(self, 'status',       200);
-          _defineReadOnly(self, 'statusText',   'OK');
-          _defineReadOnly(self, 'responseText', data);
-          _defineReadOnly(self, 'response',     data);
-          if (typeof self.onreadystatechange === 'function') self.onreadystatechange();
-          if (typeof self.onload === 'function') self.onload();
+          _pin(self, 'readyState',   4);
+          _pin(self, 'status',       200);
+          _pin(self, 'statusText',   'OK');
+          _pin(self, 'responseText', data);
+          _pin(self, 'response',     data);
+          if (typeof self.onreadystatechange === 'function') { try { self.onreadystatechange(); } catch {} }
+          if (typeof _axiosOnloadend === 'function')         { try { _axiosOnloadend();         } catch {} }
         }, 8);
         return;
       }
 
-      // ── Case A: POST /api/staff/login ──────────────────────────
+      // ── Case A: POST /api/staff/login ─────────────────────────
       if (_method === 'POST' && _url.includes('/api/staff/login')) {
-        _xhr.addEventListener('error',   () => _offlineLogin(this));
-        _xhr.addEventListener('timeout', () => _offlineLogin(this));
+        _xhr.onerror = _xhr.ontimeout = () => _handleOfflineLogin(this);
         _xhr.send(body);
         return;
       }
 
-      // ── Case B: POST /api/orders ───────────────────────────────
-      // Match /api/orders but NOT /api/orders/restaurant/ (GET list endpoint)
+      // ── Case B: POST /api/orders ──────────────────────────────
       if (_method === 'POST' && /\/api\/orders\/?$/.test(_url)) {
-        _xhr.addEventListener('error',   () => _offlineOrder(this, _body));
-        _xhr.addEventListener('timeout', () => _offlineOrder(this, _body));
+        _xhr.onerror = _xhr.ontimeout = () => _handleOfflineOrder(this);
         _xhr.send(body);
         return;
       }
 
-      // All other requests — pass through unchanged
+      // All other requests — pass through
       _xhr.send(body);
     };
 
-    // ── Offline login fallback ────────────────────────────────────
-    const _offlineLogin = async (proxyXhr) => {
-      console.log('[offline] XHR /api/staff/login failed — trying cached credentials');
+    // ── Offline login handler (async) ─────────────────────────────
+    const _handleOfflineLogin = async (proxy) => {
+      console.log('[offline] Login network failure — checking SQLite cache...');
       try {
         let email = null;
-        try {
-          const parsed = _body ? JSON.parse(_body) : {};
-          email = parsed.email || null;
-        } catch {}
+        try { email = (_body ? JSON.parse(_body) : {}).email || null; } catch {}
 
         if (email && window.electronAPI && window.electronAPI.offline) {
           const cached = await window.electronAPI.offline.getCachedStaff(email);
           if (cached && cached.success) {
-            console.log('[offline] Offline login granted for:', cached.staff && cached.staff.name);
-            const data = JSON.stringify({ token: cached.token, staff: cached.staff });
-            _synthesizeSuccess(proxyXhr, 200, data);
+            console.log('[offline] ✅ Offline login granted:', cached.staff && cached.staff.name);
+            _synthesizeOK(proxy, 200, { token: cached.token, staff: cached.staff });
             return;
           }
           console.warn('[offline] No cached credentials for:', email);
         }
       } catch (e) {
-        console.error('[offline] offlineLogin error:', e && e.message);
+        console.error('[offline] Login fallback error:', e && e.message);
       }
-      // No cached creds — let Axios see the original error
-      _synthesizeError(proxyXhr);
+      // No cache — let Axios see the error
+      if (typeof _axiosOnerror === 'function') {
+        try { _axiosOnerror(new Event('error')); } catch {}
+      }
     };
 
-    // ── Offline order creation fallback ──────────────────────────
-    const _offlineOrder = async (proxyXhr, rawBody) => {
-      console.log('[offline] XHR POST /api/orders failed — saving to SQLite');
+    // ── Offline order handler (async) ─────────────────────────────
+    const _handleOfflineOrder = async (proxy) => {
+      console.log('[offline] Order network failure — saving to SQLite...');
       try {
-        const payload = rawBody ? JSON.parse(rawBody) : null;
+        const payload = _body ? JSON.parse(_body) : null;
         if (payload && window.electronAPI && window.electronAPI.offline) {
           const result = await window.electronAPI.offline.createOrder(payload);
           if (result && result.success) {
-            console.log('[offline] Order saved locally:', result.order && result.order._id);
-            const data = JSON.stringify(result.order);
-            _synthesizeSuccess(proxyXhr, 201, data);
+            console.log('[offline] ✅ Order saved locally:', result.order && result.order._id);
+            _synthesizeOK(proxy, 201, result.order);
             return;
           }
-          console.warn('[offline] createOrder IPC returned:', result && result.error);
+          console.warn('[offline] createOrder failed:', result && result.error);
         }
       } catch (e) {
-        console.error('[offline] offlineOrder error:', e && e.message);
+        console.error('[offline] Order fallback error:', e && e.message);
       }
-      // Could not save — let Axios see the original error
-      _synthesizeError(proxyXhr);
+      if (typeof _axiosOnerror === 'function') {
+        try { _axiosOnerror(new Event('error')); } catch {}
+      }
     };
 
-    // ── Synthesize a successful HTTP response on this proxy XHR ──
-    function _synthesizeSuccess(proxyXhr, status, data) {
-      _defineReadOnly(proxyXhr, 'readyState',   4);
-      _defineReadOnly(proxyXhr, 'status',       status);
-      _defineReadOnly(proxyXhr, 'statusText',   'OK');
-      _defineReadOnly(proxyXhr, 'responseText', data);
-      _defineReadOnly(proxyXhr, 'response',     data);
-      // Fire readystatechange first (Axios uses this), then onload
-      if (typeof proxyXhr.onreadystatechange === 'function') {
-        try { proxyXhr.onreadystatechange(); } catch {}
-      }
-      if (typeof proxyXhr.onload === 'function') {
-        try { proxyXhr.onload(); } catch {}
-      }
-    }
-
-    // ── Synthesize an error response (pass-through to Axios error) ─
-    function _synthesizeError(proxyXhr) {
-      _defineReadOnly(proxyXhr, 'readyState', 4);
-      _defineReadOnly(proxyXhr, 'status',     0);
-      _defineReadOnly(proxyXhr, 'statusText', '');
-      if (typeof proxyXhr.onerror === 'function') {
-        try { proxyXhr.onerror(new Event('error')); } catch {}
+    // ── Synthesize a successful response ─────────────────────────
+    // Pins the status/response on the proxy so Axios reads them,
+    // then calls onloadend (Axios's success path).
+    function _synthesizeOK(proxy, status, dataObj) {
+      const data = JSON.stringify(dataObj);
+      _pin(proxy, 'readyState',   4);
+      _pin(proxy, 'status',       status);
+      _pin(proxy, 'statusText',   'OK');
+      _pin(proxy, 'responseText', data);
+      _pin(proxy, 'response',     data);
+      // Axios reads via onloadend (confirmed from bundle)
+      if (typeof _axiosOnloadend === 'function') {
+        try { _axiosOnloadend(); } catch (e) {
+          console.error('[offline] synthesize onloadend error:', e && e.message);
+        }
       }
     }
 
-    // ── Helper: define a non-writable, configurable property ──────
-    function _defineReadOnly(obj, key, value) {
+    // ── Pin a property as a fixed getter ─────────────────────────
+    function _pin(obj, key, value) {
       Object.defineProperty(obj, key, { get: () => value, configurable: true });
     }
 
-    // ── Forward all remaining XHR properties/methods ──────────────
-    // Properties that Axios reads or sets — we proxy them to the real XHR
-    const _proxyProps = [
+    // ── Proxy all other XHR properties to _xhr ────────────────────
+    const _passthroughProps = [
       'timeout', 'withCredentials', 'responseType', 'upload',
-      'readyState', 'status', 'statusText', 'response', 'responseText',
-      'onloadstart', 'onprogress', 'onabort', 'onerror', 'onload',
-      'ontimeout', 'onloadend', 'onreadystatechange',
+      'readyState', 'status', 'statusText', 'response', 'responseText', 'responseURL',
+      'onloadstart', 'onprogress', 'onabort', 'onload',
+      'onreadystatechange',
     ];
-    for (const prop of _proxyProps) {
-      if (prop in this) continue; // already defined above
-      Object.defineProperty(this, prop, {
-        get: () => _xhr[prop],
-        set: (v) => { _xhr[prop] = v; },
-        configurable: true,
-        enumerable: true,
+    for (const p of _passthroughProps) {
+      if (p in this) continue;
+      Object.defineProperty(this, p, {
+        get: ()  => _xhr[p],
+        set: (v) => { _xhr[p] = v; },
+        configurable: true, enumerable: true,
       });
     }
 
-    const _proxyMethods = [
+    const _passthroughMethods = [
       'abort', 'getAllResponseHeaders', 'getResponseHeader',
       'overrideMimeType', 'addEventListener', 'removeEventListener', 'dispatchEvent',
     ];
-    for (const m of _proxyMethods) {
+    for (const m of _passthroughMethods) {
       if (!(m in this) && typeof _xhr[m] === 'function') {
         this[m] = _xhr[m].bind(_xhr);
       }
     }
-
-    // Axios reads readyState changes via onreadystatechange on the XHR itself
-    // AND via addEventListener('readystatechange') — both need to go to our proxy
-    _xhr.addEventListener('readystatechange', () => {
-      if (typeof this.onreadystatechange === 'function') {
-        // Only forward non-4 states (state 4 is handled by onload/onerror)
-        // to avoid double-firing after we synthesize a success/error
-        try { this.onreadystatechange(); } catch {}
-      }
-    });
   }
 
   window.XMLHttpRequest = OfflineXHR;
-  console.log('[WaitNot] XHR offline interceptor installed ✅');
+  console.log('[WaitNot] OfflineXHR v3.5 installed ✅');
 
-  // ── 2b. fetch() interceptor (fallback for non-Axios callers) ────
-  // Some code paths (service worker, native fetch calls) may use fetch.
-  // Keep the fetch patch as a belt-and-suspenders fallback.
+  // ─────────────────────────────────────────────────────────────────
+  // 2b. fetch() fallback (belt-and-suspenders for non-Axios callers)
+  // ─────────────────────────────────────────────────────────────────
   if (typeof window.fetch === 'function') {
     const _nativeFetch = window.fetch.bind(window);
-
     window.fetch = async function patchedFetch(input, init) {
       const url     = typeof input === 'string' ? input : (input && input.url ? input.url : '');
       const method  = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
       const fullUrl = url.startsWith('/') ? API + url : url;
 
-      // POST /api/orders
       if (method === 'POST' && /\/api\/orders\/?$/.test(fullUrl)) {
-        try { return await _nativeFetch(input, init); }
-        catch {
+        try { return await _nativeFetch(input, init); } catch {
           try {
-            const bodyText = init && init.body
+            const bt = init && init.body
               ? (typeof init.body === 'string' ? init.body
-                 : init.body instanceof ArrayBuffer ? new TextDecoder().decode(init.body)
-                 : String(init.body))
-              : null;
-            const payload = bodyText ? JSON.parse(bodyText) : null;
-            if (payload && window.electronAPI && window.electronAPI.offline) {
-              const result = await window.electronAPI.offline.createOrder(payload);
-              if (result && result.success) {
-                return new Response(JSON.stringify(result.order), {
-                  status: 201,
-                  headers: new Headers({ 'Content-Type': 'application/json' }),
-                });
-              }
+                : init.body instanceof ArrayBuffer ? new TextDecoder().decode(init.body)
+                : String(init.body)) : null;
+            const p = bt ? JSON.parse(bt) : null;
+            if (p && window.electronAPI && window.electronAPI.offline) {
+              const r = await window.electronAPI.offline.createOrder(p);
+              if (r && r.success) return new Response(JSON.stringify(r.order), { status: 201, headers: new Headers({ 'Content-Type': 'application/json' }) });
             }
           } catch {}
         }
       }
 
-      // POST /api/staff/login
       if (method === 'POST' && fullUrl.includes('/api/staff/login')) {
-        try { return await _nativeFetch(input, init); }
-        catch {
+        try { return await _nativeFetch(input, init); } catch {
           try {
-            const bodyText = init && init.body
-              ? (typeof init.body === 'string' ? init.body : String(init.body))
-              : null;
-            const loginBody = bodyText ? JSON.parse(bodyText) : {};
-            if (loginBody.email && window.electronAPI && window.electronAPI.offline) {
-              const cached = await window.electronAPI.offline.getCachedStaff(loginBody.email);
-              if (cached && cached.success) {
-                return new Response(JSON.stringify({ token: cached.token, staff: cached.staff }), {
-                  status: 200,
-                  headers: new Headers({ 'Content-Type': 'application/json' }),
-                });
-              }
+            const bt  = init && init.body ? (typeof init.body === 'string' ? init.body : String(init.body)) : null;
+            const lb  = bt ? JSON.parse(bt) : {};
+            if (lb.email && window.electronAPI && window.electronAPI.offline) {
+              const c = await window.electronAPI.offline.getCachedStaff(lb.email);
+              if (c && c.success) return new Response(JSON.stringify({ token: c.token, staff: c.staff }), { status: 200, headers: new Headers({ 'Content-Type': 'application/json' }) });
             }
           } catch {}
         }
@@ -348,19 +341,18 @@ window.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // ── 2c. Socket.IO URL fix ────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────
+  // 2c. Socket.IO URL fix
+  // ─────────────────────────────────────────────────────────────────
   let ioAttempts = 0;
   const patchIO = () => {
     if (window.io && !window.io.__wn) {
       const orig = window.io;
-      window.io = function(url, opts) {
+      window.io = function (url, opts) {
         const u = (!url || url === '' || url === '/') ? API : url;
         console.log('[WaitNot] Socket.IO →', u);
         const sock = orig(u, opts);
-        sock.on('connect', () => {
-          window.__wn_sock = sock;
-          console.log('[WaitNot] Socket connected ✅');
-        });
+        sock.on('connect', () => { window.__wn_sock = sock; console.log('[WaitNot] Socket connected ✅'); });
         return sock;
       };
       Object.assign(window.io, orig);
@@ -373,12 +365,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const t = setInterval(() => { if (patchIO() || ++ioAttempts > 150) clearInterval(t); }, 50);
   }
 
-  // ── 2d. Sync status receiver ─────────────────────────────────────
-  window.addEventListener('__wn_sync_status__', (ev) => {
-    window.__wn_sync_state = ev.detail;
-  });
+  // ─────────────────────────────────────────────────────────────────
+  // 2d–2f. Event listeners for order injection / sync status
+  // ─────────────────────────────────────────────────────────────────
+  window.addEventListener('__wn_sync_status__', (ev) => { window.__wn_sync_state = ev.detail; });
 
-  // ── 2e. Offline order pushed into React state ────────────────────
   window.addEventListener('__wn_offline_order__', (ev) => {
     const order = ev.detail;
     if (!order || !order._id) return;
@@ -390,44 +381,34 @@ window.addEventListener('DOMContentLoaded', () => {
           return [order, ...prev];
         });
       } catch {
-        if (typeof window.__wn_refreshOrders === 'function') {
-          try { window.__wn_refreshOrders(); } catch {}
-        }
+        if (typeof window.__wn_refreshOrders === 'function') { try { window.__wn_refreshOrders(); } catch {} }
       }
     }
   });
 
-  // ── 2f. Polled orders receiver ───────────────────────────────────
   window.addEventListener('__waitnot_orders__', (ev) => {
     const orders = ev.detail;
     if (!Array.isArray(orders)) return;
     try {
-      if (typeof window.__wn_setOrders === 'function') {
-        window.__wn_setOrders(orders); return;
-      }
-      if (typeof window.__wn_refreshOrders === 'function') {
-        window.__wn_refreshOrders(); return;
-      }
+      if (typeof window.__wn_setOrders === 'function')    { window.__wn_setOrders(orders); return; }
+      if (typeof window.__wn_refreshOrders === 'function') { window.__wn_refreshOrders(); return; }
       if (window.__wn_sock) {
         const cbs = (window.__wn_sock._callbacks || {})['$order-updated'] || [];
         if (cbs.length) { orders.forEach(o => cbs.forEach(h => { try { h(o); } catch {} })); return; }
       }
       const sd  = localStorage.getItem('staffData');
       const rid = sd ? JSON.parse(sd).restaurant_id : null;
-      if (rid) {
-        window.__wn_inject_orders = orders;
-        window.__wn_inject_rid    = rid;
-        document.dispatchEvent(new Event('visibilitychange'));
-      }
+      if (rid) { window.__wn_inject_orders = orders; window.__wn_inject_rid = rid; document.dispatchEvent(new Event('visibilitychange')); }
     } catch {}
   });
 
-  // ── 2g. Desktop styles ───────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────
+  // 2g. Desktop styles
+  // ─────────────────────────────────────────────────────────────────
   const s = document.createElement('style');
   s.textContent = `
     body { user-select:none; -webkit-user-select:none; }
-    input,textarea,[contenteditable] {
-      user-select:text !important; -webkit-user-select:text !important; }
+    input,textarea,[contenteditable] { user-select:text !important; -webkit-user-select:text !important; }
     ::-webkit-scrollbar { width:8px; }
     ::-webkit-scrollbar-track { background:#f1f1f1; border-radius:4px; }
     ::-webkit-scrollbar-thumb { background:#c1c1c1; border-radius:4px; }
