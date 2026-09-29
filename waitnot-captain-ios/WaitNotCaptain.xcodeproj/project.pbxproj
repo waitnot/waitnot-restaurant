@@ -1,0 +1,359 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A001 /* WaitNotCaptainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F001 /* WaitNotCaptainApp.swift */; };
+		A002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F002; };
+		A003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F003; };
+		A010 /* Staff.swift in Sources */ = {isa = PBXBuildFile; fileRef = F010; };
+		A011 /* Restaurant.swift in Sources */ = {isa = PBXBuildFile; fileRef = F011; };
+		A012 /* Order.swift in Sources */ = {isa = PBXBuildFile; fileRef = F012; };
+		A020 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F020; };
+		A021 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F021; };
+		A022 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F022; };
+		A023 /* LocalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F023; };
+		A024 /* Color+Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = F024; };
+		A025 /* View+Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = F025; };
+		A026 /* Date+Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = F026; };
+		A030 /* SocketService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F030; };
+		A031 /* BluetoothPrinterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F031; };
+		A032 /* ESCPOSBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F032; };
+		A033 /* PrinterConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F033; };
+		A034 /* PrintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F034; };
+		A035 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F035; };
+		A036 /* OrderRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F036; };
+		A037 /* RestaurantRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F037; };
+		A040 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F040; };
+		A041 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F041; };
+		A042 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F042; };
+		A043 /* TablesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F043; };
+		A044 /* OrderTakingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F044; };
+		A045 /* RunningOrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F045; };
+		A046 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F046; };
+		A047 /* SalesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F047; };
+		A048 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F048; };
+		A049 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F049; };
+		A050 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F050; };
+		A060 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F060; };
+		B001 /* AuthStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T001; };
+		B002 /* ESCPOSBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T002; };
+		B003 /* SalesDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T003; };
+		B004 /* OrderModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T004; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F001 /* WaitNotCaptainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/App/WaitNotCaptainApp.swift"; sourceTree = SOURCE_ROOT; };
+		F002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/App/RootView.swift"; sourceTree = SOURCE_ROOT; };
+		F003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/App/AppState.swift"; sourceTree = SOURCE_ROOT; };
+		F010 /* Staff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Models/Staff.swift"; sourceTree = SOURCE_ROOT; };
+		F011 /* Restaurant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Models/Restaurant.swift"; sourceTree = SOURCE_ROOT; };
+		F012 /* Order.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Models/Order.swift"; sourceTree = SOURCE_ROOT; };
+		F020 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Core/Network/APIClient.swift"; sourceTree = SOURCE_ROOT; };
+		F021 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Core/Auth/AuthStore.swift"; sourceTree = SOURCE_ROOT; };
+		F022 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Core/Storage/KeychainService.swift"; sourceTree = SOURCE_ROOT; };
+		F023 /* LocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Core/Storage/LocalCache.swift"; sourceTree = SOURCE_ROOT; };
+		F024 /* Color+Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Core/Extensions/Color+Brand.swift"; sourceTree = SOURCE_ROOT; };
+		F025 /* View+Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Core/Extensions/View+Toast.swift"; sourceTree = SOURCE_ROOT; };
+		F026 /* Date+Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Core/Extensions/Date+Format.swift"; sourceTree = SOURCE_ROOT; };
+		F030 /* SocketService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/Socket/SocketService.swift"; sourceTree = SOURCE_ROOT; };
+		F031 /* BluetoothPrinterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/Bluetooth/BluetoothPrinterService.swift"; sourceTree = SOURCE_ROOT; };
+		F032 /* ESCPOSBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/Printing/ESCPOSBuilder.swift"; sourceTree = SOURCE_ROOT; };
+		F033 /* PrinterConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/Printing/PrinterConfig.swift"; sourceTree = SOURCE_ROOT; };
+		F034 /* PrintService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/Printing/PrintService.swift"; sourceTree = SOURCE_ROOT; };
+		F035 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/Notifications/NotificationService.swift"; sourceTree = SOURCE_ROOT; };
+		F036 /* OrderRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/OrderRepository.swift"; sourceTree = SOURCE_ROOT; };
+		F037 /* RestaurantRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Services/RestaurantRepository.swift"; sourceTree = SOURCE_ROOT; };
+		F040 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Login/LoginView.swift"; sourceTree = SOURCE_ROOT; };
+		F041 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Dashboard/DashboardView.swift"; sourceTree = SOURCE_ROOT; };
+		F042 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Dashboard/DashboardViewModel.swift"; sourceTree = SOURCE_ROOT; };
+		F043 /* TablesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Tables/TablesView.swift"; sourceTree = SOURCE_ROOT; };
+		F044 /* OrderTakingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Orders/OrderTakingView.swift"; sourceTree = SOURCE_ROOT; };
+		F045 /* RunningOrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Orders/RunningOrdersView.swift"; sourceTree = SOURCE_ROOT; };
+		F046 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/History/HistoryView.swift"; sourceTree = SOURCE_ROOT; };
+		F047 /* SalesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Sales/SalesView.swift"; sourceTree = SOURCE_ROOT; };
+		F048 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Profile/ProfileView.swift"; sourceTree = SOURCE_ROOT; };
+		F049 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Features/Settings/SettingsView.swift"; sourceTree = SOURCE_ROOT; };
+		F050 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptain/Components/EmptyStateView.swift"; sourceTree = SOURCE_ROOT; };
+		F060 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "WaitNotCaptain/Resources/Info.plist"; sourceTree = SOURCE_ROOT; };
+		PROD /* WaitNotCaptain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WaitNotCaptain.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		TPRD /* WaitNotCaptainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WaitNotCaptainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		T001 /* AuthStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptainTests/AuthStoreTests.swift"; sourceTree = SOURCE_ROOT; };
+		T002 /* ESCPOSBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptainTests/ESCPOSBuilderTests.swift"; sourceTree = SOURCE_ROOT; };
+		T003 /* SalesDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptainTests/SalesDataTests.swift"; sourceTree = SOURCE_ROOT; };
+		T004 /* OrderModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WaitNotCaptainTests/OrderModelTests.swift"; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		MAINGRP = {
+			isa = PBXGroup;
+			children = (F001, F002, F003, F010, F011, F012, F020, F021, F022, F023, F024, F025,
+				F030, F031, F032, F033, F034, F035, F036, F037,
+				F040, F041, F042, F043, F044, F045, F046, F047, F048, F049, F050, F060,
+				T001, T002, T003, T004, PROD, TPRD);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		APPTGT /* WaitNotCaptain */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BLDLIST;
+			buildPhases = (SRCPHASE, RESPHASE, FWKPHASE);
+			buildRules = ();
+			dependencies = ();
+			name = WaitNotCaptain;
+			productName = WaitNotCaptain;
+			productReference = PROD;
+			productType = "com.apple.product-type.application";
+		};
+		TESTTGT /* WaitNotCaptainTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = TBLDLIST;
+			buildPhases = (TSRCPHASE,);
+			buildRules = ();
+			dependencies = (TDEP,);
+			name = WaitNotCaptainTests;
+			productName = WaitNotCaptainTests;
+			productReference = TPRD;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PROJ /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					APPTGT = { CreatedOnToolsVersion = 15.0; };
+					TESTTGT = { CreatedOnToolsVersion = 15.0; TestTargetID = APPTGT; };
+				};
+			};
+			buildConfigurationList = PBLDLIST;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = MAINGRP;
+			productRefGroup = MAINGRP;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (APPTGT, TESTTGT);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		SRCPHASE = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A001, A002, A003, A010, A011, A012, A020, A021, A022, A023, A024, A025, A026,
+				A030, A031, A032, A033, A034, A035, A036, A037,
+				A040, A041, A042, A043, A044, A045, A046, A047, A048, A049, A050);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		TSRCPHASE = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (B001, B002, B003, B004);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		RESPHASE = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A060,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		FWKPHASE = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		TDEP = {
+			isa = PBXTargetDependency;
+			target = APPTGT;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		DBGAPP = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "WaitNotCaptain/Resources/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.waitnot.captain;
+				PRODUCT_NAME = WaitNotCaptain;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		RELAPP = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "WaitNotCaptain/Resources/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.waitnot.captain;
+				PRODUCT_NAME = WaitNotCaptain;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		DBGPRJ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		RELPRJ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = s;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		DBGTST = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.waitnot.captain.tests;
+				PRODUCT_NAME = WaitNotCaptainTests;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WaitNotCaptain.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WaitNotCaptain";
+			};
+			name = Debug;
+		};
+		RELTST = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.waitnot.captain.tests;
+				PRODUCT_NAME = WaitNotCaptainTests;
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WaitNotCaptain.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WaitNotCaptain";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		PBLDLIST /* Build configuration list for PBXProject */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (DBGPRJ, RELPRJ);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BLDLIST /* Build configuration list for WaitNotCaptain */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (DBGAPP, RELAPP);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		TBLDLIST /* Build configuration list for WaitNotCaptainTests */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (DBGTST, RELTST);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = PROJ /* Project object */;
+}

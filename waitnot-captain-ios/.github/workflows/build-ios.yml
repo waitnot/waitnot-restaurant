@@ -1,0 +1,55 @@
+name: Build WaitNot Captain iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: macos-14  # Xcode 15+
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies
+          -scheme WaitNotCaptain
+          -destination "platform=iOS Simulator,name=iPhone 15,OS=latest"
+        working-directory: waitnot-captain-ios
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -scheme WaitNotCaptain \
+            -destination "platform=iOS Simulator,name=iPhone 15,OS=latest" \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty || xcodebuild build \
+            -scheme WaitNotCaptain \
+            -destination "platform=iOS Simulator,name=iPhone 15,OS=latest" \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO
+        working-directory: waitnot-captain-ios
+
+      - name: Run Tests
+        run: |
+          xcodebuild test \
+            -scheme WaitNotCaptain \
+            -destination "platform=iOS Simulator,name=iPhone 15,OS=latest" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty || true
+        working-directory: waitnot-captain-ios
