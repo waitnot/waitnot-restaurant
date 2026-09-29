@@ -1,22 +1,35 @@
 /**
  * WaitNot ESC/POS Thermal Printer Module
- *
- * Sends raw ESC/POS bytes directly to thermal printers via COPY /B on Windows.
- * No Windows GDI, no print dialog, no scaling — raw ESC/POS only.
- *
- * Paper widths:
- *   58mm → 32 characters per line
- *   80mm → 48 characters per line
+ * 
+ * Sends raw ESC/POS commands directly to installed thermal printers
+ * (Epson, TVS, Bixolon, Generic) without any Windows print dialog.
+ * 
+ * Uses node-thermal-printer for USB/Network/Serial printers.
+ * Falls back to Electron's webContents.print() for non-ESC/POS printers.
  */
 
-'use strict';
-
 const { exec } = require('child_process');
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-const os   = require('os');
+const os = require('os');
+
+let ThermalPrinter, PrinterTypes, CharacterSet;
+
+// Try to load node-thermal-printer
+try {
+  const ntp = require('node-thermal-printer');
+  ThermalPrinter = ntp.ThermalPrinter;
+  PrinterTypes = ntp.PrinterTypes;
+  CharacterSet = ntp.CharacterSet;
+} catch (e) {
+  console.warn('node-thermal-printer not available, will use fallback printing');
+}
 
 // ─── Printer discovery ────────────────────────────────────────────────────────
+
+/**
+ * List all installed printers on Windows/Mac/Linux
+ */
 async function listPrinters(webContents) {
   try {
     const printers = await webContents.getPrintersAsync();
@@ -24,289 +37,286 @@ async function listPrinters(webContents) {
       name: p.name,
       isDefault: p.isDefault,
       status: p.status === 0 ? 'ready' : 'unavailable',
-      description: p.description || '',
+      description: p.description || ''
     }));
   } catch (e) {
-    console.error('listPrinters error:', e);
+    console.error('Error listing printers:', e);
     return [];
   }
 }
 
-// ─── Windows raw print via COPY /B ───────────────────────────────────────────
+// ─── ESC/POS raw printing (Windows: net use / direct port write) ─────────────
+
+/**
+ * On Windows, write raw ESC/POS bytes to a printer by name using a temp file
+ * and the `COPY /B` command — this bypasses Windows GDI entirely.
+ */
 async function rawPrintWindows(printerName, buffer) {
   return new Promise((resolve) => {
-    const tmpFile = path.join(os.tmpdir(), `wn-escpos-${Date.now()}.bin`);
-    try { fs.writeFileSync(tmpFile, buffer); }
-    catch (e) { return resolve({ success: false, error: `write tmp: ${e.message}` }); }
-
-    // COPY /B bypasses Windows GDI — raw bytes go directly to printer queue
+    const tmpFile = path.join(os.tmpdir(), `waitnot-escpos-${Date.now()}.bin`);
+    fs.writeFileSync(tmpFile, buffer);
+    
+    // COPY /B sends raw bytes to the printer queue
     const cmd = `COPY /B "${tmpFile}" "${printerName}"`;
-    exec(cmd, (err) => {
+    exec(cmd, (error) => {
       try { fs.unlinkSync(tmpFile); } catch {}
-      if (err) {
-        console.warn(`[printer] COPY /B failed: ${err.message}`);
-        resolve({ success: false, error: err.message });
+      if (error) {
+        console.warn('COPY /B failed, trying lp fallback:', error.message);
+        resolve({ success: false, error: error.message });
       } else {
-        console.log(`[printer] ✅ ESC/POS sent to "${printerName}"`);
         resolve({ success: true });
       }
     });
   });
 }
 
+/**
+ * On Linux/Mac, use lp command
+ */
 async function rawPrintUnix(printerName, buffer) {
   return new Promise((resolve) => {
-    const tmpFile = path.join(os.tmpdir(), `wn-escpos-${Date.now()}.bin`);
-    try { fs.writeFileSync(tmpFile, buffer); }
-    catch (e) { return resolve({ success: false, error: e.message }); }
-    exec(`lp -d "${printerName}" "${tmpFile}"`, (err) => {
+    const tmpFile = path.join(os.tmpdir(), `waitnot-escpos-${Date.now()}.bin`);
+    fs.writeFileSync(tmpFile, buffer);
+    
+    const cmd = `lp -d "${printerName}" "${tmpFile}"`;
+    exec(cmd, (error) => {
       try { fs.unlinkSync(tmpFile); } catch {}
-      resolve(err ? { success: false, error: err.message } : { success: true });
+      if (error) {
+        resolve({ success: false, error: error.message });
+      } else {
+        resolve({ success: true });
+      }
     });
   });
 }
 
-// ─── ESC/POS byte constants ───────────────────────────────────────────────────
+// ─── ESC/POS command builder ──────────────────────────────────────────────────
+
 const ESC = 0x1B;
 const GS  = 0x1D;
 const LF  = 0x0A;
+const CR  = 0x0D;
 
-const INIT             = [ESC, 0x40];
-const ALIGN_LEFT       = [ESC, 0x61, 0x00];
-const ALIGN_CENTER     = [ESC, 0x61, 0x01];
-const BOLD_ON          = [ESC, 0x45, 0x01];
-const BOLD_OFF         = [ESC, 0x45, 0x00];
-const DOUBLE_WIDTH_ON  = [ESC, 0x21, 0x20];   // double-width only
-const DOUBLE_WIDTH_OFF = [ESC, 0x21, 0x00];
-const CUT_PARTIAL      = [GS,  0x56, 0x01];
-function feed(n = 1)   { return Array(n).fill(LF); }
+function escposBuffer(commands) {
+  return Buffer.from(commands);
+}
 
-// ─── Layout helpers ───────────────────────────────────────────────────────────
+// Initialize printer
+const INIT        = [ESC, 0x40];
+// Text alignment
+const ALIGN_LEFT  = [ESC, 0x61, 0x00];
+const ALIGN_CENTER= [ESC, 0x61, 0x01];
+const ALIGN_RIGHT = [ESC, 0x61, 0x02];
+// Text style
+const BOLD_ON     = [ESC, 0x45, 0x01];
+const BOLD_OFF    = [ESC, 0x45, 0x00];
+const DOUBLE_HEIGHT_ON  = [ESC, 0x21, 0x10];
+const DOUBLE_HEIGHT_OFF = [ESC, 0x21, 0x00];
+// Cut paper
+const CUT_FULL    = [GS,  0x56, 0x00];
+const CUT_PARTIAL = [GS,  0x56, 0x01];
+// Feed lines
+function feed(n = 1) { return Array(n).fill(LF); }
+
+// ─── Width helpers (58mm=32chars, 80mm=48chars) ───────────────────────────────
 function getWidth(paperWidth) {
-  return paperWidth === '80mm' ? 48 : 32;  // characters per line
+  return (paperWidth === '80mm') ? 48 : 32;
+}
+
+// dashedLine returns ONLY the dash characters — textLine() adds the \n
+function dashedLine(paperWidth) {
+  return '-'.repeat(getWidth(paperWidth));
 }
 
 function textLine(text) {
   return [...Buffer.from(text + '\n', 'utf8')];
 }
 
-function separatorLine(char, width) {
-  return textLine(char.repeat(width));
-}
-
-/** Left-pad text to fill the line width */
-function rightAlign(text, width) {
-  return text.padStart(width);
-}
-
-/** Two-column line: left text + right text with spaces filling the gap */
-function twoCol(left, right, width) {
-  const gap = Math.max(1, width - left.length - right.length);
-  return textLine(left + ' '.repeat(gap) + right);
-}
-
-/** Centre a string within `width` characters */
-function centre(text, width) {
-  const pad = Math.max(0, Math.floor((width - text.length) / 2));
+function centeredLine(text, width) {
+  const w = width || 32;
+  const len = text.length;
+  if (len >= w) return textLine(text.substring(0, w));
+  const pad = Math.floor((w - len) / 2);
   return textLine(' '.repeat(pad) + text);
 }
 
+// Left label, right value — fills width exactly
+function twoColumnLine(left, right, width) {
+  const w = width || 32;
+  const space = Math.max(1, w - left.length - right.length);
+  return textLine(left + ' '.repeat(space) + right);
+}
+
 // ─── KOT builder ─────────────────────────────────────────────────────────────
+
 function buildKOTBuffer(data) {
-  const {
-    restaurantName = 'RESTAURANT',
-    orderId = '',
-    tableNumber,
-    roomNumber,
-    orderType = 'dine-in',
-    customerName,
-    deliveryAddress,
-    items = [],
-    time = '',
-    paperWidth = '80mm',
-  } = data;
+  const { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time, paperWidth } = data;
+  const W    = getWidth(paperWidth);
+  const DASH = dashedLine(paperWidth); // no trailing \n — textLine() adds it
+  const bytes = [];
 
-  const W   = getWidth(paperWidth);
-  const SEP = separatorLine('-', W);
-  const b   = [];
+  // ── Header ──
+  bytes.push(...INIT);
+  bytes.push(...ALIGN_CENTER);
+  bytes.push(...DOUBLE_HEIGHT_ON);
+  bytes.push(...BOLD_ON);
+  bytes.push(...centeredLine((restaurantName || 'RESTAURANT').toUpperCase(), W));
+  bytes.push(...DOUBLE_HEIGHT_OFF);
+  bytes.push(...centeredLine('** KOT **', W));
+  bytes.push(...BOLD_OFF);
+  bytes.push(...textLine(DASH));
 
-  // ── Header ────────────────────────────────────────────────────────────────
-  b.push(...INIT);
-  b.push(...ALIGN_CENTER);
-  b.push(...BOLD_ON);
-  b.push(...textLine(restaurantName.substring(0, W).toUpperCase()));
-  b.push(...BOLD_OFF);
-  b.push(...textLine('KITCHEN ORDER TICKET'));
-  b.push(...SEP);
+  // ── Order info ──
+  bytes.push(...ALIGN_LEFT);
+  if (tableNumber)  bytes.push(...twoColumnLine('Table :', String(tableNumber), W));
+  if (roomNumber)   bytes.push(...twoColumnLine('Room  :', String(roomNumber), W));
+  if (orderType === 'takeaway') bytes.push(...textLine('Type  : TAKEAWAY'));
+  if (orderType === 'delivery') bytes.push(...textLine('Type  : DELIVERY'));
+  const refId = String(orderId || '').slice(-6).toUpperCase();
+  bytes.push(...twoColumnLine('Ref   :', refId, W));
+  bytes.push(...twoColumnLine('Time  :', time || '', W));
+  bytes.push(...textLine(DASH));
 
-  // ── Order info ────────────────────────────────────────────────────────────
-  b.push(...ALIGN_LEFT);
-  if (tableNumber)                b.push(...twoCol('TABLE :', String(tableNumber), W));
-  if (roomNumber)                 b.push(...twoCol('ROOM  :', String(roomNumber),  W));
-  if (orderType === 'takeaway')   b.push(...textLine('TYPE  : TAKEAWAY'));
-  if (orderType === 'delivery')   b.push(...textLine('TYPE  : DELIVERY'));
-  if (customerName)               b.push(...textLine(('NAME  : ' + customerName).substring(0, W)));
-  if (deliveryAddress)            b.push(...textLine(('ADDR  : ' + deliveryAddress).substring(0, W)));
-  b.push(...twoCol('REF   :', (orderId || '').slice(-8).toUpperCase(), W));
-  b.push(...twoCol('TIME  :', time, W));
-  b.push(...SEP);
-
-  // ── Items ─────────────────────────────────────────────────────────────────
-  b.push(...ALIGN_CENTER);
-  b.push(...textLine('-- ITEMS TO PREPARE --'));
-  b.push(...ALIGN_LEFT);
-  b.push(...SEP);
-
-  b.push(...BOLD_ON);
-  const nameW = W - 6;  // leave 6 chars for " x999"
-  items.forEach(item => {
-    const qty   = `x${item.quantity || 1}`;
-    const name  = String(item.name || '').substring(0, nameW);
-    b.push(...twoCol(name, qty, W));
+  // ── Items ──
+  // Layout: <name padded> <qty right-aligned in 4 chars>
+  // 58mm W=32: name=28, qty=4  → total=32
+  // 80mm W=48: name=44, qty=4  → total=48
+  const nameW = W - 4;
+  bytes.push(...BOLD_ON);
+  bytes.push(...textLine('ITEM'.padEnd(nameW) + ' QTY'));
+  bytes.push(...BOLD_OFF);
+  bytes.push(...textLine(DASH));
+  (items || []).forEach(item => {
+    const name = (item.name || '').substring(0, nameW).padEnd(nameW);
+    const qty  = ('x' + (item.quantity || 1)).padStart(4);
+    bytes.push(...textLine(name + qty));
   });
-  b.push(...BOLD_OFF);
+  bytes.push(...textLine(DASH));
 
-  // ── Footer ────────────────────────────────────────────────────────────────
-  b.push(...SEP);
-  b.push(...ALIGN_CENTER);
-  b.push(...textLine('PREPARE WITH CARE'));
-  b.push(...feed(4));
-  b.push(...CUT_PARTIAL);
+  // ── Footer ──
+  bytes.push(...ALIGN_CENTER);
+  bytes.push(...centeredLine('** PREPARE WITH CARE **', W));
+  bytes.push(...feed(4));
+  bytes.push(...CUT_PARTIAL);
 
-  return Buffer.from(b);
+  return Buffer.from(bytes);
 }
 
 // ─── Bill builder ─────────────────────────────────────────────────────────────
+
 function buildBillBuffer(data) {
-  const {
-    restaurantName = 'RESTAURANT',
-    tableLabel = '',
-    items = [],
-    total = 0,
-    paymentMethod = 'CASH',
-    time = '',
-    date = '',
-    footerText = 'Thank you! Visit Again',
-    paperWidth = '80mm',
-    packagingCharge = 0,
-    deliveryCharge  = 0,
-    discount        = 0,
-  } = data;
+  const { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText, paperWidth } = data;
+  const W    = getWidth(paperWidth);
+  const DASH = dashedLine(paperWidth);
+  const bytes = [];
 
-  const W   = getWidth(paperWidth);
-  const SEP = separatorLine('-', W);
-  const b   = [];
+  // ── Header ──
+  bytes.push(...INIT);
+  bytes.push(...ALIGN_CENTER);
+  bytes.push(...DOUBLE_HEIGHT_ON);
+  bytes.push(...BOLD_ON);
+  bytes.push(...centeredLine((restaurantName || 'RESTAURANT').toUpperCase(), W));
+  bytes.push(...DOUBLE_HEIGHT_OFF);
+  bytes.push(...centeredLine('BILL / RECEIPT', W));
+  bytes.push(...BOLD_OFF);
+  bytes.push(...textLine(DASH));
 
-  // ── Header ────────────────────────────────────────────────────────────────
-  b.push(...INIT);
-  b.push(...ALIGN_CENTER);
-  b.push(...BOLD_ON);
-  b.push(...textLine(restaurantName.substring(0, W).toUpperCase()));
-  b.push(...BOLD_OFF);
-  b.push(...textLine('BILL / RECEIPT'));
-  b.push(...SEP);
+  // ── Order info ──
+  bytes.push(...ALIGN_LEFT);
+  if (tableLabel) bytes.push(...twoColumnLine('Table :', tableLabel, W));
+  if (date)       bytes.push(...twoColumnLine('Date  :', date, W));
+  if (time)       bytes.push(...twoColumnLine('Time  :', time, W));
+  bytes.push(...textLine(DASH));
 
-  // ── Meta ──────────────────────────────────────────────────────────────────
-  b.push(...ALIGN_LEFT);
-  if (tableLabel) b.push(...twoCol('REF     :', tableLabel, W));
-  if (date)       b.push(...twoCol('DATE    :', date,       W));
-  if (time)       b.push(...twoCol('TIME    :', time,       W));
-  b.push(...SEP);
+  // ── Items header ──
+  // Column layout (must sum exactly to W):
+  //   58mm W=32:  name=16 | qty=3 | rate=7 | amt=6
+  //   80mm W=48:  name=24 | qty=3 | rate=10 | amt=11
+  const amtW  = W >= 48 ? 11 : 6;
+  const rateW = W >= 48 ? 10 : 7;
+  const qtyW  = 3;
+  const nameW = W - qtyW - rateW - amtW; // 32-3-7-6=16 or 48-3-10-11=24
+  const hdr   = 'ITEM'.padEnd(nameW) + 'QTY'.padStart(qtyW) + 'RATE'.padStart(rateW) + 'AMT'.padStart(amtW);
+  bytes.push(...BOLD_ON);
+  bytes.push(...textLine(hdr));
+  bytes.push(...BOLD_OFF);
+  bytes.push(...textLine(DASH));
 
-  // ── Column header ─────────────────────────────────────────────────────────
-  // Layout: ITEM NAME (left) | QTY (right-3) | AMT (right-6)
-  // 58mm (W=32): name=20, qty=3, gap=1, amt=8
-  // 80mm (W=48): name=32, qty=4, gap=1, amt=11
-  const amtW  = W === 32 ? 8  : 11;
-  const qtyW  = W === 32 ? 3  : 4;
-  const nameW = W - amtW - qtyW - 2; // 2 spaces between cols
-
-  b.push(...BOLD_ON);
-  const hdr = 'ITEM'.padEnd(nameW)
-            + ' ' + 'QTY'.padStart(qtyW)
-            + ' ' + 'AMT'.padStart(amtW);
-  b.push(...textLine(hdr.substring(0, W)));
-  b.push(...BOLD_OFF);
-  b.push(...SEP);
-
-  // ── Items ─────────────────────────────────────────────────────────────────
+  // ── Items ──
   let subtotal = 0;
-  items.forEach(item => {
-    const price  = parseFloat(item.price) || 0;
-    const qty    = parseInt(item.qty || item.quantity) || 1;
-    const lineAmt = price * qty;
-    subtotal += lineAmt;
+  (items || []).forEach(item => {
+    const qty   = item.qty || item.quantity || 1;
+    const price = parseFloat(item.price || 0);
+    const amt   = Math.round(price * qty);
+    subtotal   += item.complimentary ? 0 : amt;
 
-    const nameStr = String(item.name || '').substring(0, nameW).padEnd(nameW);
+    const nameStr = (item.name || '').substring(0, nameW).padEnd(nameW);
     const qtyStr  = String(qty).padStart(qtyW);
-    const amtStr  = String(Math.round(lineAmt)).padStart(amtW);
-    b.push(...textLine(`${nameStr} ${qtyStr} ${amtStr}`.substring(0, W)));
+    const rateStr = item.complimentary ? 'COMP'.padStart(rateW) : (price.toFixed(0)).padStart(rateW);
+    const amtStr  = item.complimentary ? '  0'.padStart(amtW) : amt.toString().padStart(amtW);
+    bytes.push(...textLine(nameStr + qtyStr + rateStr + amtStr));
   });
+  bytes.push(...textLine(DASH));
 
-  b.push(...SEP);
-
-  // ── Charges & discounts ───────────────────────────────────────────────────
-  const hasCharges = parseFloat(packagingCharge) > 0 || parseFloat(deliveryCharge) > 0 || parseFloat(discount) > 0;
-  if (hasCharges) {
-    if (parseFloat(packagingCharge) > 0) {
-      b.push(...twoCol('Packaging:', `Rs.${parseFloat(packagingCharge).toFixed(2)}`, W));
-    }
-    if (parseFloat(deliveryCharge) > 0) {
-      b.push(...twoCol('Delivery:', `Rs.${parseFloat(deliveryCharge).toFixed(2)}`, W));
-    }
-    if (parseFloat(discount) > 0) {
-      b.push(...twoCol('Discount:', `-Rs.${parseFloat(discount).toFixed(2)}`, W));
-    }
-    b.push(...SEP);
-  }
-
-  // ── Total ─────────────────────────────────────────────────────────────────
-  b.push(...BOLD_ON);
-  const grandTotal = parseFloat(total) || (subtotal + parseFloat(packagingCharge||0) + parseFloat(deliveryCharge||0) - parseFloat(discount||0));
-  b.push(...twoCol('TOTAL:', `Rs.${grandTotal.toFixed(2)}`, W));
-  b.push(...BOLD_OFF);
+  // ── Total ──
+  bytes.push(...BOLD_ON);
+  bytes.push(...DOUBLE_HEIGHT_ON);
+  bytes.push(...twoColumnLine('TOTAL :', 'Rs.' + total, W));
+  bytes.push(...DOUBLE_HEIGHT_OFF);
+  bytes.push(...BOLD_OFF);
 
   if (paymentMethod) {
-    b.push(...twoCol('PAYMENT:', paymentMethod.toUpperCase(), W));
+    bytes.push(...twoColumnLine('Payment:', paymentMethod.toUpperCase(), W));
   }
-  b.push(...SEP);
+  bytes.push(...textLine(DASH));
 
-  // ── Footer ────────────────────────────────────────────────────────────────
-  b.push(...ALIGN_CENTER);
-  b.push(...textLine(footerText.substring(0, W)));
-  b.push(...feed(4));
-  b.push(...CUT_PARTIAL);
+  // ── Footer ──
+  bytes.push(...ALIGN_CENTER);
+  bytes.push(...centeredLine(footerText || 'Thank you! Visit Again', W));
+  bytes.push(...feed(4));
+  bytes.push(...CUT_PARTIAL);
 
-  return Buffer.from(b);
+  return Buffer.from(bytes);
 }
 
-// ─── Public print functions ───────────────────────────────────────────────────
+// ─── Main print function ──────────────────────────────────────────────────────
+
+/**
+ * Print KOT silently to the assigned kitchen printer
+ * @param {Object} data - { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time }
+ * @param {string} printerName - Windows printer name (e.g. "Epson TM-T82")
+ */
 async function printKOT(data, printerName) {
   try {
-    if (!printerName || !printerName.trim()) {
-      return { success: false, error: 'No printer name provided' };
-    }
     const buf = buildKOTBuffer(data);
-    return process.platform === 'win32'
-      ? rawPrintWindows(printerName.trim(), buf)
-      : rawPrintUnix(printerName.trim(), buf);
+    
+    if (process.platform === 'win32') {
+      return await rawPrintWindows(printerName, buf);
+    } else {
+      return await rawPrintUnix(printerName, buf);
+    }
   } catch (e) {
-    console.error('[printer] printKOT error:', e.message);
+    console.error('printKOT error:', e);
     return { success: false, error: e.message };
   }
 }
 
+/**
+ * Print Bill silently to the assigned bill/counter printer
+ * @param {Object} data - { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText }
+ * @param {string} printerName - Windows printer name
+ */
 async function printBill(data, printerName) {
   try {
-    if (!printerName || !printerName.trim()) {
-      return { success: false, error: 'No printer name provided' };
-    }
     const buf = buildBillBuffer(data);
-    return process.platform === 'win32'
-      ? rawPrintWindows(printerName.trim(), buf)
-      : rawPrintUnix(printerName.trim(), buf);
+    
+    if (process.platform === 'win32') {
+      return await rawPrintWindows(printerName, buf);
+    } else {
+      return await rawPrintUnix(printerName, buf);
+    }
   } catch (e) {
-    console.error('[printer] printBill error:', e.message);
+    console.error('printBill error:', e);
     return { success: false, error: e.message };
   }
 }
