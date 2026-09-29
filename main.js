@@ -1430,8 +1430,9 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
   });
 });
 // ─── Get available printers ──────────────────────────────────────────────────
-ipcMain.handle('get-printers', async () => {
-  return await listPrinters(mainWindow.webContents);
+ipcMain.handle('get-printers', async (event) => {
+  // Use the calling window's webContents so it works from any window (including printer-settings)
+  return await listPrinters(event.sender);
 });
 
 // ─── Auto-print KOT ──────────────────────────────────────────────────────────

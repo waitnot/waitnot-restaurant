@@ -184,6 +184,11 @@ let autoBill  = false;
 
 /* ── Init ──────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
+  // Wait a tick for contextBridge to be ready
+  if (!window.electronAPI) {
+    document.getElementById('printer-loading').textContent = '❌ electronAPI not available — preload missing?';
+    return;
+  }
   await loadSavedSettings();
   await loadPrinters();
 });
@@ -195,7 +200,7 @@ async function loadSavedSettings() {
     autoBill = !!settings.autoBill;
     if (autoKot)  document.getElementById('toggle-kot').classList.add('on');
     if (autoBill) document.getElementById('toggle-bill').classList.add('on');
-    const pw = settings.paperWidth || '80mm';
+    const pw = settings.paperWidth || '58mm';
     document.getElementById('paper-width').value = pw;
   } catch(e) { console.warn(e); }
 }
@@ -270,8 +275,8 @@ async function testPrint(type) {
   const now = new Date();
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-  @page{size:${pw} auto;margin:3mm;}
-  body{font-family:'Courier New',monospace;font-size:13px;background:#fff;color:#000;}
+  @page{size:${pw} auto;margin:0;}
+  body{font-family:'Courier New',monospace;font-size:12px;background:#fff;color:#000;margin:0;padding:2px 3px;}
   .c{text-align:center;} .b{font-weight:900;} hr{border:none;border-top:1px dashed #000;margin:6px 0;}
 </style></head><body>
 <div class="c b" style="font-size:18px;margin-bottom:4px;">WaitNot Staff</div>
@@ -310,7 +315,7 @@ async function testPrint(type) {
 }
 
 /* ── Save ──────────────────────────────────────────── */
-async async function saveSettings() {
+async function saveSettings() {
   const kitchenPrinter = document.getElementById('kitchen-printer').value;
   const billPrinter    = document.getElementById('bill-printer').value;
   const paperWidth     = document.getElementById('paper-width').value;
