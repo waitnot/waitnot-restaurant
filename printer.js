@@ -246,18 +246,21 @@ function buildBillBuffer(data) {
   b.push(...SEP);
 
   // ── Charges & discounts ───────────────────────────────────────────────────
-  if (parseFloat(packagingCharge) > 0) {
-    b.push(...twoCol('Packaging:', `Rs.${parseFloat(packagingCharge).toFixed(2)}`, W));
-  }
-  if (parseFloat(deliveryCharge) > 0) {
-    b.push(...twoCol('Delivery:', `Rs.${parseFloat(deliveryCharge).toFixed(2)}`, W));
-  }
-  if (parseFloat(discount) > 0) {
-    b.push(...twoCol('Discount:', `-Rs.${parseFloat(discount).toFixed(2)}`, W));
+  const hasCharges = parseFloat(packagingCharge) > 0 || parseFloat(deliveryCharge) > 0 || parseFloat(discount) > 0;
+  if (hasCharges) {
+    if (parseFloat(packagingCharge) > 0) {
+      b.push(...twoCol('Packaging:', `Rs.${parseFloat(packagingCharge).toFixed(2)}`, W));
+    }
+    if (parseFloat(deliveryCharge) > 0) {
+      b.push(...twoCol('Delivery:', `Rs.${parseFloat(deliveryCharge).toFixed(2)}`, W));
+    }
+    if (parseFloat(discount) > 0) {
+      b.push(...twoCol('Discount:', `-Rs.${parseFloat(discount).toFixed(2)}`, W));
+    }
+    b.push(...SEP);
   }
 
   // ── Total ─────────────────────────────────────────────────────────────────
-  b.push(...SEP);
   b.push(...BOLD_ON);
   const grandTotal = parseFloat(total) || (subtotal + parseFloat(packagingCharge||0) + parseFloat(deliveryCharge||0) - parseFloat(discount||0));
   b.push(...twoCol('TOTAL:', `Rs.${grandTotal.toFixed(2)}`, W));

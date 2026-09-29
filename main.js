@@ -1121,8 +1121,8 @@ ipcMain.handle('print-kot', async (event, { data, printerName }) => {
   const target = (printerName && printerName.trim())
     ? printerName.trim()
     : (store.get('kitchenPrinter','') || store.get('selectedPrinter','') || await autoDetectThermalPrinter(mainWindow));
-  console.log(`🖨️ KOT → "${target}"`);
-  return await printKOT(data, target);
+  console.log(`[print] KOT → "${target}"`);
+  return await printKOT({ ...data, paperWidth: store.get('paperWidth', '80mm') }, target);
 });
 
 // ─── ESC/POS silent print — Bill ────────────────────────────────────────────
@@ -1131,8 +1131,8 @@ ipcMain.handle('print-bill', async (event, { data, printerName }) => {
   const target = (printerName && printerName.trim())
     ? printerName.trim()
     : (store.get('billPrinter','') || store.get('selectedPrinter','') || await autoDetectThermalPrinter(mainWindow));
-  console.log(`🖨️ Bill → "${target}"`);
-  return await printBill(data, target);
+  console.log(`[print] Bill → "${target}"`);
+  return await printBill({ ...data, paperWidth: store.get('paperWidth', '80mm') }, target);
 });
 
 // ─── Simple JSON settings store ───────────────────────────────────────────────
