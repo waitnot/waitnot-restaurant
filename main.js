@@ -1391,7 +1391,10 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
     }
 
     const printWin = new BrowserWindow({
-      show: false, width: 400, height: 800,
+      // Width must match the receipt CSS pixels exactly so table columns compute
+      // percentages against the same viewport the @page size uses.
+      // 58mm ≈ 220px at 96dpi  |  80mm ≈ 304px at 96dpi
+      show: false, width: paperWidth === '58mm' ? 220 : 304, height: 800,
       webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
