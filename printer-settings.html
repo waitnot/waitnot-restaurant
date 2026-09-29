@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -163,8 +163,8 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     <div class="p-row">
       <span class="p-label">Paper Width</span>
       <select id="paper-width" class="p-select">
-        <option value="58mm">58 mm — small thermal</option>
-        <option value="80mm" selected>80 mm — standard thermal</option>
+        <option value="58mm" selected>58 mm — small thermal</option>
+        <option value="80mm">80 mm — standard thermal</option>
       </select>
     </div>
   </div>
@@ -310,7 +310,7 @@ async function testPrint(type) {
 }
 
 /* ── Save ──────────────────────────────────────────── */
-async function saveSettings() {
+async async function saveSettings() {
   const kitchenPrinter = document.getElementById('kitchen-printer').value;
   const billPrinter    = document.getElementById('bill-printer').value;
   const paperWidth     = document.getElementById('paper-width').value;

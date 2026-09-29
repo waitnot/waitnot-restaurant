@@ -602,7 +602,7 @@ async function doPoll() {
         deliveryAddress: order.deliveryAddress,
         items          : order.items || [],
         time           : new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
-        paperWidth     : store.get('paperWidth', '80mm'),
+        paperWidth     : store.get('paperWidth', '58mm'),
       }, printer)
         .then(r  => console.log(r?.success ? `✅ KOT #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
         .catch(e => console.error('KOT err:', e.message));
@@ -637,7 +637,7 @@ async function doPoll() {
         time         : now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
         date         : now.toLocaleDateString('en-IN'),
         footerText   : 'Thank you! Please Visit Again',
-        paperWidth   : store.get('paperWidth', '80mm'),
+        paperWidth   : store.get('paperWidth', '58mm'),
       }, printer)
         .then(r  => console.log(r?.success ? `✅ Bill #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
         .catch(e => console.error('Bill err:', e.message));
@@ -1122,7 +1122,7 @@ ipcMain.handle('print-kot', async (event, { data, printerName }) => {
     ? printerName.trim()
     : (store.get('kitchenPrinter','') || store.get('selectedPrinter','') || await autoDetectThermalPrinter(mainWindow));
   console.log(`[print] KOT → "${target}"`);
-  return await printKOT({ ...data, paperWidth: store.get('paperWidth', '80mm') }, target);
+  return await printKOT({ ...data, paperWidth: store.get('paperWidth', '58mm') }, target);
 });
 
 // ─── ESC/POS silent print — Bill ────────────────────────────────────────────
@@ -1132,7 +1132,7 @@ ipcMain.handle('print-bill', async (event, { data, printerName }) => {
     ? printerName.trim()
     : (store.get('billPrinter','') || store.get('selectedPrinter','') || await autoDetectThermalPrinter(mainWindow));
   console.log(`[print] Bill → "${target}"`);
-  return await printBill({ ...data, paperWidth: store.get('paperWidth', '80mm') }, target);
+  return await printBill({ ...data, paperWidth: store.get('paperWidth', '58mm') }, target);
 });
 
 // ─── Simple JSON settings store ───────────────────────────────────────────────
@@ -1208,7 +1208,7 @@ ipcMain.handle('get-printer-settings', () => ({
   billPrinter     : store.get('billPrinter',     ''),
   autoKot         : store.get('autoKot',  false),
   autoBill        : store.get('autoBill', false),
-  paperWidth      : store.get('paperWidth', '80mm'),
+  paperWidth      : store.get('paperWidth', '58mm'),
 }));
 
 // Save all printer settings at once
@@ -1256,7 +1256,10 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
   const os = require('os');
   console.log(`[print] silent-print called, printer="${printerName}"`);
 
-  const paperWidth       = store.get('paperWidth', '80mm');
+  // Auto-detect paper width: prefer saved setting, but if printer name contains "58" force 58mm
+  const savedPaperWidth = store.get('paperWidth', '58mm');
+  const printerHas58    = /58|pos58/i.test(printerName || '');
+  const paperWidth       = printerHas58 ? '58mm' : savedPaperWidth;
   const pageWidthMicrons = paperWidth === '58mm' ? 58000 : 80000;
   const { buildKOTBuffer, buildBillBuffer } = require('./printer');
 
@@ -1456,7 +1459,7 @@ ipcMain.handle('auto-print-kot', async (event, { order }) => {
       deliveryAddress: order.deliveryAddress,
       items          : order.items || [],
       time           : new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }),
-      paperWidth     : store.get('paperWidth', '80mm'),
+      paperWidth     : store.get('paperWidth', '58mm'),
     };
 
     // Enrich with restaurant name from cached data if not present
