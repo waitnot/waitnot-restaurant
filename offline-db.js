@@ -594,6 +594,41 @@ function setServerOrderId(localId, serverId) {
   ).run(serverId, new Date().toISOString(), localId);
 }
 
+/**
+ * Delete a single offline order (cancel) by its local UUID.
+ * Also removes its items and any pending sync_queue entry.
+ */
+function deleteOfflineOrder(orderId) {
+  if (!ready) throw new Error('offline-db not ready');
+  const doAll = db.transaction(() => {
+    db.prepare('DELETE FROM offline_order_items WHERE order_id = ?').run(orderId);
+    db.prepare("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'order'").run(orderId);
+    db.prepare('DELETE FROM offline_orders WHERE id = ?').run(orderId);
+  });
+  doAll();
+}
+
+/**
+ * Delete ALL offline orders for a given table (clear table offline).
+ * Returns the IDs that were deleted so the caller can confirm.
+ */
+function clearOfflineTable(restaurantId, tableNumber) {
+  if (!ready) throw new Error('offline-db not ready');
+  const orders = db.prepare(
+    "SELECT id FROM offline_orders WHERE restaurant_id = ? AND table_number = ? AND local_status IN ('LOCAL_PENDING','LOCAL_CONFIRMED','PENDING_UPLOAD','UPLOAD_FAILED')"
+  ).all(restaurantId, tableNumber);
+  const ids = orders.map(o => o.id);
+  const doAll = db.transaction(() => {
+    for (const id of ids) {
+      db.prepare('DELETE FROM offline_order_items WHERE order_id = ?').run(id);
+      db.prepare("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'order'").run(id);
+      db.prepare('DELETE FROM offline_orders WHERE id = ?').run(id);
+    }
+  });
+  doAll();
+  return ids;
+}
+
 // ─── Sync queue repository (Phase 4) ─────────────────────────────────────────
 
 function enqueue(entityType, entityId, operation, payloadJson) {
@@ -724,6 +759,8 @@ module.exports = {
   getOfflineOrderItems,
   updateOfflineOrderStatus,
   setServerOrderId,
+  deleteOfflineOrder,
+  clearOfflineTable,
 
   // Sync queue (Phase 4)
   enqueue,

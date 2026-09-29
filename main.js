@@ -599,6 +599,7 @@ async function doPoll() {
         deliveryAddress: order.deliveryAddress,
         items          : order.items || [],
         time           : new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
+        paperWidth     : store.get('paperWidth', '80mm'),
       }, printer)
         .then(r  => console.log(r?.success ? `✅ KOT #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
         .catch(e => console.error('KOT err:', e.message));
@@ -633,6 +634,7 @@ async function doPoll() {
         time         : now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
         date         : now.toLocaleDateString('en-IN'),
         footerText   : 'Thank you! Please Visit Again',
+        paperWidth   : store.get('paperWidth', '80mm'),
       }, printer)
         .then(r  => console.log(r?.success ? `✅ Bill #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
         .catch(e => console.error('Bill err:', e.message));
@@ -933,6 +935,36 @@ ipcMain.handle('offline:getOrders', (event, restaurantId) => {
   } catch { return []; }
 });
 
+// ─── Offline cancel order ────────────────────────────────────────────────────
+// Called when DELETE /api/orders/:id fails offline.
+// Deletes the local-only order from SQLite (it was never on the server).
+ipcMain.handle('offline:cancelOrder', (event, { orderId }) => {
+  try {
+    if (!offlineDb.isReady()) return { success: false, error: 'DB not ready' };
+    offlineDb.deleteOfflineOrder(orderId);
+    console.log(`[offline] Cancelled local order ${orderId}`);
+    return { success: true };
+  } catch (e) {
+    console.error('[offline] cancelOrder error:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+// ─── Offline clear table ─────────────────────────────────────────────────────
+// Called when POST /api/orders/batch-update fails offline.
+// Deletes all LOCAL_PENDING orders for the given table from SQLite.
+ipcMain.handle('offline:clearTable', (event, { restaurantId, tableNumber }) => {
+  try {
+    if (!offlineDb.isReady()) return { success: false, error: 'DB not ready' };
+    const deleted = offlineDb.clearOfflineTable(restaurantId, tableNumber);
+    console.log(`[offline] Cleared table ${tableNumber}: removed ${deleted.length} local orders`);
+    return { success: true, deletedIds: deleted };
+  } catch (e) {
+    console.error('[offline] clearTable error:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
 // ─── Offline login IPC ───────────────────────────────────────────────────────
 
 // Cache staff credentials after successful online login
@@ -989,12 +1021,14 @@ ipcMain.handle('upload:trigger', async () => {
 // Called by preload when window.addEventListener('online') fires in renderer.
 // Immediately uploads any pending offline orders and re-syncs restaurant data.
 ipcMain.handle('network:reconnected', async () => {
-  console.log('[main] 🌐 Network reconnected — triggering immediate upload + sync');
+  console.log('[main] 🌐 Network reconnected — uploading + syncing + fetching orders');
   try {
-    // Upload pending offline orders right away
+    // Upload any pending offline orders immediately
     uploadEngine.triggerUpload().catch(() => {});
-    // Re-sync menu/restaurant in case anything changed while offline
+    // Re-sync menu/restaurant data
     syncEngine.triggerSync().catch(() => {});
+    // Fetch fresh orders and push to UI right now — don't wait for 3s poll tick
+    setTimeout(() => doPoll().catch(() => {}), 800);
   } catch {}
   return { ok: true };
 });
@@ -1267,6 +1301,8 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
 
   // ── Step 2: Try ESC/POS raw print first (fastest, most reliable) ─────────
   const { buildKOTBuffer, buildBillBuffer } = require('./printer');
+  const paperWidth = store.get('paperWidth', '80mm');
+  const pageWidthMicrons = paperWidth === '58mm' ? 58000 : 80000;
 
   try {
     const data = parseHtmlReceipt(html);
@@ -1281,6 +1317,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
         orderType: 'dine-in',
         items: data.items,
         time: data.time,
+        paperWidth,
       });
     } else {
       buf = buildBillBuffer({
@@ -1292,6 +1329,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
         time: data.time,
         date: data.date,
         footerText: 'Thank you! Please Visit Again',
+        paperWidth,
       });
     }
 
@@ -1366,7 +1404,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
                 silent: true, printBackground: false,
                 deviceName: detected,
                 margins: { marginType: 'none' },
-                pageSize: { width: 58000, height: 500000 },
+                pageSize: { width: pageWidthMicrons, height: 500000 },
                 scaleFactor: 100, landscape: false, color: false, copies: 1,
               }, (success, errorType) => cleanup(success, errorType));
             } else {
@@ -1374,7 +1412,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
               const pdfPath = path.join(os.tmpdir(), `waitnot-bill-${Date.now()}.pdf`);
               printWin.webContents.printToPDF({
                 printBackground: false,
-                pageSize: { width: 58000, height: 500000 },
+                pageSize: { width: pageWidthMicrons, height: 500000 },
                 margins: { top: 0, bottom: 0, left: 3, right: 3 },
               }).then(data => {
                 fs.writeFileSync(pdfPath, data);
@@ -1393,7 +1431,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
           printBackground: false,
           deviceName: target,
           margins: { marginType: 'none' },
-          pageSize: { width: 58000, height: 500000 },
+          pageSize: { width: pageWidthMicrons, height: 500000 },
           scaleFactor: 100,
           landscape: false,
           color: false,
@@ -1436,6 +1474,7 @@ ipcMain.handle('auto-print-kot', async (event, { order }) => {
       deliveryAddress: order.deliveryAddress,
       items          : order.items || [],
       time           : new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }),
+      paperWidth     : store.get('paperWidth', '80mm'),
     };
 
     // Enrich with restaurant name from cached data if not present

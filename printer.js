@@ -117,15 +117,23 @@ const CUT_FULL    = [GS,  0x56, 0x00];
 const CUT_PARTIAL = [GS,  0x56, 0x01];
 // Feed lines
 function feed(n = 1) { return Array(n).fill(LF); }
-// Dashed line for 48-char width printer
-const DASHES = '-'.repeat(32) + '\n';
+
+// ─── Width helpers (58mm=32chars, 80mm=48chars) ───────────────────────────────
+function getWidth(paperWidth) {
+  return (paperWidth === '80mm') ? 48 : 32;
+}
+
+function dashedLine(paperWidth) {
+  return '-'.repeat(getWidth(paperWidth)) + '\n';
+}
 
 function textLine(text) {
   return [...Buffer.from(text + '\n', 'utf8')];
 }
 
-function centeredLine(text, width = 32) {
-  const pad = Math.max(0, Math.floor((width - text.length) / 2));
+function centeredLine(text, width) {
+  const w = width || 32;
+  const pad = Math.max(0, Math.floor((w - text.length) / 2));
   return textLine(' '.repeat(pad) + text);
 }
 
@@ -137,7 +145,9 @@ function twoColumnLine(left, right, width = 32) {
 // ─── KOT builder ─────────────────────────────────────────────────────────────
 
 function buildKOTBuffer(data) {
-  const { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time } = data;
+  const { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time, paperWidth } = data;
+  const W = getWidth(paperWidth);
+  const DASHES = dashedLine(paperWidth);
   const bytes = [];
 
   // Init
@@ -145,34 +155,36 @@ function buildKOTBuffer(data) {
   bytes.push(...ALIGN_CENTER);
   bytes.push(...DOUBLE_HEIGHT_ON);
   bytes.push(...BOLD_ON);
-  bytes.push(...textLine(restaurantName.toUpperCase()));
+  bytes.push(...centeredLine(restaurantName.toUpperCase(), W));
   bytes.push(...DOUBLE_HEIGHT_OFF);
-  bytes.push(...textLine('** KOT **'));
+  bytes.push(...centeredLine('** KOT **', W));
   bytes.push(...BOLD_OFF);
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_LEFT);
-  if (tableNumber) bytes.push(...twoColumnLine('Table:', tableNumber.toString()));
-  if (roomNumber)  bytes.push(...twoColumnLine('Room:', roomNumber.toString()));
+  if (tableNumber) bytes.push(...twoColumnLine('Table:', tableNumber.toString(), W));
+  if (roomNumber)  bytes.push(...twoColumnLine('Room:', roomNumber.toString(), W));
   if (orderType === 'takeaway') bytes.push(...textLine('Type: TAKEAWAY'));
   if (orderType === 'delivery') bytes.push(...textLine('Type: DELIVERY'));
-  bytes.push(...twoColumnLine('Order:', orderId.slice(-6).toUpperCase()));
-  bytes.push(...twoColumnLine('Time:', time));
+  bytes.push(...twoColumnLine('Order:', orderId.slice(-6).toUpperCase(), W));
+  bytes.push(...twoColumnLine('Time:', time, W));
   bytes.push(...textLine(DASHES));
 
-  // Items
+  // Items — name truncated to leave room for qty on right
+  const nameWidth = W - 6; // e.g. 26 for 58mm, 42 for 80mm
   bytes.push(...BOLD_ON);
   items.forEach(item => {
     bytes.push(...twoColumnLine(
-      item.name.substring(0, 24),
-      `x${item.quantity}`
+      item.name.substring(0, nameWidth),
+      `x${item.quantity}`,
+      W
     ));
   });
   bytes.push(...BOLD_OFF);
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_CENTER);
-  bytes.push(...textLine('-- PREPARE WITH CARE --'));
+  bytes.push(...centeredLine('-- PREPARE WITH CARE --', W));
   bytes.push(...feed(3));
   bytes.push(...CUT_PARTIAL);
 
@@ -182,7 +194,9 @@ function buildKOTBuffer(data) {
 // ─── Bill builder ─────────────────────────────────────────────────────────────
 
 function buildBillBuffer(data) {
-  const { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText } = data;
+  const { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText, paperWidth } = data;
+  const W = getWidth(paperWidth);
+  const DASHES = dashedLine(paperWidth);
   const bytes = [];
 
   // Init
@@ -190,30 +204,34 @@ function buildBillBuffer(data) {
   bytes.push(...ALIGN_CENTER);
   bytes.push(...DOUBLE_HEIGHT_ON);
   bytes.push(...BOLD_ON);
-  bytes.push(...textLine(restaurantName.toUpperCase()));
+  bytes.push(...centeredLine(restaurantName.toUpperCase(), W));
   bytes.push(...DOUBLE_HEIGHT_OFF);
-  bytes.push(...textLine('BILL'));
+  bytes.push(...centeredLine('BILL', W));
   bytes.push(...BOLD_OFF);
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_LEFT);
-  bytes.push(...twoColumnLine('Ref:', tableLabel));
-  bytes.push(...twoColumnLine('Date:', date));
-  bytes.push(...twoColumnLine('Time:', time));
+  bytes.push(...twoColumnLine('Ref:', tableLabel, W));
+  bytes.push(...twoColumnLine('Date:', date, W));
+  bytes.push(...twoColumnLine('Time:', time, W));
   bytes.push(...textLine(DASHES));
 
-  // Header row
+  // Column widths scale with paper: name | qty | amt
+  // 58mm (32): name=18, qty=3, amt=6 → header "Item              Qty   Amt"
+  // 80mm (48): name=28, qty=4, amt=8 → header "Item                       Qty    Amt"
+  const nameW = W - 12;
+  const header = 'Item'.padEnd(nameW) + ' Qty' + '   Amt';
   bytes.push(...BOLD_ON);
-  bytes.push(...textLine('Item                Qty   Amt'));
+  bytes.push(...textLine(header));
   bytes.push(...BOLD_OFF);
   bytes.push(...textLine(DASHES));
 
   // Items
   items.forEach(item => {
-    const name  = item.name.substring(0, 18).padEnd(18);
-    const qty   = String(item.qty).padStart(3);
-    const amt   = `${item.price * item.qty}`.padStart(6);
-    bytes.push(...textLine(`${name} ${qty} ${amt}`));
+    const name = item.name.substring(0, nameW).padEnd(nameW);
+    const qty  = String(item.qty  || item.quantity || 1).padStart(4);
+    const amt  = String(Math.round((item.price || 0) * (item.qty || item.quantity || 1))).padStart(6);
+    bytes.push(...textLine(`${name}${qty}${amt}`));
   });
 
   bytes.push(...textLine(DASHES));
@@ -221,17 +239,17 @@ function buildBillBuffer(data) {
   // Total
   bytes.push(...BOLD_ON);
   bytes.push(...DOUBLE_HEIGHT_ON);
-  bytes.push(...twoColumnLine('TOTAL:', `Rs.${total}`));
+  bytes.push(...twoColumnLine('TOTAL:', `Rs.${total}`, W));
   bytes.push(...DOUBLE_HEIGHT_OFF);
   bytes.push(...BOLD_OFF);
 
   if (paymentMethod) {
-    bytes.push(...twoColumnLine('Payment:', paymentMethod.toUpperCase()));
+    bytes.push(...twoColumnLine('Payment:', paymentMethod.toUpperCase(), W));
   }
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_CENTER);
-  bytes.push(...textLine(footerText || 'Thank you! Visit Again'));
+  bytes.push(...centeredLine(footerText || 'Thank you! Visit Again', W));
   bytes.push(...feed(3));
   bytes.push(...CUT_PARTIAL);
 
