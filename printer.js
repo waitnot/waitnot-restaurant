@@ -196,7 +196,8 @@ function buildKOTBuffer(data) {
 function buildBillBuffer(data) {
   const { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText, paperWidth } = data;
   const W = getWidth(paperWidth);
-  const DASHES = dashedLine(paperWidth);
+  // dashedLine already has \n via textLine — strip the extra \n from dashedLine()
+  const DASHES = '-'.repeat(W);
   const bytes = [];
 
   // Init
@@ -216,11 +217,14 @@ function buildBillBuffer(data) {
   bytes.push(...twoColumnLine('Time:', time, W));
   bytes.push(...textLine(DASHES));
 
-  // Column widths scale with paper: name | qty | amt
-  // 58mm (32): name=18, qty=3, amt=6 → header "Item              Qty   Amt"
-  // 80mm (48): name=28, qty=4, amt=8 → header "Item                       Qty    Amt"
-  const nameW = W - 12;
-  const header = 'Item'.padEnd(nameW) + ' Qty' + '   Amt';
+  // Column layout for bill items — must sum exactly to W:
+  //   58mm W=32:  name=16 | qty=3 | rate=7 | amt=6  → 16+3+7+6=32
+  //   80mm W=48:  name=24 | qty=3 | rate=10 | amt=11 → 24+3+10+11=48
+  const amtW  = W >= 48 ? 11 : 6;
+  const rateW = W >= 48 ? 10 : 7;
+  const qtyW  = 3;
+  const nameW = W - qtyW - rateW - amtW;
+  const header = 'ITEM'.padEnd(nameW) + 'QTY'.padStart(qtyW) + 'RATE'.padStart(rateW) + 'AMT'.padStart(amtW);
   bytes.push(...BOLD_ON);
   bytes.push(...textLine(header));
   bytes.push(...BOLD_OFF);
@@ -228,10 +232,14 @@ function buildBillBuffer(data) {
 
   // Items
   items.forEach(item => {
-    const name = item.name.substring(0, nameW).padEnd(nameW);
-    const qty  = String(item.qty  || item.quantity || 1).padStart(4);
-    const amt  = String(Math.round((item.price || 0) * (item.qty || item.quantity || 1))).padStart(6);
-    bytes.push(...textLine(`${name}${qty}${amt}`));
+    const qty   = item.qty || item.quantity || 1;
+    const price = parseFloat(item.price || 0);
+    const amt   = Math.round(price * qty);
+    const name  = (item.name || '').substring(0, nameW).padEnd(nameW);
+    const qtyS  = String(qty).padStart(qtyW);
+    const rateS = Math.round(price).toString().padStart(rateW);
+    const amtS  = amt.toString().padStart(amtW);
+    bytes.push(...textLine(name + qtyS + rateS + amtS));
   });
 
   bytes.push(...textLine(DASHES));
