@@ -339,26 +339,5 @@ async function saveSettings() {
     });
 
     settings = { kitchenPrinter, billPrinter, autoKot, autoBill, paperWidth };
+
     showStatus(
-      `✅ Saved!  KOT → ${kitchenPrinter || '—'}  |  Bill → ${billPrinter || '—'}`
-      + `\nAuto KOT: ${autoKot ? 'ON ✅' : 'OFF'}  |  Auto Bill: ${autoBill ? 'ON ✅' : 'OFF'}`,
-      'ok'
-    );
-  } catch(e) {
-    showStatus('❌ ' + e.message, 'err');
-  }
-
-  btn.disabled    = false;
-  btn.textContent = '💾  Save Settings';
-}
-
-/* ── Status bar ────────────────────────────────────── */
-function showStatus(msg, type) {
-  const el = document.getElementById('status-bar');
-  el.textContent  = msg;
-  el.className    = 'status-bar ' + type;
-  setTimeout(() => { el.className = 'status-bar'; }, 6000);
-}
-</script>
-</body>
-</html>
