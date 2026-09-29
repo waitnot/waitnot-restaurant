@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -163,8 +163,8 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     <div class="p-row">
       <span class="p-label">Paper Width</span>
       <select id="paper-width" class="p-select">
-        <option value="58mm" selected>58 mm — small thermal</option>
-        <option value="80mm">80 mm — standard thermal</option>
+        <option value="58mm">58 mm — small thermal</option>
+        <option value="80mm" selected>80 mm — standard thermal</option>
       </select>
     </div>
   </div>
@@ -184,11 +184,6 @@ let autoBill  = false;
 
 /* ── Init ──────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
-  // Wait a tick for contextBridge to be ready
-  if (!window.electronAPI) {
-    document.getElementById('printer-loading').textContent = '❌ electronAPI not available — preload missing?';
-    return;
-  }
   await loadSavedSettings();
   await loadPrinters();
 });
@@ -200,7 +195,7 @@ async function loadSavedSettings() {
     autoBill = !!settings.autoBill;
     if (autoKot)  document.getElementById('toggle-kot').classList.add('on');
     if (autoBill) document.getElementById('toggle-bill').classList.add('on');
-    const pw = settings.paperWidth || '58mm';
+    const pw = settings.paperWidth || '80mm';
     document.getElementById('paper-width').value = pw;
   } catch(e) { console.warn(e); }
 }
@@ -275,8 +270,8 @@ async function testPrint(type) {
   const now = new Date();
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-  @page{size:${pw} auto;margin:0;}
-  body{font-family:'Courier New',monospace;font-size:12px;background:#fff;color:#000;margin:0;padding:2px 3px;}
+  @page{size:${pw} auto;margin:3mm;}
+  body{font-family:'Courier New',monospace;font-size:13px;background:#fff;color:#000;}
   .c{text-align:center;} .b{font-weight:900;} hr{border:none;border-top:1px dashed #000;margin:6px 0;}
 </style></head><body>
 <div class="c b" style="font-size:18px;margin-bottom:4px;">WaitNot Staff</div>
@@ -339,5 +334,26 @@ async function saveSettings() {
     });
 
     settings = { kitchenPrinter, billPrinter, autoKot, autoBill, paperWidth };
-
     showStatus(
+      `✅ Saved!  KOT → ${kitchenPrinter || '—'}  |  Bill → ${billPrinter || '—'}`
+      + `\nAuto KOT: ${autoKot ? 'ON ✅' : 'OFF'}  |  Auto Bill: ${autoBill ? 'ON ✅' : 'OFF'}`,
+      'ok'
+    );
+  } catch(e) {
+    showStatus('❌ ' + e.message, 'err');
+  }
+
+  btn.disabled    = false;
+  btn.textContent = '💾  Save Settings';
+}
+
+/* ── Status bar ────────────────────────────────────── */
+function showStatus(msg, type) {
+  const el = document.getElementById('status-bar');
+  el.textContent  = msg;
+  el.className    = 'status-bar ' + type;
+  setTimeout(() => { el.className = 'status-bar'; }, 6000);
+}
+</script>
+</body>
+</html>
