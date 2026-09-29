@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCachedStaff : (email)   => ipcRenderer.invoke('offline:getCachedStaff', { email }),
     cacheStaff     : (data)    => ipcRenderer.invoke('offline:cacheStaff',    data),
     cancelOrder    : (orderId) => ipcRenderer.invoke('offline:cancelOrder',   { orderId }),
-    clearTable     : (restaurantId, tableNumber) => ipcRenderer.invoke('offline:clearTable', { restaurantId, tableNumber }),
+    clearTable     : (restaurantId, tableNumber, paymentMethod) => ipcRenderer.invoke('offline:clearTable', { restaurantId, tableNumber, paymentMethod }),
   },
 
   // Sync engine

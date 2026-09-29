@@ -535,10 +535,13 @@ async function doPoll() {
       (window.location.hash||'').includes('staff-dashboard')
     `);
     if (onDashboard) {
-      // Merge server orders with pending offline orders so table grid is complete
-      // Only include offline orders that are truly LOCAL_PENDING (not yet uploaded)
+      // Merge server orders with pending offline orders so table grid is complete.
+      // Include ALL non-uploaded statuses — LOCAL_PENDING (just saved),
+      // PENDING_UPLOAD / UPLOAD_FAILED (upload in progress / retry) so the
+      // table tile never disappears while the upload is happening.
+      const pendingStatuses = ['LOCAL_PENDING', 'LOCAL_CONFIRMED', 'PENDING_UPLOAD', 'UPLOAD_FAILED', 'UPLOAD_UNKNOWN'];
       const offlineOrders = offlineDb.isReady()
-        ? offlineDb.getOfflineOrders(rid, 'LOCAL_PENDING').map(o => {
+        ? offlineDb.getOfflineOrdersByStatuses(rid, pendingStatuses).map(o => {
             const items = offlineDb.getOfflineOrderItems(o.id).map(i => ({
               _id: i.id, name: i.name_snapshot, price: i.price_snapshot,
               quantity: i.quantity, printedToKitchen: false,
@@ -952,13 +955,20 @@ ipcMain.handle('offline:cancelOrder', (event, { orderId }) => {
 
 // ─── Offline clear table ─────────────────────────────────────────────────────
 // Called when POST /api/orders/batch-update fails offline.
-// Deletes all LOCAL_PENDING orders for the given table from SQLite.
-ipcMain.handle('offline:clearTable', (event, { restaurantId, tableNumber }) => {
+// Marks all LOCAL_PENDING orders for the table as COMPLETED_OFFLINE and
+// enqueues a COMPLETE operation so they upload to server history on reconnect.
+ipcMain.handle('offline:clearTable', (event, { restaurantId, tableNumber, paymentMethod }) => {
   try {
     if (!offlineDb.isReady()) return { success: false, error: 'DB not ready' };
-    const deleted = offlineDb.clearOfflineTable(restaurantId, tableNumber);
-    console.log(`[offline] Cleared table ${tableNumber}: removed ${deleted.length} local orders`);
-    return { success: true, deletedIds: deleted };
+    const completed = offlineDb.completeOfflineTable(
+      restaurantId,
+      tableNumber,
+      paymentMethod || 'cash'
+    );
+    console.log(`[offline] Cleared table ${tableNumber} (${paymentMethod}): ${completed.length} orders queued for completion`);
+    // Trigger immediate upload so it syncs as soon as connectivity returns
+    setImmediate(() => uploadEngine.triggerUpload());
+    return { success: true, completedIds: completed };
   } catch (e) {
     console.error('[offline] clearTable error:', e.message);
     return { success: false, error: e.message };

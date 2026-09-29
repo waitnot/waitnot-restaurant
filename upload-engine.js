@@ -130,6 +130,122 @@ async function getSession() {
   } catch { return null; }
 }
 
+// ─── Upload one COMPLETE operation ────────────────────────────────────────────
+// Called for orders cleared offline (operation='COMPLETE').
+// Two paths:
+//   • Has server_id → order was already uploaded as pending → batch-update to completed
+//   • No server_id  → order never reached server → create it directly as completed
+async function uploadComplete(queueItem, rid, tk) {
+  const shortId = queueItem.entity_id.substring(0, 8);
+  console.log(`[upload] Completing order ${shortId}... (attempt ${queueItem.attempt_count + 1})`);
+
+  offlineDb.markQueueItem(queueItem.id, 'IN_PROGRESS');
+
+  // Read the offline_order row to get server_id + payment info
+  let offlineRow = null;
+  try {
+    const Database = require('./node_modules/better-sqlite3');
+    const dbPath = require('path').join(require('electron').app.getPath('userData'), 'waitnot-offline.db');
+    const db = new Database(dbPath, { readonly: true });
+    offlineRow = db.prepare('SELECT * FROM offline_orders WHERE id = ?').get(queueItem.entity_id);
+    db.close();
+  } catch {}
+
+  const payload = (() => { try { return JSON.parse(queueItem.payload_json || '{}'); } catch { return {}; } })();
+  const paymentMethod = offlineRow?.payment_method || payload.paymentMethod || 'cash';
+
+  try {
+    if (offlineRow && offlineRow.server_id) {
+      // ── Path A: order is already on server (pending) → mark completed ──────
+      const serverId = offlineRow.server_id;
+      console.log(`[upload] COMPLETE path A: batch-update server order ${serverId}`);
+
+      const result = await nodePost('/api/orders/batch-update', {
+        orderIds      : [serverId],
+        status        : 'completed',
+        paymentMethod : paymentMethod,
+        paymentStatus : 'paid',
+      }, tk);
+
+      if (result && result.status >= 200 && result.status < 300) {
+        console.log(`[upload] ✅ Order ${shortId} completed on server`);
+        offlineDb.markQueueItem(queueItem.id, 'DONE', JSON.stringify(result.body));
+        offlineDb.updateOfflineOrderStatus(queueItem.entity_id, 'DONE');
+        offlineDb.appendSyncLog('up', 'order', queueItem.entity_id, 'COMPLETE', 'ok', serverId);
+      } else if (result && result.status >= 400 && result.status < 500) {
+        const errMsg = result.body?.error || `HTTP ${result.status}`;
+        console.warn(`[upload] COMPLETE rejected: ${errMsg}`);
+        offlineDb.markQueueItem(queueItem.id, 'FAILED', JSON.stringify(result.body), errMsg);
+        offlineDb.appendSyncLog('up', 'order', queueItem.entity_id, 'COMPLETE', 'error', errMsg);
+      } else {
+        offlineDb.markQueueItem(queueItem.id, 'FAILED', null, `HTTP ${result?.status}`);
+      }
+
+    } else {
+      // ── Path B: order never reached server → create it as completed ────────
+      // We need the original order + items from the CREATE payload or rebuild from SQLite
+      const Database = require('./node_modules/better-sqlite3');
+      const dbPath = require('path').join(require('electron').app.getPath('userData'), 'waitnot-offline.db');
+      const db = new Database(dbPath, { readonly: true });
+      const order = db.prepare('SELECT * FROM offline_orders WHERE id = ?').get(queueItem.entity_id);
+      const items = db.prepare('SELECT * FROM offline_order_items WHERE order_id = ?').all(queueItem.entity_id);
+      db.close();
+
+      if (!order) {
+        console.warn(`[upload] COMPLETE path B: order ${shortId} not found in SQLite — skipping`);
+        offlineDb.markQueueItem(queueItem.id, 'DONE', null, 'order not found locally');
+        return;
+      }
+
+      console.log(`[upload] COMPLETE path B: creating completed order on server for T${order.table_number}`);
+      const serverBody = {
+        restaurantId    : order.restaurant_id,
+        tableNumber     : order.table_number  || undefined,
+        roomNumber      : order.room_number   || undefined,
+        orderType       : order.order_type    || 'dine-in',
+        customerName    : order.customer_name || '',
+        customerPhone   : order.customer_phone || undefined,
+        deliveryAddress : order.delivery_address || undefined,
+        items           : items.map(i => ({
+          menuItemId : i.menu_item_id || undefined,
+          name       : i.name_snapshot,
+          price      : i.price_snapshot,
+          quantity   : i.quantity,
+        })),
+        totalAmount     : order.total_amount,
+        packagingCharge : order.packaging_charge || undefined,
+        deliveryCharge  : order.delivery_charge  || undefined,
+        paymentMethod,
+        paymentStatus   : 'paid',
+        status          : 'completed',
+        source          : 'staff',
+      };
+
+      const result = await nodePost('/api/orders', serverBody, tk);
+
+      if (result && result.status >= 200 && result.status < 300) {
+        const serverId = result.body?._id;
+        console.log(`[upload] ✅ Order ${shortId} created as completed on server: ${serverId}`);
+        offlineDb.setServerOrderId(queueItem.entity_id, serverId);
+        offlineDb.markQueueItem(queueItem.id, 'DONE', JSON.stringify({ serverId }));
+        offlineDb.updateOfflineOrderStatus(queueItem.entity_id, 'DONE');
+        offlineDb.appendSyncLog('up', 'order', queueItem.entity_id, 'COMPLETE', 'ok', serverId);
+      } else if (result && result.status >= 400 && result.status < 500) {
+        const errMsg = result.body?.error || `HTTP ${result.status}`;
+        console.warn(`[upload] COMPLETE path B rejected: ${errMsg}`);
+        offlineDb.markQueueItem(queueItem.id, 'FAILED', JSON.stringify(result.body), errMsg);
+        offlineDb.appendSyncLog('up', 'order', queueItem.entity_id, 'COMPLETE', 'error', errMsg);
+      } else {
+        offlineDb.markQueueItem(queueItem.id, 'FAILED', null, `HTTP ${result?.status}`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[upload] COMPLETE network error: ${err.message} — will retry`);
+    offlineDb.markQueueItem(queueItem.id, 'FAILED', null, err.message);
+    offlineDb.appendSyncLog('up', 'order', queueItem.entity_id, 'COMPLETE', 'error', err.message);
+  }
+}
+
 // ─── UNKNOWN recovery ──────────────────────────────────────────────────────────
 // Query the server to check if an order was actually created.
 // Match by restaurantId + tableNumber + totalAmount + createdAt within ±90s.
@@ -340,11 +456,18 @@ async function runUploadCycle() {
 
     console.log(`[upload] ${pending.length} orders pending upload`);
 
-    // Upload sequentially to avoid race conditions on same table
-    const batch = pending.slice(0, MAX_PARALLEL);
+    // Separate CREATE and COMPLETE operations
+    const createOps   = pending.filter(q => !q.operation || q.operation === 'CREATE');
+    const completeOps = pending.filter(q => q.operation === 'COMPLETE');
+
+    // Upload new orders first (CREATE), then completions (COMPLETE)
+    const batch = [...createOps, ...completeOps].slice(0, MAX_PARALLEL);
     for (const item of batch) {
-      await uploadOrder(item, rid, tk);
-      // Small gap between requests to avoid hammering server
+      if (item.operation === 'COMPLETE') {
+        await uploadComplete(item, rid, tk);
+      } else {
+        await uploadOrder(item, rid, tk);
+      }
       await new Promise(r => setTimeout(r, 300));
     }
 

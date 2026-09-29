@@ -573,6 +573,19 @@ function getOfflineOrders(restaurantId, status = null) {
   ).all(restaurantId);
 }
 
+/**
+ * Get offline orders matching any of the given statuses (array).
+ * Used by doPoll to show all in-flight orders while uploads are pending.
+ */
+function getOfflineOrdersByStatuses(restaurantId, statuses) {
+  if (!ready) return [];
+  if (!Array.isArray(statuses) || statuses.length === 0) return [];
+  const placeholders = statuses.map(() => '?').join(', ');
+  return db.prepare(
+    `SELECT * FROM offline_orders WHERE restaurant_id = ? AND local_status IN (${placeholders}) ORDER BY created_at DESC`
+  ).all(restaurantId, ...statuses);
+}
+
 function getOfflineOrderItems(orderId) {
   if (!ready) return [];
   return db.prepare(
@@ -609,14 +622,64 @@ function deleteOfflineOrder(orderId) {
 }
 
 /**
- * Delete ALL offline orders for a given table (clear table offline).
- * Returns the IDs that were deleted so the caller can confirm.
+ * Mark offline orders for a table as COMPLETED_OFFLINE (clear table offline).
+ * Instead of deleting, we:
+ *   1. Update local_status → 'COMPLETED_OFFLINE' with payment info
+ *   2. Enqueue a 'COMPLETE' operation so upload-engine can push to server
+ * This ensures cleared offline orders appear in order history when back online.
+ *
+ * @returns {string[]} IDs of orders that were marked completed
+ */
+function completeOfflineTable(restaurantId, tableNumber, paymentMethod = 'cash') {
+  if (!ready) throw new Error('offline-db not ready');
+  const now = new Date().toISOString();
+
+  // Find all non-uploaded orders for this table
+  const orders = db.prepare(
+    `SELECT id FROM offline_orders
+     WHERE restaurant_id = ? AND table_number = ?
+       AND local_status IN ('LOCAL_PENDING','LOCAL_CONFIRMED','PENDING_UPLOAD','UPLOAD_FAILED','UPLOAD_UNKNOWN')`
+  ).all(restaurantId, String(tableNumber));
+
+  const ids = orders.map(o => o.id);
+  if (ids.length === 0) return ids;
+
+  const doAll = db.transaction(() => {
+    for (const id of ids) {
+      // Update status and payment method
+      db.prepare(
+        `UPDATE offline_orders
+         SET local_status = 'COMPLETED_OFFLINE', payment_method = ?, payment_status = 'paid', updated_at = ?
+         WHERE id = ?`
+      ).run(paymentMethod, now, id);
+
+      // Remove any existing CREATE queue entry (we'll replace with COMPLETE)
+      db.prepare(
+        `DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'order' AND operation = 'CREATE' AND status IN ('PENDING','FAILED')`
+      ).run(id);
+
+      // Enqueue COMPLETE operation — upload-engine will POST to server as completed order
+      db.prepare(
+        `INSERT INTO sync_queue
+           (entity_type, entity_id, operation, payload_json, status, attempt_count, created_at, updated_at)
+         VALUES ('order', ?, 'COMPLETE', ?, 'PENDING', 0, ?, ?)`
+      ).run(id, JSON.stringify({ orderId: id, restaurantId, tableNumber: String(tableNumber), paymentMethod }), now, now);
+    }
+  });
+  doAll();
+  return ids;
+}
+
+/**
+ * Delete ALL offline orders for a given table (hard cancel — no history).
+ * Use only when the order was never placed and should leave no trace.
+ * For "clear table" (checkout), use completeOfflineTable() instead.
  */
 function clearOfflineTable(restaurantId, tableNumber) {
   if (!ready) throw new Error('offline-db not ready');
   const orders = db.prepare(
     "SELECT id FROM offline_orders WHERE restaurant_id = ? AND table_number = ? AND local_status IN ('LOCAL_PENDING','LOCAL_CONFIRMED','PENDING_UPLOAD','UPLOAD_FAILED')"
-  ).all(restaurantId, tableNumber);
+  ).all(restaurantId, String(tableNumber));
   const ids = orders.map(o => o.id);
   const doAll = db.transaction(() => {
     for (const id of ids) {
@@ -756,11 +819,13 @@ module.exports = {
   // Offline orders (Phase 3)
   createOfflineOrder,
   getOfflineOrders,
+  getOfflineOrdersByStatuses,
   getOfflineOrderItems,
   updateOfflineOrderStatus,
   setServerOrderId,
   deleteOfflineOrder,
   clearOfflineTable,
+  completeOfflineTable,
 
   // Sync queue (Phase 4)
   enqueue,
