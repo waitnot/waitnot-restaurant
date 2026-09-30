@@ -1,201 +1,230 @@
 /**
  * Builds thermal-printer-optimised HTML receipts.
- * These are rendered by a hidden Chromium window and printed silently.
- * Works with 58mm, 80mm thermal printers and standard A4 printers.
+ * Rendered by a hidden Chromium BrowserWindow, printed silently.
+ *
+ * Layout rules:
+ *  - All two-column rows use <table> with fixed column widths so amounts
+ *    never wrap or overflow off the right edge.
+ *  - Body is constrained to 72mm (printable area of 80mm roll).
+ *  - For 58mm printers pass width='58mm' — body shrinks to 52mm.
  */
 
-const THERMAL_STYLE = `
-  @page { size: 80mm auto; margin: 2mm 3mm; }
+function THERMAL_STYLE(width) {
+  const bodyW  = width === '58mm' ? '52mm' : '72mm';
+  const pageW  = width === '58mm' ? '58mm' : '80mm';
+  return `
+  @page {
+    size: ${pageW} auto;
+    margin: 1mm 2mm;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Courier New', Courier, monospace;
     font-size: 12px;
+    line-height: 1.4;
     color: #000;
     background: #fff;
-    width: 72mm;
-    max-width: 72mm;
+    width: ${bodyW};
+    max-width: ${bodyW};
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .center { text-align: center; }
-  .bold   { font-weight: 900; }
-  .big    { font-size: 15px; font-weight: 900; letter-spacing: 1px; }
-  .sep    { border-top: 2px solid #000; margin: 5px 0; }
-  .dsep   { border-top: 1px dashed #000; margin: 5px 0; }
+  .c   { text-align: center; }
+  .b   { font-weight: 900; }
+  .big { font-size: 15px; font-weight: 900; letter-spacing: 1px; }
+  .sep  { border: none; border-top: 2px solid #000; margin: 5px 0; }
+  .dsep { border: none; border-top: 1px dashed #000; margin: 4px 0; }
 
-  /* Two-column row: name takes remaining space, amount is fixed width right-aligned */
-  .row {
-    display: table;
-    width: 100%;
-    margin-bottom: 3px;
-    table-layout: fixed;
-  }
-  .row .name {
-    display: table-cell;
-    width: 75%;
-    word-wrap: break-word;
+  /* ── Two-column rows ─────────────────────────────────────────────────────
+     Use real <table> so widths are strictly enforced and content cannot
+     overflow the right column. The name cell wraps; the amount never does. */
+  .tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .tbl td { vertical-align: top; padding: 1px 0; }
+  .tbl .td-name {
+    width: 72%;
+    word-break: break-word;
     overflow-wrap: break-word;
-    padding-right: 4px;
-    vertical-align: top;
+    padding-right: 3px;
   }
-  .row .amt {
-    display: table-cell;
-    width: 25%;
+  .tbl .td-amt {
+    width: 28%;
     text-align: right;
     white-space: nowrap;
-    vertical-align: top;
     font-weight: 900;
   }
-  .hdr-row {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-    border-bottom: 1px solid #000;
-    padding-bottom: 3px;
-    margin-bottom: 4px;
+  .tbl .td-qty {
+    width: 28%;
+    text-align: right;
+    white-space: nowrap;
+    font-weight: 900;
+  }
+  /* header row */
+  .tbl-hdr td {
     font-weight: 900;
     font-size: 11px;
+    border-bottom: 1px solid #000;
+    padding-bottom: 3px;
   }
-  .hdr-row .name { display: table-cell; width: 75%; }
-  .hdr-row .amt  { display: table-cell; width: 25%; text-align: right; }
-`;
-
-function wrap(content) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <style>${THERMAL_STYLE}</style>
-  </head><body>${content}</body></html>`;
+  `;
 }
 
-// ── KOT ─────────────────────────────────────────────────────────────────────
+function wrap(content, width) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>${THERMAL_STYLE(width)}</style>
+</head>
+<body>${content}</body>
+</html>`;
+}
 
-function buildKOTEscPos(data) {
+// ── KOT ──────────────────────────────────────────────────────────────────────
+
+function buildKOTEscPos(data, width = '80mm') {
   const {
-    restaurantName = '',
-    orderId = '',
-    tableNumber = null,
-    roomNumber = null,
-    orderType = 'dine-in',
-    items = [],
-    time = '',
-    customerName = '',
-    deliveryAddress = '',
-    specialInstructions = '',
+    restaurantName     = '',
+    orderId            = '',
+    tableNumber        = null,
+    roomNumber         = null,
+    orderType          = 'dine-in',
+    items              = [],
+    time               = '',
+    customerName       = '',
+    deliveryAddress    = '',
+    specialInstructions= '',
   } = data;
 
-  const slot = roomNumber   ? `ROOM ${roomNumber}`
-             : tableNumber  ? `TABLE ${tableNumber}`
+  const slot = roomNumber  ? `ROOM ${roomNumber}`
+             : tableNumber ? `TABLE ${tableNumber}`
              : orderType.toUpperCase();
 
-  const itemRows = items.map(i =>
-    `<div class="row">
-      <span class="name bold">${esc(i.name)}</span>
-      <span class="amt bold">× ${i.quantity || i.qty || 1}</span>
-    </div>`
-  ).join('');
+  const itemRows = (items || []).map(i => `
+    <tr>
+      <td class="td-name b" style="font-size:13px;">${esc(i.name || '')}</td>
+      <td class="td-qty"    style="font-size:13px;">× ${+(i.quantity || i.qty || 1)}</td>
+    </tr>`).join('');
 
   const html = `
-    <div class="center big">${esc(restaurantName.toUpperCase())}</div>
-    <div class="center bold" style="margin:4px 0;">*** KITCHEN ORDER TICKET ***</div>
-    <div class="center">${esc(orderType.toUpperCase())}</div>
+    <div class="c big">${esc(restaurantName.toUpperCase())}</div>
+    <div class="c b" style="margin:4px 0;font-size:13px;">*** KITCHEN ORDER TICKET ***</div>
+    <div class="c">${esc(orderType.toUpperCase())}</div>
     <div class="sep"></div>
-    <div class="row"><span class="bold">Slot</span><span class="bold">${esc(slot)}</span></div>
-    <div class="row"><span>Order</span><span>${esc(String(orderId).slice(-8).toUpperCase())}</span></div>
-    <div class="row"><span>Time</span><span>${esc(time)}</span></div>
-    ${customerName   ? `<div class="row"><span>Customer</span><span>${esc(customerName)}</span></div>` : ''}
-    ${deliveryAddress? `<div class="row"><span>Addr</span><span style="text-align:right;max-width:55%;">${esc(deliveryAddress)}</span></div>` : ''}
+    <table class="tbl">
+      <tr><td class="td-name b">Slot</td> <td class="td-qty b">${esc(slot)}</td></tr>
+      <tr><td class="td-name">Order</td>  <td class="td-qty">${esc(String(orderId).slice(-8).toUpperCase())}</td></tr>
+      <tr><td class="td-name">Time</td>   <td class="td-qty">${esc(time)}</td></tr>
+      ${customerName    ? `<tr><td class="td-name">Customer</td><td class="td-qty">${esc(customerName)}</td></tr>` : ''}
+      ${deliveryAddress ? `<tr><td class="td-name">Address</td> <td class="td-qty" style="white-space:normal;word-break:break-word;">${esc(deliveryAddress)}</td></tr>` : ''}
+    </table>
     <div class="sep"></div>
-    <div class="center bold" style="margin:4px 0;">── ITEMS TO PREPARE ──</div>
+    <div class="c b" style="margin:4px 0;">── ITEMS TO PREPARE ──</div>
     <div class="dsep"></div>
-    ${itemRows}
+    <table class="tbl">${itemRows}</table>
     <div class="sep"></div>
-    ${specialInstructions ? `<div class="bold" style="margin:4px 0;">NOTE: ${esc(specialInstructions)}</div><div class="sep"></div>` : ''}
-    <div class="center bold">-- PREPARE WITH CARE --</div>
+    ${specialInstructions
+      ? `<div class="b" style="margin:4px 0;">⚠ NOTE: ${esc(specialInstructions)}</div><div class="sep"></div>`
+      : ''}
+    <div class="c b">-- PREPARE WITH CARE --</div>
     <br>
   `;
 
-  return wrap(html);
+  return wrap(html, width);
 }
 
-// ── Bill ─────────────────────────────────────────────────────────────────────
+// ── Bill ──────────────────────────────────────────────────────────────────────
 
-function buildBillEscPos(data) {
+function buildBillEscPos(data, width = '80mm') {
   const {
-    restaurantName   = '',
-    tableLabel       = '',
-    items            = [],
-    total            = 0,
-    paymentMethod    = 'cash',
-    time             = '',
-    date             = '',
-    footerText       = 'Thank you! Visit Again',
-    extraChargeLabel = '',
-    extraChargeAmount= 0,
-    packagingCharge  = 0,
-    deliveryCharge   = 0,
-    customerName     = '',
-    customerPhone    = '',
+    restaurantName    = '',
+    tableLabel        = '',
+    items             = [],
+    total             = 0,
+    paymentMethod     = 'cash',
+    time              = '',
+    date              = '',
+    footerText        = 'Thank you! Visit Again',
+    extraChargeLabel  = '',
+    extraChargeAmount = 0,
+    packagingCharge   = 0,
+    deliveryCharge    = 0,
+    customerName      = '',
+    customerPhone     = '',
   } = data;
 
-  // Normalise each item — handle both {qty} and {quantity} field names
-  const normItems = items.map(i => ({
-    name:     i.name || '',
-    qty:      parseInt(i.qty || i.quantity) || 1,
-    price:    parseFloat(i.price) || 0,
+  // Normalise items — handle both {qty} and {quantity}
+  const normItems = (items || []).map(i => ({
+    name:  String(i.name  || ''),
+    qty:   Math.max(1, parseInt(i.qty || i.quantity) || 1),
+    price: parseFloat(i.price) || 0,
   }));
 
-  // Calculate subtotal from normalised items
+  // Totals
   const itemsSubtotal = normItems.reduce((s, i) => s + i.price * i.qty, 0);
-  const packAmt   = parseFloat(packagingCharge)   || 0;
-  const delivAmt  = parseFloat(deliveryCharge)    || 0;
-  const extraAmt  = parseFloat(extraChargeAmount) || 0;
+  const packAmt  = parseFloat(packagingCharge)   || 0;
+  const delivAmt = parseFloat(deliveryCharge)    || 0;
+  const extraAmt = parseFloat(extraChargeAmount) || 0;
   const computedTotal = itemsSubtotal + packAmt + delivAmt + extraAmt;
+  // Trust passed total if sane, otherwise use computed
+  const finalTotal = (typeof total === 'number' && total > 0 && Math.abs(total - computedTotal) < 2)
+    ? total : computedTotal;
 
-  // Use passed total if within ₹1 of computed (floating point), else use computed
-  const finalTotal = Math.abs(parseFloat(total) - computedTotal) <= 1
-    ? parseFloat(total)
-    : computedTotal;
-
+  // Item rows
   const itemRows = normItems.map(i => {
-    const lineTotal = (i.price * i.qty).toFixed(2);
-    return `<div class="row">
-      <span class="name">${esc(i.name)} × ${i.qty}</span>
-      <span class="amt">₹${lineTotal}</span>
-    </div>`;
+    const amt = (i.price * i.qty).toFixed(2);
+    return `<tr>
+      <td class="td-name">${esc(i.name)} × ${i.qty}</td>
+      <td class="td-amt">₹${amt}</td>
+    </tr>`;
   }).join('');
 
-  const extras = [];
-  if (packAmt  > 0) extras.push({ label: 'Packaging', amt: packAmt.toFixed(2) });
-  if (delivAmt > 0) extras.push({ label: 'Delivery',  amt: delivAmt.toFixed(2) });
-  if (extraAmt > 0) extras.push({ label: extraChargeLabel || 'Extra', amt: extraAmt.toFixed(2) });
-
-  const extraRows = extras.map(e =>
-    `<div class="row"><span>${esc(e.label)}</span><span class="amt">₹${e.amt}</span></div>`
+  // Extra charge rows
+  const chargeRows = [
+    packAmt  > 0 ? { label: 'Packaging',               amt: packAmt  } : null,
+    delivAmt > 0 ? { label: 'Delivery',                 amt: delivAmt } : null,
+    extraAmt > 0 ? { label: extraChargeLabel || 'Extra',amt: extraAmt } : null,
+  ].filter(Boolean).map(e =>
+    `<tr><td class="td-name">${esc(e.label)}</td><td class="td-amt">₹${e.amt.toFixed(2)}</td></tr>`
   ).join('');
 
   const html = `
-    <div class="center big">${esc(restaurantName.toUpperCase())}</div>
-    <div class="center" style="margin:4px 0;">BILL / RECEIPT</div>
+    <div class="c big">${esc(restaurantName.toUpperCase())}</div>
+    <div class="c" style="margin:4px 0;font-size:12px;">BILL / RECEIPT</div>
     <div class="sep"></div>
-    ${tableLabel    ? `<div class="row"><span class="bold">Table/Slot</span><span class="bold">${esc(tableLabel)}</span></div>` : ''}
-    ${customerName  ? `<div class="row"><span>Customer</span><span>${esc(customerName)}</span></div>` : ''}
-    ${customerPhone ? `<div class="row"><span>Phone</span><span>${esc(customerPhone)}</span></div>` : ''}
-    <div class="row"><span>Date</span><span>${esc(date)}</span></div>
-    <div class="row"><span>Time</span><span>${esc(time)}</span></div>
+    <table class="tbl">
+      ${tableLabel    ? `<tr><td class="td-name b">Table/Slot</td><td class="td-amt b">${esc(tableLabel)}</td></tr>` : ''}
+      ${customerName  ? `<tr><td class="td-name">Customer</td>  <td class="td-amt">${esc(customerName)}</td></tr>`  : ''}
+      ${customerPhone ? `<tr><td class="td-name">Phone</td>     <td class="td-amt">${esc(customerPhone)}</td></tr>` : ''}
+      <tr><td class="td-name">Date</td><td class="td-amt">${esc(date)}</td></tr>
+      <tr><td class="td-name">Time</td><td class="td-amt">${esc(time)}</td></tr>
+    </table>
     <div class="sep"></div>
-    <div class="hdr-row"><span class="name">ITEM</span><span class="amt">AMT</span></div>
-    ${itemRows}
-    ${extras.length ? `<div class="dsep"></div>${extraRows}` : ''}
+    <table class="tbl">
+      <tr class="tbl-hdr">
+        <td class="td-name">ITEM</td>
+        <td class="td-amt">AMT</td>
+      </tr>
+      ${itemRows}
+    </table>
+    ${chargeRows ? `<div class="dsep"></div><table class="tbl">${chargeRows}</table>` : ''}
     <div class="sep"></div>
-    <div class="row bold" style="font-size:14px;margin-top:2px;">
-      <span>TOTAL</span><span class="amt">₹${finalTotal.toFixed(2)}</span>
-    </div>
-    <div class="row"><span>Payment</span><span>${esc(paymentMethod.toUpperCase())}</span></div>
+    <table class="tbl">
+      <tr>
+        <td class="td-name b" style="font-size:14px;">TOTAL</td>
+        <td class="td-amt"    style="font-size:14px;">₹${finalTotal.toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td class="td-name">Payment</td>
+        <td class="td-amt">${esc(String(paymentMethod || 'cash').toUpperCase())}</td>
+      </tr>
+    </table>
     <div class="sep"></div>
-    <div class="center" style="margin-top:6px;">${esc(footerText)}</div>
+    <div class="c" style="margin-top:6px;">${esc(footerText)}</div>
+    <div class="c" style="font-size:16px;margin:4px 0;">★ ★ ★</div>
     <br>
   `;
 
-  return wrap(html);
+  return wrap(html, width);
 }
 
 function esc(str) {
