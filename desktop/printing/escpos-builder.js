@@ -1,230 +1,149 @@
 /**
- * Builds thermal-printer-optimised HTML receipts.
- * Rendered by a hidden Chromium BrowserWindow, printed silently.
- *
- * Layout rules:
- *  - All two-column rows use <table> with fixed column widths so amounts
- *    never wrap or overflow off the right edge.
- *  - Body is constrained to 72mm (printable area of 80mm roll).
- *  - For 58mm printers pass width='58mm' — body shrinks to 52mm.
+ * Desktop print templates — EXACT PORT of client/src/utils/printTemplates.js
+ * Same HTML/CSS that the web app uses, so the desktop print is identical.
+ * CommonJS (require/module.exports) instead of ES module export.
  */
 
-function THERMAL_STYLE(width) {
-  const bodyW  = width === '58mm' ? '52mm' : '72mm';
-  const pageW  = width === '58mm' ? '58mm' : '80mm';
-  return `
-  @page {
-    size: ${pageW} auto;
-    margin: 1mm 2mm;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
-    line-height: 1.4;
-    color: #000;
-    background: #fff;
-    width: ${bodyW};
-    max-width: ${bodyW};
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .c   { text-align: center; }
-  .b   { font-weight: 900; }
-  .big { font-size: 15px; font-weight: 900; letter-spacing: 1px; }
-  .sep  { border: none; border-top: 2px solid #000; margin: 5px 0; }
-  .dsep { border: none; border-top: 1px dashed #000; margin: 4px 0; }
-
-  /* ── Two-column rows ─────────────────────────────────────────────────────
-     Use real <table> so widths are strictly enforced and content cannot
-     overflow the right column. The name cell wraps; the amount never does. */
-  .tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .tbl td { vertical-align: top; padding: 1px 0; }
-  .tbl .td-name {
-    width: 72%;
-    word-break: break-word;
-    overflow-wrap: break-word;
-    padding-right: 3px;
-  }
-  .tbl .td-amt {
-    width: 28%;
-    text-align: right;
-    white-space: nowrap;
-    font-weight: 900;
-  }
-  .tbl .td-qty {
-    width: 28%;
-    text-align: right;
-    white-space: nowrap;
-    font-weight: 900;
-  }
-  /* header row */
-  .tbl-hdr td {
-    font-weight: 900;
-    font-size: 11px;
-    border-bottom: 1px solid #000;
-    padding-bottom: 3px;
-  }
-  `;
-}
-
-function wrap(content, width) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>${THERMAL_STYLE(width)}</style>
-</head>
-<body>${content}</body>
-</html>`;
-}
+const PAGE_CSS = (width = '80mm') => `
+  @page { size: ${width} auto; margin: 3mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; background:#fff; font-family:'Courier New',Courier,monospace; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .w { width:100%; max-width:${width === '58mm' ? '218px' : '302px'}; margin:0 auto; }
+  .c { text-align:center; }
+  .b { font-weight:900; }
+  .sep  { border:none; border-top:2px solid #000; margin:5px 0; }
+  .dash { border:none; border-top:1px dashed #000; margin:5px 0; }
+  table { width:100%; border-collapse:collapse; }
+`;
 
 // ── KOT ──────────────────────────────────────────────────────────────────────
 
-function buildKOTEscPos(data, width = '80mm') {
-  const {
-    restaurantName     = '',
-    orderId            = '',
-    tableNumber        = null,
-    roomNumber         = null,
-    orderType          = 'dine-in',
-    items              = [],
-    time               = '',
-    customerName       = '',
-    deliveryAddress    = '',
-    specialInstructions= '',
-  } = data;
+function buildKOTEscPos({ restaurantName, slotLabel, orderId, orderType, customerName,
+                           deliveryAddress, specialInstructions, items, width = '80mm' }) {
+  const now = new Date();
+  const d = now.toLocaleDateString('en-IN');
+  const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  const slot = roomNumber  ? `ROOM ${roomNumber}`
-             : tableNumber ? `TABLE ${tableNumber}`
-             : orderType.toUpperCase();
-
-  const itemRows = (items || []).map(i => `
+  const rows = (items || []).map(i => `
     <tr>
-      <td class="td-name b" style="font-size:13px;">${esc(i.name || '')}</td>
-      <td class="td-qty"    style="font-size:13px;">× ${+(i.quantity || i.qty || 1)}</td>
+      <td style="padding:5px 2px;font-size:14px;font-weight:900;border-bottom:1px dashed #000;word-break:break-word;">${esc(i.name)}</td>
+      <td style="padding:5px 2px;font-size:18px;font-weight:900;text-align:right;border-bottom:1px dashed #000;white-space:nowrap;">× ${+(i.quantity || i.qty || 1)}</td>
     </tr>`).join('');
 
-  const html = `
-    <div class="c big">${esc(restaurantName.toUpperCase())}</div>
-    <div class="c b" style="margin:4px 0;font-size:13px;">*** KITCHEN ORDER TICKET ***</div>
-    <div class="c">${esc(orderType.toUpperCase())}</div>
-    <div class="sep"></div>
-    <table class="tbl">
-      <tr><td class="td-name b">Slot</td> <td class="td-qty b">${esc(slot)}</td></tr>
-      <tr><td class="td-name">Order</td>  <td class="td-qty">${esc(String(orderId).slice(-8).toUpperCase())}</td></tr>
-      <tr><td class="td-name">Time</td>   <td class="td-qty">${esc(time)}</td></tr>
-      ${customerName    ? `<tr><td class="td-name">Customer</td><td class="td-qty">${esc(customerName)}</td></tr>` : ''}
-      ${deliveryAddress ? `<tr><td class="td-name">Address</td> <td class="td-qty" style="white-space:normal;word-break:break-word;">${esc(deliveryAddress)}</td></tr>` : ''}
-    </table>
-    <div class="sep"></div>
-    <div class="c b" style="margin:4px 0;">── ITEMS TO PREPARE ──</div>
-    <div class="dsep"></div>
-    <table class="tbl">${itemRows}</table>
-    <div class="sep"></div>
-    ${specialInstructions
-      ? `<div class="b" style="margin:4px 0;">⚠ NOTE: ${esc(specialInstructions)}</div><div class="sep"></div>`
-      : ''}
-    <div class="c b">-- PREPARE WITH CARE --</div>
-    <br>
-  `;
-
-  return wrap(html, width);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title>
+<style>${PAGE_CSS(width)}</style></head><body>
+<div class="w">
+  <div class="c" style="margin-bottom:8px;">
+    <div style="font-size:20px;font-weight:900;letter-spacing:2px;">${esc((restaurantName || '').toUpperCase())}</div>
+    <div style="font-size:13px;font-weight:900;margin-top:4px;">★ KITCHEN ORDER TICKET ★</div>
+    <div style="font-size:11px;margin-top:2px;font-weight:700;">${esc((orderType || 'ORDER').toUpperCase())}</div>
+  </div>
+  <hr class="sep">
+  <table style="font-size:12px;margin-bottom:5px;">
+    <tr><td class="b">SLOT</td><td style="text-align:right;font-size:16px;font-weight:900;">${esc(slotLabel || '')}</td></tr>
+    <tr><td class="b">DATE</td><td style="text-align:right;">${d}</td></tr>
+    <tr><td class="b">TIME</td><td style="text-align:right;font-weight:900;">${t}</td></tr>
+    ${orderId       ? `<tr><td class="b">REF</td><td style="text-align:right;font-weight:900;">${esc(String(orderId).slice(-12))}</td></tr>` : ''}
+    ${customerName  ? `<tr><td class="b">NAME</td><td style="text-align:right;">${esc(customerName)}</td></tr>` : ''}
+    ${deliveryAddress ? `<tr><td class="b" colspan="2" style="padding-top:4px;">ADDR: ${esc(deliveryAddress)}</td></tr>` : ''}
+  </table>
+  <hr class="sep">
+  <div class="c b" style="font-size:13px;padding:4px 0;letter-spacing:1px;">── ITEMS TO PREPARE ──</div>
+  <hr class="sep">
+  <table style="margin-bottom:5px;">${rows}</table>
+  <hr class="sep">
+  ${specialInstructions ? `<div style="font-size:12px;font-weight:900;padding:4px 0;border-bottom:2px solid #000;margin-bottom:5px;">⚠ NOTE: ${esc(specialInstructions)}</div>` : ''}
+  <div class="c" style="font-size:13px;font-weight:900;padding:6px 0;">─── PREPARE WITH CARE ───</div>
+  <div class="c" style="font-size:10px;margin-top:4px;color:#555;">Printed: ${d} ${t}</div>
+</div>
+</body></html>`;
 }
 
 // ── Bill ──────────────────────────────────────────────────────────────────────
 
-function buildBillEscPos(data, width = '80mm') {
-  const {
-    restaurantName    = '',
-    tableLabel        = '',
-    items             = [],
-    total             = 0,
-    paymentMethod     = 'cash',
-    time              = '',
-    date              = '',
-    footerText        = 'Thank you! Visit Again',
-    extraChargeLabel  = '',
-    extraChargeAmount = 0,
-    packagingCharge   = 0,
-    deliveryCharge    = 0,
-    customerName      = '',
-    customerPhone     = '',
-  } = data;
+function buildBillEscPos({ restaurantName, slotLabel, orderType, customerName, customerPhone,
+                            deliveryAddress, items, packagingCharge = 0, deliveryCharge = 0,
+                            extraCharge = 0, extraChargeLabel = '', paymentMethod, width = '80mm',
+                            // desktop passes total directly — use it if items are missing prices
+                            total = 0 }) {
+  const now = new Date();
+  const d = now.toLocaleDateString('en-IN');
+  const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  // Normalise items — handle both {qty} and {quantity}
-  const normItems = (items || []).map(i => ({
-    name:  String(i.name  || ''),
-    qty:   Math.max(1, parseInt(i.qty || i.quantity) || 1),
-    price: parseFloat(i.price) || 0,
+  const billItems = (items || []).map(i => ({
+    name:         String(i.name || ''),
+    price:        parseFloat(i.price) || 0,
+    quantity:     parseInt(i.quantity || i.qty) || 1,
+    complimentary: !!i.complimentary,
   }));
 
-  // Totals
-  const itemsSubtotal = normItems.reduce((s, i) => s + i.price * i.qty, 0);
-  const packAmt  = parseFloat(packagingCharge)   || 0;
-  const delivAmt = parseFloat(deliveryCharge)    || 0;
-  const extraAmt = parseFloat(extraChargeAmount) || 0;
-  const computedTotal = itemsSubtotal + packAmt + delivAmt + extraAmt;
-  // Trust passed total if sane, otherwise use computed
-  const finalTotal = (typeof total === 'number' && total > 0 && Math.abs(total - computedTotal) < 2)
-    ? total : computedTotal;
+  const subtotal   = billItems.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+  const compTotal  = billItems.filter(i =>  i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+  const pack       = parseFloat(packagingCharge) || 0;
+  const deliv      = parseFloat(deliveryCharge)  || 0;
+  const extra      = parseFloat(extraCharge)     || 0;
+  const grandTotal = subtotal + pack + deliv + extra;
 
-  // Item rows
-  const itemRows = normItems.map(i => {
-    const amt = (i.price * i.qty).toFixed(2);
-    return `<tr>
-      <td class="td-name">${esc(i.name)} × ${i.qty}</td>
-      <td class="td-amt">₹${amt}</td>
-    </tr>`;
-  }).join('');
+  const rows = billItems.map(i => `
+    <tr>
+      <td style="padding:5px 2px;font-size:12px;font-weight:900;border-bottom:1px dashed #000;word-break:break-word;width:50%;">${esc(i.name)}${i.complimentary ? ' ★COMP' : ''}</td>
+      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:center;border-bottom:1px dashed #000;width:12%;">${i.quantity}</td>
+      <td style="padding:5px 2px;font-size:11px;text-align:right;border-bottom:1px dashed #000;width:18%;">${i.complimentary ? 'COMP' : '₹' + i.price.toFixed(2)}</td>
+      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:right;border-bottom:1px dashed #000;width:20%;">${i.complimentary ? '₹0' : '₹' + (i.price * i.quantity).toFixed(2)}</td>
+    </tr>`).join('');
 
-  // Extra charge rows
-  const chargeRows = [
-    packAmt  > 0 ? { label: 'Packaging',               amt: packAmt  } : null,
-    delivAmt > 0 ? { label: 'Delivery',                 amt: delivAmt } : null,
-    extraAmt > 0 ? { label: extraChargeLabel || 'Extra',amt: extraAmt } : null,
-  ].filter(Boolean).map(e =>
-    `<tr><td class="td-name">${esc(e.label)}</td><td class="td-amt">₹${e.amt.toFixed(2)}</td></tr>`
-  ).join('');
-
-  const html = `
-    <div class="c big">${esc(restaurantName.toUpperCase())}</div>
-    <div class="c" style="margin:4px 0;font-size:12px;">BILL / RECEIPT</div>
-    <div class="sep"></div>
-    <table class="tbl">
-      ${tableLabel    ? `<tr><td class="td-name b">Table/Slot</td><td class="td-amt b">${esc(tableLabel)}</td></tr>` : ''}
-      ${customerName  ? `<tr><td class="td-name">Customer</td>  <td class="td-amt">${esc(customerName)}</td></tr>`  : ''}
-      ${customerPhone ? `<tr><td class="td-name">Phone</td>     <td class="td-amt">${esc(customerPhone)}</td></tr>` : ''}
-      <tr><td class="td-name">Date</td><td class="td-amt">${esc(date)}</td></tr>
-      <tr><td class="td-name">Time</td><td class="td-amt">${esc(time)}</td></tr>
-    </table>
-    <div class="sep"></div>
-    <table class="tbl">
-      <tr class="tbl-hdr">
-        <td class="td-name">ITEM</td>
-        <td class="td-amt">AMT</td>
-      </tr>
-      ${itemRows}
-    </table>
-    ${chargeRows ? `<div class="dsep"></div><table class="tbl">${chargeRows}</table>` : ''}
-    <div class="sep"></div>
-    <table class="tbl">
-      <tr>
-        <td class="td-name b" style="font-size:14px;">TOTAL</td>
-        <td class="td-amt"    style="font-size:14px;">₹${finalTotal.toFixed(2)}</td>
-      </tr>
-      <tr>
-        <td class="td-name">Payment</td>
-        <td class="td-amt">${esc(String(paymentMethod || 'cash').toUpperCase())}</td>
-      </tr>
-    </table>
-    <div class="sep"></div>
-    <div class="c" style="margin-top:6px;">${esc(footerText)}</div>
-    <div class="c" style="font-size:16px;margin:4px 0;">★ ★ ★</div>
-    <br>
-  `;
-
-  return wrap(html, width);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title>
+<style>${PAGE_CSS(width)}</style></head><body>
+<div class="w">
+  <div class="c" style="margin-bottom:8px;">
+    <div style="font-size:22px;font-weight:900;letter-spacing:2px;">${esc((restaurantName || '').toUpperCase())}</div>
+    <div style="font-size:12px;font-weight:900;margin-top:4px;">${
+      orderType === 'delivery' ? 'DELIVERY RECEIPT'
+      : orderType === 'takeaway' ? 'TAKEAWAY RECEIPT'
+      : orderType === 'room'     ? 'ROOM RECEIPT'
+      : 'DINE-IN RECEIPT'
+    }</div>
+  </div>
+  <hr class="sep">
+  <table style="font-size:12px;margin-bottom:5px;">
+    ${slotLabel     ? `<tr><td class="b">SLOT</td><td style="text-align:right;font-size:14px;font-weight:900;">${esc(slotLabel)}</td></tr>` : ''}
+    <tr><td class="b">DATE</td><td style="text-align:right;">${d}</td></tr>
+    <tr><td class="b">TIME</td><td style="text-align:right;">${t}</td></tr>
+    ${customerName  ? `<tr><td class="b">NAME</td><td style="text-align:right;">${esc(customerName)}</td></tr>` : ''}
+    ${customerPhone ? `<tr><td class="b">PHONE</td><td style="text-align:right;">${esc(customerPhone)}</td></tr>` : ''}
+    ${paymentMethod ? `<tr><td class="b">PAYMENT</td><td style="text-align:right;font-weight:900;">${esc(paymentMethod.toUpperCase())}</td></tr>` : ''}
+    ${deliveryAddress ? `<tr><td class="b" colspan="2" style="padding-top:4px;">ADDR: ${esc(deliveryAddress)}</td></tr>` : ''}
+  </table>
+  <hr class="sep">
+  <table style="margin-bottom:4px;">
+    <tr>
+      <th style="text-align:left;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:50%;">ITEM</th>
+      <th style="text-align:center;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:12%;">QTY</th>
+      <th style="text-align:right;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:18%;">RATE</th>
+      <th style="text-align:right;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:20%;">AMT</th>
+    </tr>
+    ${rows}
+  </table>
+  <hr class="sep">
+  <table style="font-size:12px;margin-bottom:5px;">
+    ${compTotal > 0 ? `<tr><td class="b">COMPLIMENTARY</td><td style="text-align:right;">−₹${compTotal.toFixed(2)}</td></tr>` : ''}
+    ${pack  > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">₹${pack.toFixed(2)}</td></tr>`  : ''}
+    ${deliv > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">₹${deliv.toFixed(2)}</td></tr>`  : ''}
+    ${extra > 0 ? `<tr><td class="b">${esc((extraChargeLabel || 'EXTRA').toUpperCase())}</td><td style="text-align:right;">₹${extra.toFixed(2)}</td></tr>` : ''}
+  </table>
+  <hr class="sep">
+  <table style="margin-bottom:6px;">
+    <tr>
+      <td style="font-size:18px;font-weight:900;padding:4px 2px;">TOTAL</td>
+      <td style="text-align:right;font-size:22px;font-weight:900;padding:4px 2px;">₹${grandTotal.toFixed(2)}</td>
+    </tr>
+  </table>
+  <hr class="sep">
+  <div class="c" style="font-size:13px;font-weight:900;padding:6px 0;">THANK YOU! PLEASE VISIT AGAIN</div>
+  <div class="c" style="font-size:18px;padding:3px 0;">★ ★ ★ ★ ★</div>
+  <div class="c" style="font-size:10px;margin-top:6px;color:#555;">Printed: ${d} ${t}</div>
+</div>
+</body></html>`;
 }
 
 function esc(str) {
