@@ -871,8 +871,8 @@ export default function StaffDashboard() {
     printViaIframe(html, 'bill', { orders: ordersToUse, tableLabel, total, restaurantName: restaurant?.name });
   };
 
-  const clearTable = (tableOrders, tableNum) => {
-    setClearTablePayModal({ tableOrders, tableNum });
+  const clearTable = (tableOrders, tableNumOrLabel) => {
+    setClearTablePayModal({ tableOrders, tableNum: tableNumOrLabel });
     setOnlinePayStep(false);
     setUtrNumber('');
   };
@@ -882,8 +882,14 @@ export default function StaffDashboard() {
     setClearTablePayModal(null);
     setOnlinePayStep(false);
     setUtrNumber('');
+    const firstOrder = tableOrders[0];
+    const slotLabel = firstOrder?.orderType === 'room'
+      ? (restaurant?.features?.roomNames?.[firstOrder.roomNumber] || `Room ${firstOrder.roomNumber}`)
+      : firstOrder?.orderType === 'dine-in' ? `Table ${tableNum}`
+      : firstOrder?.orderType === 'takeaway' ? 'Takeaway'
+      : 'Delivery';
     setConfirmModal({
-      message: `Confirm clearing Table ${tableNum}? All orders will be merged into one combined bill.`,
+      message: `Confirm clearing ${slotLabel}? All orders will be merged into one combined bill.`,
       onConfirm: async () => {
         setConfirmModal(null);
         try {
@@ -1486,10 +1492,11 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => printKOTBatch(roomOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
+                            <button onClick={() => { openRoom(parseInt(roomNum)); setActiveView('tables'); }} className="flex-1 py-2.5 text-xs font-semibold text-green-600 hover:bg-green-50 flex items-center justify-center gap-1"><Plus size={14} /> Add</button>
+                            <button onClick={() => printKOTBatch(roomOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill(roomOrders, label, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
                             <button onClick={() => cancelOrders(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
-                            <button onClick={() => clearTable(roomOrders, parseInt(roomNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
+                            <button onClick={() => clearTable(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
                           </div>
                         </div>
                       );
