@@ -1,86 +1,110 @@
 /**
  * Desktop print handler — registers all IPC print channels.
- * Called from main.js after app is ready.
+ *
+ * KEY FIX: The hidden BrowserWindow must be created with the EXACT thermal
+ * paper width in pixels so Chromium lays out the HTML at that width before
+ * printing. Without this, Chromium uses its default ~800px viewport, the
+ * content overflows the right edge, and the printed output is clipped.
+ *
+ * 80mm thermal paper at 96 DPI = ~302px usable width
+ * 58mm thermal paper at 96 DPI = ~218px usable width
  */
 
 const { BrowserWindow } = require('electron');
 const { buildKOTEscPos, buildBillEscPos } = require('./escpos-builder');
 
-// ── Detect paper width from printer name ─────────────────────────────────────
-// Most thermal printers are named "POS-80", "RP80", "TM-T82", "80mm" etc.
-// Default to 80mm; only drop to 58mm if name explicitly contains "58".
+// ── Paper width helpers ───────────────────────────────────────────────────────
+
 function detectWidth(printerName) {
   if (!printerName) return '80mm';
-  const n = printerName.toLowerCase();
-  if (n.includes('58')) return '58mm';
-  return '80mm';
+  return printerName.toLowerCase().includes('58') ? '58mm' : '80mm';
 }
 
-// Build the Electron page size object for the thermal roll
+// Viewport width in CSS pixels that matches the thermal paper
+// 80mm @ 96dpi = 302px  |  58mm @ 96dpi = 218px
+function viewportPx(width) {
+  return width === '58mm' ? 220 : 304;
+}
+
+// Electron pageSize in microns (1mm = 1000μm)
 function thermalPageSize(width) {
-  // Electron pageSize accepts microns: { width: Nμm, height: Nμm }
-  // Use a tall height so the entire receipt fits on one "page"
   return width === '58mm'
-    ? { width: 58000, height: 2000000 }   // 58mm × 2m roll
-    : { width: 80000, height: 2000000 };  // 80mm × 2m roll
+    ? { width: 58000,  height: 2970000 }   // 58mm × 297cm roll
+    : { width: 80000,  height: 2970000 };  // 80mm × 297cm roll
 }
 
-// ── Silent HTML print ─────────────────────────────────────────────────────────
+// ── Core: render HTML in a narrow BrowserWindow then print silently ───────────
+
 async function silentPrintHTML(html, printerName) {
-  const width = detectWidth(printerName);
+  const width   = detectWidth(printerName);
+  const vpWidth = viewportPx(width);
+
   return new Promise((resolve) => {
+    // Create window exactly as wide as the thermal paper.
+    // This forces Chromium to lay out the page at the correct width BEFORE
+    // printing — which is the only reliable way to avoid right-overflow.
     const win = new BrowserWindow({
-      show: false,
+      show:   false,
+      width:  vpWidth,
+      height: 1200,          // tall enough for a long receipt
       webPreferences: {
-        nodeIntegration: false,
+        nodeIntegration:  false,
         contextIsolation: true,
-        javascript: true,
+        javascript:       true,
       },
     });
 
-    // Use loadURL with data: URI — avoids file:// security restrictions
-    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+    // Inject a meta viewport that locks the layout width to match the window
+    const metaViewport = `<meta name="viewport" content="width=${vpWidth}, initial-scale=1.0">`;
+    const fixedHtml = html.includes('<meta name="viewport"')
+      ? html
+      : html.replace('<head>', `<head>${metaViewport}`);
+
+    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(fixedHtml);
     win.loadURL(dataUrl);
 
     win.webContents.on('did-finish-load', () => {
-      const options = {
-        silent: true,
-        printBackground: true,
-        deviceName: printerName || '',
-        margins: { marginType: 'none' },
-        pageSize: thermalPageSize(width),
-        scaleFactor: 100,
-        landscape: false,
-      };
+      // Small delay so any web fonts / layout reflows settle
+      setTimeout(() => {
+        const printOptions = {
+          silent:          true,
+          printBackground: true,
+          deviceName:      printerName || '',
+          margins:         { marginType: 'none' },
+          pageSize:        thermalPageSize(width),
+          scaleFactor:     100,
+          landscape:       false,
+        };
 
-      win.webContents.print(options, (success, failureReason) => {
-        win.destroy();
-        if (success) {
-          resolve({ success: true });
-        } else {
-          console.error('[print] silentPrint failed:', failureReason);
-          resolve({ success: false, error: failureReason });
-        }
-      });
+        win.webContents.print(printOptions, (success, failureReason) => {
+          win.destroy();
+          if (success) {
+            resolve({ success: true });
+          } else {
+            console.error('[print] failed:', failureReason);
+            resolve({ success: false, error: failureReason });
+          }
+        });
+      }, 200); // 200ms settle time
     });
 
     win.webContents.on('did-fail-load', (_e, code, desc) => {
       win.destroy();
-      console.error('[print] page load failed:', code, desc);
       resolve({ success: false, error: `Load failed: ${desc}` });
     });
 
-    // Safety timeout — destroy window after 15s no matter what
+    // Hard timeout
     setTimeout(() => {
       if (!win.isDestroyed()) {
         win.destroy();
-        resolve({ success: false, error: 'Print timeout' });
+        resolve({ success: false, error: 'Print timeout after 15s' });
       }
     }, 15000);
   });
 }
 
 // ── Printer list ──────────────────────────────────────────────────────────────
+
 function getPrinters() {
   const wins = BrowserWindow.getAllWindows();
   if (wins.length > 0) {
@@ -100,51 +124,48 @@ function getPrinters() {
   });
 }
 
-// ── IPC handler registration ──────────────────────────────────────────────────
+// ── IPC registration ──────────────────────────────────────────────────────────
+
 function setupPrintHandlers(ipcMain) {
 
   ipcMain.handle('print:get-printers', async () => {
-    try {
-      return await getPrinters();
-    } catch (e) {
-      console.error('[print] getPrinters error:', e);
-      return [];
-    }
+    try { return await getPrinters(); }
+    catch (e) { console.error('[print] getPrinters:', e); return []; }
   });
 
-  // Generic HTML print (used by qzPrint.js silentPrint path)
-  ipcMain.handle('print:silent-html', async (_event, { html, printerName }) => {
+  // Raw HTML path — used by qzPrint.js silentPrint fallback
+  ipcMain.handle('print:silent-html', async (_e, { html, printerName }) => {
     try {
-      if (!html) return { success: false, error: 'No HTML provided' };
+      if (!html) return { success: false, error: 'No HTML' };
       return await silentPrintHTML(html, printerName || '');
     } catch (e) {
-      console.error('[print] silentPrint error:', e);
+      console.error('[print] silentPrint:', e);
       return { success: false, error: e.message };
     }
   });
 
-  // KOT — generate from structured data
-  ipcMain.handle('print:kot', async (_event, { data, printerName }) => {
+  // KOT — structured data path
+  ipcMain.handle('print:kot', async (_e, { data, printerName }) => {
     try {
       if (!data) return { success: false, error: 'No KOT data' };
       const width = detectWidth(printerName);
       const html  = buildKOTEscPos(data, width);
       return await silentPrintHTML(html, printerName || '');
     } catch (e) {
-      console.error('[print] KOT error:', e);
+      console.error('[print] KOT:', e);
       return { success: false, error: e.message };
     }
   });
 
-  // Bill — generate from structured data
-  ipcMain.handle('print:bill', async (_event, { data, printerName }) => {
+  // Bill — structured data path
+  ipcMain.handle('print:bill', async (_e, { data, printerName }) => {
     try {
       if (!data) return { success: false, error: 'No bill data' };
       const width = detectWidth(printerName);
       const html  = buildBillEscPos(data, width);
       return await silentPrintHTML(html, printerName || '');
     } catch (e) {
-      console.error('[print] Bill error:', e);
+      console.error('[print] Bill:', e);
       return { success: false, error: e.message };
     }
   });
