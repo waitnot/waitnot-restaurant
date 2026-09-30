@@ -55,16 +55,45 @@ async function rawPrintWindows(printerName, buffer) {
   return new Promise((resolve) => {
     const tmpFile = path.join(os.tmpdir(), `waitnot-escpos-${Date.now()}.bin`);
     fs.writeFileSync(tmpFile, buffer);
-    
-    // COPY /B sends raw bytes to the printer queue
-    const cmd = `COPY /B "${tmpFile}" "${printerName}"`;
-    exec(cmd, (error) => {
-      try { fs.unlinkSync(tmpFile); } catch {}
-      if (error) {
-        console.warn('COPY /B failed, trying lp fallback:', error.message);
-        resolve({ success: false, error: error.message });
+
+    // Look up the port name from the Windows printer registry so COPY /B goes
+    // to the hardware port (e.g. USB001), not a file that happens to share the
+    // printer's display name in the current working directory.
+    function getPortForPrinter(name, cb) {
+      const { exec: _exec } = require('child_process');
+      _exec(
+        `powershell -NoProfile -Command "(Get-WmiObject Win32_Printer | Where-Object { $_.Name -eq '${name}' } | Select-Object -First 1).PortName"`,
+        { timeout: 3000 },
+        (err, stdout) => {
+          const port = stdout && stdout.trim();
+          cb(port && port.length > 0 ? port : null);
+        }
+      );
+    }
+
+    function sendToTarget(target) {
+      const cmd = `COPY /B "${tmpFile}" "${target}"`;
+      console.log(`[printer] COPY /B → "${target}"`);
+      exec(cmd, (error) => {
+        try { fs.unlinkSync(tmpFile); } catch {}
+        if (error) {
+          console.warn('[printer] COPY /B failed:', error.message);
+          resolve({ success: false, error: error.message });
+        } else {
+          console.log(`[printer] ✅ ESC/POS sent to "${target}"`);
+          resolve({ success: true });
+        }
+      });
+    }
+
+    // Try to resolve printer name → port name first.
+    // This avoids the "file named after the printer" trap where Windows
+    // writes bytes to a local file instead of the USB/serial port.
+    getPortForPrinter(printerName, (port) => {
+      if (port) {
+        sendToTarget(port);       // e.g. USB001, COM3, LPT1
       } else {
-        resolve({ success: true });
+        sendToTarget(printerName); // fallback: use the name as-is
       }
     });
   });
