@@ -1385,11 +1385,6 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
 
   // ── Step 3: HTML fallback — write to temp file and print via Electron ─────
   return new Promise((resolve) => {
-    const tmpHtml = path.join(os.tmpdir(), `waitnot-bill-${Date.now()}.html`);
-    try { fs.writeFileSync(tmpHtml, html, 'utf8'); } catch (e) {
-      return resolve({ success: false, error: e.message });
-    }
-
     const printWin = new BrowserWindow({
       // Width must match the receipt CSS pixels exactly so table columns compute
       // percentages against the same viewport the @page size uses.
@@ -1398,13 +1393,20 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
       webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
-    printWin.loadFile(tmpHtml);
+    // Use data: URI — avoids file:// security context differences that affect CSS rendering
+    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+    printWin.loadURL(dataUrl);
 
     const cleanup = (success, err) => {
       if (!printWin.isDestroyed()) printWin.close();
-      try { fs.unlinkSync(tmpHtml); } catch {}
       resolve(success ? { success: true } : { success: false, error: err });
     };
+
+    // Safety timeout — 15s hard limit so a stuck print job never freezes the app
+    const safetyTimer = setTimeout(() => {
+      console.warn('[print] Safety timeout hit — destroying print window');
+      cleanup(false, 'print timeout');
+    }, 15000);
 
     printWin.webContents.once('did-finish-load', () => {
       setTimeout(() => {
@@ -1419,7 +1421,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
                 margins: { marginType: 'none' },
                 pageSize: { width: pageWidthMicrons, height: 500000 },
                 scaleFactor: 100, landscape: false, color: false, copies: 1,
-              }, (success, errorType) => cleanup(success, errorType));
+              }, (success, errorType) => { clearTimeout(safetyTimer); cleanup(success, errorType); });
             } else {
               // Truly no printer — save PDF
               const pdfPath = path.join(os.tmpdir(), `waitnot-bill-${Date.now()}.pdf`);
@@ -1449,7 +1451,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
           landscape: false,
           color: false,
           copies: 1,
-        }, (success, errorType) => cleanup(success, errorType));
+        }, (success, errorType) => { clearTimeout(safetyTimer); cleanup(success, errorType); });
       }, 800);
     });
 
