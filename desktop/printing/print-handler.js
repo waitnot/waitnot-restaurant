@@ -15,9 +15,13 @@ const { buildKOTEscPos, buildBillEscPos } = require('./escpos-builder');
 
 // ── Paper width helpers ───────────────────────────────────────────────────────
 
-function detectWidth(printerName) {
-  if (!printerName) return '80mm';
-  return printerName.toLowerCase().includes('58') ? '58mm' : '80mm';
+// Read paper width from data first, then fall back to printer name detection,
+// then fall back to 58mm (most common thermal printer size)
+function resolveWidth(data, printerName) {
+  if (data?.paperWidth === '58mm' || data?.paperWidth === '80mm') return data.paperWidth;
+  if (printerName?.toLowerCase().includes('80')) return '80mm';
+  if (printerName?.toLowerCase().includes('58')) return '58mm';
+  return '58mm'; // safe default — 58mm is most common desktop thermal printer
 }
 
 // Viewport width in CSS pixels that matches the thermal paper
@@ -35,8 +39,7 @@ function thermalPageSize(width) {
 
 // ── Core: render HTML in a narrow BrowserWindow then print silently ───────────
 
-async function silentPrintHTML(html, printerName) {
-  const width   = detectWidth(printerName);
+async function silentPrintHTML(html, printerName, width = '58mm') {
   const vpWidth = viewportPx(width);
 
   return new Promise((resolve) => {
@@ -137,7 +140,7 @@ function setupPrintHandlers(ipcMain) {
   ipcMain.handle('print:silent-html', async (_e, { html, printerName }) => {
     try {
       if (!html) return { success: false, error: 'No HTML' };
-      return await silentPrintHTML(html, printerName || '');
+      return await silentPrintHTML(html, printerName || '', '58mm');
     } catch (e) {
       console.error('[print] silentPrint:', e);
       return { success: false, error: e.message };
@@ -148,9 +151,9 @@ function setupPrintHandlers(ipcMain) {
   ipcMain.handle('print:kot', async (_e, { data, printerName }) => {
     try {
       if (!data) return { success: false, error: 'No KOT data' };
-      const width = detectWidth(printerName);
+      const width = resolveWidth(data, printerName);
       const html  = buildKOTEscPos(data, width);
-      return await silentPrintHTML(html, printerName || '');
+      return await silentPrintHTML(html, printerName || '', width);
     } catch (e) {
       console.error('[print] KOT:', e);
       return { success: false, error: e.message };
@@ -161,9 +164,9 @@ function setupPrintHandlers(ipcMain) {
   ipcMain.handle('print:bill', async (_e, { data, printerName }) => {
     try {
       if (!data) return { success: false, error: 'No bill data' };
-      const width = detectWidth(printerName);
+      const width = resolveWidth(data, printerName);
       const html  = buildBillEscPos(data, width);
-      return await silentPrintHTML(html, printerName || '');
+      return await silentPrintHTML(html, printerName || '', width);
     } catch (e) {
       console.error('[print] Bill:', e);
       return { success: false, error: e.message };
