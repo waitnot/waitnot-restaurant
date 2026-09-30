@@ -39,7 +39,16 @@ async function electronPrintKOT(order, restaurantName) {
   const p = s.qzKitchenPrinter || s.kitchenPrinterName || '';
   if (!p) return { success: false, error: 'No kitchen printer' };
   const now = new Date();
-  return window.electronAPI.printKOT({ restaurantName, orderId: order._id||'N/A', tableNumber: order.tableNumber||null, roomNumber: order.roomNumber||null, orderType: order.orderType||'dine-in', items: order.items.map(i=>({name:i.name,quantity:i.quantity})), time: now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) }, p);
+  return window.electronAPI.printKOT({
+    restaurantName,
+    orderId: order._id || 'N/A',
+    tableNumber: order.tableNumber || null,
+    roomNumber: order.roomNumber || null,
+    orderType: order.orderType || 'dine-in',
+    items: order.items.map(i => ({ name: i.name, quantity: i.quantity })),
+    time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+    paperWidth: s.paperWidth || '58mm',   // pass saved paper width
+  }, p);
 }
 async function electronPrintBill(orders, tableLabel, total, restaurantName) {
   const s = getSavedSettings();
@@ -50,11 +59,9 @@ async function electronPrintBill(orders, tableLabel, total, restaurantName) {
     if (itemMap[i.name]) itemMap[i.name].qty += i.quantity;
     else itemMap[i.name] = { name: i.name, qty: i.quantity, price: parseFloat(i.price) || 0 };
   }));
-  // Collect charges from first order that has them
   const o0 = orders[0] || {};
   const packagingCharge = parseFloat(o0.packagingCharge) || 0;
   const deliveryCharge  = parseFloat(o0.deliveryCharge)  || 0;
-  // Recalculate total to ensure it matches items + charges
   const itemsTotal = Object.values(itemMap).reduce((s, i) => s + i.price * i.qty, 0);
   const computedTotal = itemsTotal + packagingCharge + deliveryCharge;
   const finalTotal = total > 0 ? total : computedTotal;
@@ -72,6 +79,7 @@ async function electronPrintBill(orders, tableLabel, total, restaurantName) {
     time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     date: now.toLocaleDateString('en-IN'),
     footerText: 'Thank you! Visit Again',
+    paperWidth: s.paperWidth || '58mm',   // pass saved paper width
   }, p);
 }
 
