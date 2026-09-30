@@ -46,9 +46,33 @@ async function electronPrintBill(orders, tableLabel, total, restaurantName) {
   const p = s.qzBillPrinter || s.cashCounterPrinterName || '';
   if (!p) return { success: false, error: 'No bill printer' };
   const itemMap = {};
-  orders.forEach(o => o.items?.forEach(i => { if (itemMap[i.name]) itemMap[i.name].qty+=i.quantity; else itemMap[i.name]={name:i.name,qty:i.quantity,price:i.price}; }));
+  orders.forEach(o => o.items?.forEach(i => {
+    if (itemMap[i.name]) itemMap[i.name].qty += i.quantity;
+    else itemMap[i.name] = { name: i.name, qty: i.quantity, price: parseFloat(i.price) || 0 };
+  }));
+  // Collect charges from first order that has them
+  const o0 = orders[0] || {};
+  const packagingCharge = parseFloat(o0.packagingCharge) || 0;
+  const deliveryCharge  = parseFloat(o0.deliveryCharge)  || 0;
+  // Recalculate total to ensure it matches items + charges
+  const itemsTotal = Object.values(itemMap).reduce((s, i) => s + i.price * i.qty, 0);
+  const computedTotal = itemsTotal + packagingCharge + deliveryCharge;
+  const finalTotal = total > 0 ? total : computedTotal;
   const now = new Date();
-  return window.electronAPI.printBill({ restaurantName, tableLabel, items: Object.values(itemMap), total, paymentMethod: orders[0]?.paymentMethod||'cash', time: now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}), date: now.toLocaleDateString('en-IN'), footerText: 'Thank you! Visit Again' }, p);
+  return window.electronAPI.printBill({
+    restaurantName,
+    tableLabel,
+    items: Object.values(itemMap),
+    total: finalTotal,
+    packagingCharge,
+    deliveryCharge,
+    paymentMethod: o0.paymentMethod || 'cash',
+    customerName: o0.customerName || '',
+    customerPhone: o0.customerPhone || '',
+    time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+    date: now.toLocaleDateString('en-IN'),
+    footerText: 'Thank you! Visit Again',
+  }, p);
 }
 
 // ─── ESC/POS byte builder ────────────────────────────────────────────────────
