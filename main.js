@@ -1394,13 +1394,13 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
       // Width must match the receipt CSS pixels exactly so table columns compute
       // percentages against the same viewport the @page size uses.
       // 58mm ≈ 220px at 96dpi  |  80mm ≈ 304px at 96dpi
-      show: false, width: paperWidth === '58mm' ? 220 : 304, height: 800,
+      show: false, width: paperWidth === '58mm' ? 180 : 290, height: 800,
       webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
     // Use data: URI — avoids file:// security context differences that affect CSS rendering
     // Inject a meta viewport that locks the layout width to match the paper exactly
-    const vpWidth   = paperWidth === '58mm' ? 220 : 304;
+    const vpWidth   = paperWidth === '58mm' ? 180 : 290;
     const metaTag   = `<meta name="viewport" content="width=${vpWidth}, initial-scale=1.0">`;
     const fixedHtml = html.includes('<meta name="viewport"')
       ? html
