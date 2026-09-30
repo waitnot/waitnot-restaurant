@@ -1311,7 +1311,12 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
 
   // ── Step 2: Try ESC/POS raw print first (fastest, most reliable) ─────────
   const { buildKOTBuffer, buildBillBuffer } = require('./printer');
-  const paperWidth = store.get('paperWidth', '80mm');
+  // Resolve paper width — prefer the @page size embedded in the HTML by the template,
+  // fall back to stored setting, default 58mm (most common desktop thermal printer)
+  const storedWidth = store.get('paperWidth', '58mm');
+  const paperWidth  = html.includes('size: 58mm') ? '58mm'
+                    : html.includes('size: 80mm') ? '80mm'
+                    : storedWidth;
   const pageWidthMicrons = paperWidth === '58mm' ? 58000 : 80000;
 
   try {
@@ -1394,7 +1399,13 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
     });
 
     // Use data: URI — avoids file:// security context differences that affect CSS rendering
-    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+    // Inject a meta viewport that locks the layout width to match the paper exactly
+    const vpWidth   = paperWidth === '58mm' ? 220 : 304;
+    const metaTag   = `<meta name="viewport" content="width=${vpWidth}, initial-scale=1.0">`;
+    const fixedHtml = html.includes('<meta name="viewport"')
+      ? html
+      : html.replace('<head>', `<head>${metaTag}`);
+    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(fixedHtml);
     printWin.loadURL(dataUrl);
 
     const cleanup = (success, err) => {
