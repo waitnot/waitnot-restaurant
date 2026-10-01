@@ -1,6 +1,6 @@
 {
     "name":  "waitnot-staff-dashboard",
-    "version":  "3.10.0-h",
+    "version":  "3.10.0-i",
     "description":  "WaitNot Staff Dashboard Desktop Application",
     "main":  "main.js",
     "scripts":  {
@@ -39,7 +39,7 @@
                   "productName":  "WaitNot Staff",
                   "copyright":  "Copyright © 2024 WaitNot Team",
                   "directories":  {
-                                      "output":  "C:\\\\WaitNot-310h",
+                                      "output":  "C:\\\\WaitNot-310i",
                                       "buildResources":  "build"
                                   },
                   "files":  [

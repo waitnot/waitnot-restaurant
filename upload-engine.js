@@ -498,11 +498,22 @@ function init(db, win) {
   uploadTimer = setInterval(() => runUploadCycle(), UPLOAD_INTERVAL_MS);
 
   // Fast-retry loop: every 5 seconds, but ONLY when there are pending items.
-  // This ensures orders placed offline upload within seconds of reconnection.
+  // Checks both PENDING and FAILED (regardless of backoff) so we catch
+  // orders that failed while offline and are waiting to retry.
   setInterval(() => {
     if (!offlineDb || !offlineDb.isReady()) return;
-    const pending = offlineDb.getPendingQueue().filter(q => q.entity_type === 'order');
-    if (pending.length > 0) {
+    const hasPendingOrFailed = offlineDb.getPendingQueue().some(q => q.entity_type === 'order') ||
+      (() => {
+        try {
+          const Database = require('./node_modules/better-sqlite3');
+          const dbPath = require('path').join(require('electron').app.getPath('userData'), 'waitnot-offline.db');
+          const db = new Database(dbPath, { readonly: true });
+          const row = db.prepare("SELECT COUNT(*) as c FROM sync_queue WHERE entity_type='order' AND status='FAILED'").get();
+          db.close();
+          return (row?.c || 0) > 0;
+        } catch { return false; }
+      })();
+    if (hasPendingOrFailed) {
       runUploadCycle();
     }
   }, 5000);
@@ -526,6 +537,10 @@ function stop() {
 }
 
 async function triggerUpload() {
+  // Reset backoff on any FAILED items first so reconnection bypasses wait time
+  if (offlineDb && offlineDb.isReady()) {
+    offlineDb.resetFailedBackoff();
+  }
   return runUploadCycle();
 }
 

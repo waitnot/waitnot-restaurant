@@ -481,6 +481,7 @@ function pushOrdersToUI(orders) {
 
 function startOrderPolling() {
   console.log('🔄 Order polling started (3s interval)');
+  let running = false;rval)');
   let running = false;
 
   setInterval(async () => {
@@ -645,6 +646,31 @@ async function doPoll() {
   }
 }
 // App event handlers
+
+// ─── Node-side connectivity watchdog ────────────────────────────────────────
+// The renderer's window.addEventListener('online') doesn't always fire when
+// the physical network interface changes in Electron. This Node-side watchdog
+// polls every 15s using a lightweight DNS lookup. When it detects a transition
+// from offline → online, it triggers the same reconnect flow.
+let _wasOnline = true; // assume online at start
+function startConnectivityWatchdog() {
+  const dns = require('dns');
+  setInterval(() => {
+    dns.lookup('waitnot-restaurant.onrender.com', (err) => {
+      const isOnline = !err;
+      if (isOnline && !_wasOnline) {
+        // Just came back online
+        console.log('[main] 🌐 Node watchdog: network restored — triggering reconnect flow');
+        if (offlineDb.isReady()) offlineDb.resetFailedBackoff();
+        uploadEngine.triggerUpload().catch(() => {});
+        syncEngine.triggerSync().catch(() => {});
+        setTimeout(() => doPoll().catch(() => {}), 1000);
+      }
+      _wasOnline = isOnline;
+    });
+  }, 15000);
+}
+
 app.whenReady().then(() => {
   // ── Intercept all HTTP responses from the backend and inject CORS headers.
   // This runs at the Chromium network layer, so it catches every request made
@@ -716,6 +742,7 @@ app.whenReady().then(() => {
   createWindow();
   createMenu();
   startOrderPolling();
+  startConnectivityWatchdog();
 
   // ── Offline SQLite database ──────────────────────────────────────────────
   const dbResult = offlineDb.init(app.getPath('userData'));
@@ -1033,6 +1060,8 @@ ipcMain.handle('upload:trigger', async () => {
 ipcMain.handle('network:reconnected', async () => {
   console.log('[main] 🌐 Network reconnected — uploading + syncing + fetching orders');
   try {
+    // Reset backoff on FAILED items FIRST so they upload immediately
+    if (offlineDb.isReady()) offlineDb.resetFailedBackoff();
     // Upload any pending offline orders immediately
     uploadEngine.triggerUpload().catch(() => {});
     // Re-sync menu/restaurant data

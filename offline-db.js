@@ -717,6 +717,22 @@ function getPendingQueue() {
   `).all(now);
 }
 
+/**
+ * Reset backoff on all FAILED queue items so they are retried immediately.
+ * Called when the device comes back online — don't make users wait 10 minutes.
+ */
+function resetFailedBackoff() {
+  if (!ready) return 0;
+  const result = db.prepare(
+    `UPDATE sync_queue SET next_attempt_at = NULL, updated_at = ?
+     WHERE status = 'FAILED' AND entity_type = 'order'`
+  ).run(new Date().toISOString());
+  if (result.changes > 0) {
+    console.log(`[offline-db] Reset backoff on ${result.changes} FAILED queue items`);
+  }
+  return result.changes;
+}
+
 function markQueueItem(id, status, serverResponse = null, errorMessage = null) {
   if (!ready) return;
   const now = new Date().toISOString();
@@ -830,6 +846,7 @@ module.exports = {
   // Sync queue (Phase 4)
   enqueue,
   getPendingQueue,
+  resetFailedBackoff,
   markQueueItem,
   getQueueItem,
 
