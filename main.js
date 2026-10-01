@@ -481,7 +481,6 @@ function pushOrdersToUI(orders) {
 
 function startOrderPolling() {
   console.log('🔄 Order polling started (3s interval)');
-  let running = false;rval)');
   let running = false;
 
   setInterval(async () => {
