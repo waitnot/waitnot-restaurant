@@ -1,4 +1,4 @@
-/**
+﻿/**
  * WaitNot ESC/POS Thermal Printer Module
  * 
  * Sends raw ESC/POS commands directly to installed thermal printers
@@ -25,7 +25,7 @@ try {
   console.warn('node-thermal-printer not available, will use fallback printing');
 }
 
-// ─── Printer discovery ────────────────────────────────────────────────────────
+// â”€â”€â”€ Printer discovery â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * List all installed printers on Windows/Mac/Linux
@@ -45,64 +45,92 @@ async function listPrinters(webContents) {
   }
 }
 
-// ─── ESC/POS raw printing (Windows: net use / direct port write) ─────────────
+// â”€â”€â”€ ESC/POS raw printing (Windows: net use / direct port write) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * On Windows, write raw ESC/POS bytes to a printer by name using a temp file
- * and the `COPY /B` command — this bypasses Windows GDI entirely.
+ * and the `COPY /B` command â€” this bypasses Windows GDI entirely.
  */
 async function rawPrintWindows(printerName, buffer) {
+  // Use Windows WritePrinter RAW API — bypasses the GDI driver entirely.
+  // COPY /B sends data THROUGH the driver (POS58ENG) which converts ESC/POS
+  // bytes to raster — nothing prints. WritePrinter with datatype="RAW"
+  // sends bytes directly to the printer port, bypassing all GDI processing.
   return new Promise((resolve) => {
-    const tmpFile = path.join(os.tmpdir(), `waitnot-escpos-${Date.now()}.bin`);
-    fs.writeFileSync(tmpFile, buffer);
+    const base64 = buffer.toString('base64');
+    const safeName = printerName.replace(/'/g, "''").replace(/"/g, '`"');
+    const ps = [
+      'Add-Type -TypeDefinition @"',
+      'using System; using System.Runtime.InteropServices;',
+      'public class RawPrinter {',
+      '  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]',
+      '  public struct DOCINFO { [MarshalAs(UnmanagedType.LPWStr)] public string pDocName; [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile; [MarshalAs(UnmanagedType.LPWStr)] public string pDataType; }',
+      '  [DllImport("winspool.drv",CharSet=CharSet.Unicode)] public static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);',
+      '  [DllImport("winspool.drv")] public static extern bool ClosePrinter(IntPtr h);',
+      '  [DllImport("winspool.drv",CharSet=CharSet.Unicode)] public static extern Int32 StartDocPrinter(IntPtr h, Int32 l, ref DOCINFO d);',
+      '  [DllImport("winspool.drv")] public static extern bool EndDocPrinter(IntPtr h);',
+      '  [DllImport("winspool.drv")] public static extern bool StartPagePrinter(IntPtr h);',
+      '  [DllImport("winspool.drv")] public static extern bool EndPagePrinter(IntPtr h);',
+      '  [DllImport("winspool.drv")] public static extern bool WritePrinter(IntPtr h, IntPtr b, Int32 c, out Int32 w);',
+      '  public static int SendRaw(string name, byte[] data) {',
+      '    IntPtr hP; if (!OpenPrinter(name, out hP, IntPtr.Zero)) return -1;',
+      '    var di = new DOCINFO { pDocName="ESCPOS", pOutputFile=null, pDataType="RAW" };',
+      '    StartDocPrinter(hP,1,ref di); StartPagePrinter(hP);',
+      '    var ptr = System.Runtime.InteropServices.Marshal.AllocHGlobal(data.Length);',
+      '    System.Runtime.InteropServices.Marshal.Copy(data,0,ptr,data.Length);',
+      '    int w=0; WritePrinter(hP,ptr,data.Length,out w);',
+      '    System.Runtime.InteropServices.Marshal.FreeHGlobal(ptr);',
+      '    EndPagePrinter(hP); EndDocPrinter(hP); ClosePrinter(hP); return w;',
+      '  }',
+      '}',
+      '"@ -Language CSharp',
+      `$b = [Convert]::FromBase64String('${base64}')`,
+      `$w = [RawPrinter]::SendRaw('${safeName}', $b)`,
+      'Write-Host "written=$w"',
+    ].join('\n');
 
-    // Look up the port name from the Windows printer registry so COPY /B goes
-    // to the hardware port (e.g. USB001), not a file that happens to share the
-    // printer's display name in the current working directory.
-    function getPortForPrinter(name, cb) {
-      const { exec: _exec } = require('child_process');
-      _exec(
-        `powershell -NoProfile -Command "(Get-WmiObject Win32_Printer | Where-Object { $_.Name -eq '${name}' } | Select-Object -First 1).PortName"`,
-        { timeout: 3000 },
-        (err, stdout) => {
-          const port = stdout && stdout.trim();
-          cb(port && port.length > 0 ? port : null);
-        }
-      );
-    }
-
-    function sendToTarget(target) {
-      const cmd = `COPY /B "${tmpFile}" "${target}"`;
-      console.log(`[printer] COPY /B → "${target}"`);
-      exec(cmd, (error) => {
-        try { fs.unlinkSync(tmpFile); } catch {}
-        if (error) {
-          console.warn('[printer] COPY /B failed:', error.message);
-          resolve({ success: false, error: error.message });
-        } else {
-          console.log(`[printer] ✅ ESC/POS sent to "${target}"`);
-          resolve({ success: true });
-        }
-      });
-    }
-
-    // Try to resolve printer name → port name first.
-    // This avoids the "file named after the printer" trap where Windows
-    // writes bytes to a local file instead of the USB/serial port.
-    getPortForPrinter(printerName, (port) => {
-      if (port) {
-        sendToTarget(port);       // e.g. USB001, COM3, LPT1
+    const { exec: _exec } = require('child_process');
+    // Write PS1 to a temp file — powershell -Command - (stdin) doesn't work in all environments
+    const ps1File = path.join(os.tmpdir(), `wn-raw-${Date.now()}.ps1`);
+    try { fs.writeFileSync(ps1File, ps, 'utf8'); } catch (e) { return _copyBFallback(printerName, buffer, resolve); }
+    _exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1File}"`, { timeout: 15000 }, (err, stdout, stderr) => {
+      try { fs.unlinkSync(ps1File); } catch {}
+      const out = (stdout || '').trim();
+      console.log(`[printer] WritePrinter: "${out}" err=${err ? err.message.substring(0,50) : 'none'}`);
+      const written = parseInt((out.match(/written=(\d+)/) || [])[1] || '-1');
+      if (!err && written > 0) {
+        console.log(`[printer] ✅ RAW WritePrinter: ${written} bytes → "${printerName}"`);
+        resolve({ success: true });
       } else {
-        sendToTarget(printerName); // fallback: use the name as-is
+        console.warn(`[printer] WritePrinter failed (written=${written}) — trying COPY /B fallback`);
+        _copyBFallback(printerName, buffer, resolve);
       }
     });
   });
 }
 
+function _copyBFallback(printerName, buffer, resolve) {
+  const tmpFile = path.join(os.tmpdir(), `wn-escpos-${Date.now()}.bin`);
+  try { fs.writeFileSync(tmpFile, buffer); } catch (e) { return resolve({ success: false, error: e.message }); }
+  const { exec: _exec } = require('child_process');
+  _exec(
+    `powershell -NoProfile -Command "(Get-WmiObject Win32_Printer | Where-Object { $_.Name -eq '${printerName.replace(/'/g,"''")}' } | Select-Object -First 1).PortName"`,
+    { timeout: 4000 },
+    (wmiErr, wmiOut) => {
+      const port   = (!wmiErr && wmiOut && wmiOut.trim()) ? wmiOut.trim() : null;
+      const target = port || printerName;
+      _exec(`COPY /B "${tmpFile}" "${target}"`, (copyErr) => {
+        try { fs.unlinkSync(tmpFile); } catch {}
+        if (copyErr) { console.warn(`[printer] COPY /B fallback failed: ${copyErr.message}`); resolve({ success: false, error: copyErr.message }); }
+        else { console.log(`[printer] ✅ COPY /B sent to "${target}"`); resolve({ success: true }); }
+      });
+    }
+  );
+}
+
 /**
  * On Linux/Mac, use lp command
- */
-async function rawPrintUnix(printerName, buffer) {
+ */async function rawPrintUnix(printerName, buffer) {
   return new Promise((resolve) => {
     const tmpFile = path.join(os.tmpdir(), `waitnot-escpos-${Date.now()}.bin`);
     fs.writeFileSync(tmpFile, buffer);
@@ -119,7 +147,7 @@ async function rawPrintUnix(printerName, buffer) {
   });
 }
 
-// ─── ESC/POS command builder ──────────────────────────────────────────────────
+// â”€â”€â”€ ESC/POS command builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ESC = 0x1B;
 const GS  = 0x1D;
@@ -147,7 +175,7 @@ const CUT_PARTIAL = [GS,  0x56, 0x01];
 // Feed lines
 function feed(n = 1) { return Array(n).fill(LF); }
 
-// ─── Width helpers (58mm=32chars, 80mm=48chars) ───────────────────────────────
+// â”€â”€â”€ Width helpers (58mm=32chars, 80mm=48chars) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function getWidth(paperWidth) {
   return (paperWidth === '80mm') ? 48 : 32;
 }
@@ -171,7 +199,7 @@ function twoColumnLine(left, right, width = 32) {
   return textLine(left + ' '.repeat(space) + right);
 }
 
-// ─── KOT builder ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ KOT builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildKOTBuffer(data) {
   const { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time, paperWidth } = data;
@@ -199,7 +227,7 @@ function buildKOTBuffer(data) {
   bytes.push(...twoColumnLine('Time:', time, W));
   bytes.push(...textLine(DASHES));
 
-  // Items — name truncated to leave room for qty on right
+  // Items â€” name truncated to leave room for qty on right
   const nameWidth = W - 6; // e.g. 26 for 58mm, 42 for 80mm
   bytes.push(...BOLD_ON);
   items.forEach(item => {
@@ -220,12 +248,12 @@ function buildKOTBuffer(data) {
   return Buffer.from(bytes);
 }
 
-// ─── Bill builder ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Bill builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildBillBuffer(data) {
   const { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText, paperWidth } = data;
   const W = getWidth(paperWidth);
-  // dashedLine already has \n via textLine — strip the extra \n from dashedLine()
+  // dashedLine already has \n via textLine â€” strip the extra \n from dashedLine()
   const DASHES = '-'.repeat(W);
   const bytes = [];
 
@@ -246,9 +274,9 @@ function buildBillBuffer(data) {
   bytes.push(...twoColumnLine('Time:', time, W));
   bytes.push(...textLine(DASHES));
 
-  // Column layout for bill items — must sum exactly to W:
-  //   58mm W=32:  name=16 | qty=3 | rate=7 | amt=6  → 16+3+7+6=32
-  //   80mm W=48:  name=24 | qty=3 | rate=10 | amt=11 → 24+3+10+11=48
+  // Column layout for bill items â€” must sum exactly to W:
+  //   58mm W=32:  name=16 | qty=3 | rate=7 | amt=6  â†’ 16+3+7+6=32
+  //   80mm W=48:  name=24 | qty=3 | rate=10 | amt=11 â†’ 24+3+10+11=48
   const amtW  = W >= 48 ? 11 : 6;
   const rateW = W >= 48 ? 10 : 7;
   const qtyW  = 3;
@@ -259,7 +287,7 @@ function buildBillBuffer(data) {
   bytes.push(...BOLD_OFF);
   bytes.push(...textLine(DASHES));
 
-  // Items — if name is longer than nameW, print it on its own line first,
+  // Items â€” if name is longer than nameW, print it on its own line first,
   // then the qty/rate/amt on the next line (right-aligned).
   items.forEach(item => {
     const qty   = item.qty || item.quantity || 1;
@@ -271,7 +299,7 @@ function buildBillBuffer(data) {
     const amtS  = amt.toString().padStart(amtW);
 
     if (fullName.length > nameW) {
-      // Name is too long for one line — print name first, numbers on next line
+      // Name is too long for one line â€” print name first, numbers on next line
       bytes.push(...textLine(fullName.substring(0, W)));  // truncate only at paper width
       bytes.push(...textLine(' '.repeat(nameW) + qtyS + rateS + amtS));
     } else {
@@ -302,7 +330,7 @@ function buildBillBuffer(data) {
   return Buffer.from(bytes);
 }
 
-// ─── Main print function ──────────────────────────────────────────────────────
+// â”€â”€â”€ Main print function â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Print KOT silently to the assigned kitchen printer
