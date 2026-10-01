@@ -352,4 +352,4 @@ async function printBill(data, printerName) {
   }
 }
 
-module.exports = { listPrinters, printKOT, printBill, buildKOTBuffer, buildBillBuffer };
+module.exports = { listPrinters, printKOT, printBill, buildKOTBuffer, buildBillBuffer, rawPrintWindows };

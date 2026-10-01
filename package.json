@@ -1,6 +1,6 @@
 {
     "name":  "waitnot-staff-dashboard",
-    "version":  "3.10.0-q",
+    "version":  "3.10.0-r",
     "description":  "WaitNot Staff Dashboard Desktop Application",
     "main":  "main.js",
     "scripts":  {
@@ -39,13 +39,14 @@
                   "productName":  "WaitNot Staff",
                   "copyright":  "Copyright © 2024 WaitNot Team",
                   "directories":  {
-                                      "output":  "C:\\\\WaitNot-310q",
+                                      "output":  "C:\\\\WaitNot-310r",
                                       "buildResources":  "build"
                                   },
                   "files":  [
                                 "main.js",
                                 "preload.js",
                                 "printer.js",
+                                "escpos-builder.js",
                                 "offline-db.js",
                                 "sync-engine.js",
                                 "upload-engine.js",

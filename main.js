@@ -2,7 +2,7 @@
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
-const { listPrinters, printKOT, printBill } = require('./printer');
+const { listPrinters, printKOT, printBill, rawPrintWindows } = require('./printer');
 const offlineDb     = require('./offline-db');
 const syncEngine    = require('./sync-engine');
 const uploadEngine  = require('./upload-engine');
@@ -596,18 +596,18 @@ async function doPoll() {
 
       printedKotIds.add(order._id);
       console.log(`🖨️ KOT → "${printer}" | #${order.orderNumber} T${order.tableNumber} (${age.toFixed(0)}s)`);
-      printKOT({
-        restaurantName,
-        orderId        : (order._id||'').slice(-8).toUpperCase(),
-        tableNumber    : order.tableNumber,
-        roomNumber     : order.roomNumber,
-        orderType      : order.orderType || 'dine-in',
-        customerName   : order.customerName,
-        deliveryAddress: order.deliveryAddress,
-        items          : order.items || [],
-        time           : new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
-        paperWidth     : store.get('paperWidth', '80mm'),
-      }, printer)
+      (async () => {
+        const _kotBuf = Buffer.from(buildKOTBytes({
+          restaurantName: restaurantName,
+          slotLabel     : order.tableNumber ? `Table ${order.tableNumber}` : order.roomNumber ? `Room ${order.roomNumber}` : (order.orderType||'order').toUpperCase(),
+          orderId       : (order._id||'').slice(-8).toUpperCase(),
+          orderType     : (order.orderType||'dine-in').toLowerCase(),
+          customerName  : order.customerName || '',
+          deliveryAddress: order.deliveryAddress || null,
+          items         : (order.items||[]).map(i => ({ name: i.name, quantity: i.quantity||1 })),
+        }));
+        return rawPrintWindows(printer, _kotBuf);
+      })()
         .then(r  => console.log(r?.success ? `✅ KOT #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
         .catch(e => console.error('KOT err:', e.message));
     }
@@ -633,16 +633,22 @@ async function doPoll() {
       const items = (order.items||[]).map(i=>({name:i.name,qty:i.quantity,price:parseFloat(i.price)||0}));
       const total = items.reduce((s,i)=>s+i.price*i.qty, 0);
       const now   = new Date();
-      printBill({
-        restaurantName,
-        tableLabel   : order.roomNumber ? `Room ${order.roomNumber}` : order.tableNumber ? `Table ${order.tableNumber}` : '',
-        items, total,
-        paymentMethod: (order.paymentMethod||'CASH').toUpperCase(),
-        time         : now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
-        date         : now.toLocaleDateString('en-IN'),
-        footerText   : 'Thank you! Please Visit Again',
-        paperWidth   : store.get('paperWidth', '80mm'),
-      }, printer)
+      (async () => {
+        const _billBuf = Buffer.from(buildBillBytes({
+          restaurantName: restaurantName,
+          slotLabel     : order.roomNumber ? `Room ${order.roomNumber}` : order.tableNumber ? `Table ${order.tableNumber}` : '',
+          orderType     : (order.orderType||'dine-in').toLowerCase(),
+          customerName  : order.customerName || '',
+          paymentMethod : ((order.paymentMethod||'cash')).toLowerCase(),
+          items         : (order.items||[]).map(i => ({
+            name         : i.name,
+            quantity     : i.quantity || 1,
+            price        : parseFloat(i.price) || 0,
+            complimentary: !!i.complimentary,
+          })),
+        }));
+        return rawPrintWindows(printer, _billBuf);
+      })()
         .then(r  => console.log(r?.success ? `✅ Bill #${order.orderNumber}` : `⚠ ${JSON.stringify(r)}`))
         .catch(e => console.error('Bill err:', e.message));
     }
@@ -1331,10 +1337,11 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
       const rowRegex = /<tr>\s*<td[^>]*>([^<]+?)<\/td>\s*<td[^>]*>(\d+)<\/td>\s*<td[^>]*>(?:COMP|\u20b9([\d.]+))<\/td>\s*<td[^>]*>(?:\u20b90|\u20b9([\d.]+))<\/td>/g;
       let m;
       while ((m = rowRegex.exec(html)) !== null) {
-        const name  = m[1].replace(/\u2605COMP/g, '').trim();
-        const qty   = parseInt(m[2]) || 1;
-        const price = parseFloat(m[3]) || 0;
-        items.push({ name, quantity: qty, price, qty });
+        const name         = m[1].replace(/\u2605COMP/g, '').trim();
+        const qty          = parseInt(m[2]) || 1;
+        const price        = parseFloat(m[3]) || 0;
+        const complimentary = m[1].includes('\u2605COMP') || !m[3]; // ★COMP or no price = complimentary
+        items.push({ name, quantity: qty, price, qty, complimentary });
       }
     }
 
@@ -1347,7 +1354,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
   }
 
   // ── Step 2: Try ESC/POS raw print first (fastest, most reliable) ─────────
-  const { buildKOTBuffer, buildBillBuffer } = require('./printer');
+  const { buildKOTBytes, buildBillBytes } = require('./escpos-builder');
   // Resolve paper width — prefer the @page size embedded in the HTML by the template,
   // fall back to stored setting, default 58mm (most common desktop thermal printer)
   const storedWidth = store.get('paperWidth', '58mm');
@@ -1371,29 +1378,28 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
 
     let buf;
     if (data.isKOT) {
-      buf = buildKOTBuffer({
+      buf = Buffer.from(buildKOTBytes({
         restaurantName: data.restaurantName,
-        orderId       : data.orderId || data.slotLabel || 'ORDER',
-        tableNumber   : data.slotLabel,
-        orderType     : data.orderType || 'dine-in',
+        slotLabel     : data.slotLabel,
+        orderId       : data.orderId,
+        orderType     : (data.orderType || 'dine-in').toLowerCase(),
         customerName  : data.customerName,
-        items         : data.items,
-        time          : data.time,
-        paperWidth,
-      });
+        items         : data.items.map(i => ({ name: i.name, quantity: i.quantity || 1 })),
+      }));
     } else {
-      buf = buildBillBuffer({
+      buf = Buffer.from(buildBillBytes({
         restaurantName: data.restaurantName,
-        tableLabel    : data.slotLabel,
+        slotLabel     : data.slotLabel,
+        orderType     : (data.orderType || 'dine-in').toLowerCase(),
         customerName  : data.customerName,
-        items         : data.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
-        total         : data.total,
-        paymentMethod : data.paymentMethod,
-        time          : data.time,
-        date          : data.date,
-        footerText    : 'Thank you! Please Visit Again',
-        paperWidth,
-      });
+        paymentMethod : (data.paymentMethod || 'cash').toLowerCase(),
+        items         : data.items.map(i => ({
+          name         : i.name,
+          quantity     : i.quantity || 1,
+          price        : i.price || 0,
+          complimentary: !!i.complimentary,
+        })),
+      }));
     }
 
     // Pick target printer
