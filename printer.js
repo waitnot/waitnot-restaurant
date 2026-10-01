@@ -202,41 +202,41 @@ function twoColumnLine(left, right, width = 32) {
 // â”€â”€â”€ KOT builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildKOTBuffer(data) {
-  const { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time, paperWidth } = data;
+  const { restaurantName, orderId, tableNumber, roomNumber, orderType, customerName, items, time, paperWidth } = data;
   const W = getWidth(paperWidth);
   const DASHES = dashedLine(paperWidth);
   const bytes = [];
 
-  // Init
   bytes.push(...INIT);
-  // Use hardware ALIGN_CENTER only — centeredLine() adds manual spaces which
-  // double-centers text and shifts double-width headers to the right.
   bytes.push(...ALIGN_CENTER);
   bytes.push(...DOUBLE_HEIGHT_ON);
   bytes.push(...BOLD_ON);
-  bytes.push(...textLine(restaurantName.toUpperCase()));
+  bytes.push(...textLine((restaurantName || 'RESTAURANT').toUpperCase()));
   bytes.push(...DOUBLE_HEIGHT_OFF);
-  bytes.push(...textLine('** KOT **'));
+  bytes.push(...textLine('KITCHEN ORDER TICKET'));
+  bytes.push(...textLine((orderType || 'dine-in').toUpperCase()));
   bytes.push(...BOLD_OFF);
   bytes.push(...ALIGN_LEFT);
   bytes.push(...textLine(DASHES));
 
-  bytes.push(...ALIGN_LEFT);
-  if (tableNumber) bytes.push(...twoColumnLine('Table:', tableNumber.toString(), W));
-  if (roomNumber)  bytes.push(...twoColumnLine('Room:', roomNumber.toString(), W));
-  if (orderType === 'takeaway') bytes.push(...textLine('Type: TAKEAWAY'));
-  if (orderType === 'delivery') bytes.push(...textLine('Type: DELIVERY'));
-  bytes.push(...twoColumnLine('Order:', orderId.slice(-6).toUpperCase(), W));
+  if (tableNumber) bytes.push(...twoColumnLine('SLOT:', tableNumber.toString(), W));
+  if (roomNumber)  bytes.push(...twoColumnLine('SLOT:', `Room ${roomNumber}`, W));
+  if (orderId && orderId !== 'ORDER') bytes.push(...twoColumnLine('Order:', orderId.slice(-8).toUpperCase(), W));
+  if (customerName) bytes.push(...twoColumnLine('Name:', customerName.toString().substring(0, W - 6), W));
   bytes.push(...twoColumnLine('Time:', time, W));
   bytes.push(...textLine(DASHES));
 
-  // Items â€” name truncated to leave room for qty on right
-  const nameWidth = W - 6; // e.g. 26 for 58mm, 42 for 80mm
+  bytes.push(...ALIGN_CENTER);
+  bytes.push(...textLine('-- ITEMS TO PREPARE --'));
+  bytes.push(...ALIGN_LEFT);
+  bytes.push(...textLine(DASHES));
+
+  const nameWidth = W - 6;
   bytes.push(...BOLD_ON);
-  items.forEach(item => {
+  (items || []).forEach(item => {
     bytes.push(...twoColumnLine(
-      item.name.substring(0, nameWidth),
-      `x${item.quantity}`,
+      (item.name || '').substring(0, nameWidth),
+      `x${item.quantity || 1}`,
       W
     ));
   });
@@ -251,38 +251,30 @@ function buildKOTBuffer(data) {
   return Buffer.from(bytes);
 }
 
-// â”€â”€â”€ Bill builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 function buildBillBuffer(data) {
-  const { restaurantName, tableLabel, items, total, paymentMethod, time, date, footerText, paperWidth } = data;
+  const { restaurantName, tableLabel, customerName, items, total, paymentMethod, time, date, footerText, paperWidth } = data;
   const W = getWidth(paperWidth);
-  // dashedLine already has \n via textLine â€” strip the extra \n from dashedLine()
   const DASHES = '-'.repeat(W);
   const bytes = [];
 
-  // Init
   bytes.push(...INIT);
-  // Use hardware ALIGN_CENTER only — centeredLine() adds manual spaces which
-  // double-centers text and shifts double-width headers to the right.
   bytes.push(...ALIGN_CENTER);
   bytes.push(...DOUBLE_HEIGHT_ON);
   bytes.push(...BOLD_ON);
-  bytes.push(...textLine(restaurantName.toUpperCase()));
+  bytes.push(...textLine((restaurantName || 'RESTAURANT').toUpperCase()));
   bytes.push(...DOUBLE_HEIGHT_OFF);
-  bytes.push(...textLine('BILL'));
+  bytes.push(...textLine('BILL / RECEIPT'));
   bytes.push(...BOLD_OFF);
   bytes.push(...ALIGN_LEFT);
   bytes.push(...textLine(DASHES));
 
-  // Skip Ref when blank — don't print "Ref:    " with empty value
-  if (tableLabel && tableLabel.trim()) bytes.push(...twoColumnLine('Ref:', tableLabel, W));
+  if (tableLabel && tableLabel.trim()) bytes.push(...twoColumnLine('SLOT:', tableLabel, W));
   bytes.push(...twoColumnLine('Date:', date, W));
   bytes.push(...twoColumnLine('Time:', time, W));
+  if (customerName && customerName.trim()) bytes.push(...twoColumnLine('Name:', customerName.substring(0, W - 6), W));
+  if (paymentMethod) bytes.push(...twoColumnLine('Payment:', paymentMethod.toUpperCase(), W));
   bytes.push(...textLine(DASHES));
 
-  // Column layout for bill items â€” must sum exactly to W:
-  //   58mm W=32:  name=16 | qty=3 | rate=7 | amt=6  â†’ 16+3+7+6=32
-  //   80mm W=48:  name=24 | qty=3 | rate=10 | amt=11 â†’ 24+3+10+11=48
   const amtW  = W >= 48 ? 11 : 6;
   const rateW = W >= 48 ? 10 : 7;
   const qtyW  = 3;
@@ -293,55 +285,38 @@ function buildBillBuffer(data) {
   bytes.push(...BOLD_OFF);
   bytes.push(...textLine(DASHES));
 
-  // Items â€” if name is longer than nameW, print it on its own line first,
-  // then the qty/rate/amt on the next line (right-aligned).
-  items.forEach(item => {
-    const qty   = item.qty || item.quantity || 1;
-    const price = parseFloat(item.price || 0);
-    const amt   = Math.round(price * qty);
+  (items || []).forEach(item => {
+    const qty      = item.qty || item.quantity || 1;
+    const price    = parseFloat(item.price || 0);
+    const amt      = Math.round(price * qty);
     const fullName = (item.name || '');
-    const qtyS  = String(qty).padStart(qtyW);
-    const rateS = Math.round(price).toString().padStart(rateW);
-    const amtS  = amt.toString().padStart(amtW);
+    const qtyS     = String(qty).padStart(qtyW);
+    const rateS    = Math.round(price).toString().padStart(rateW);
+    const amtS     = amt.toString().padStart(amtW);
 
     if (fullName.length > nameW) {
-      // Name is too long for one line â€” print name first, numbers on next line
-      bytes.push(...textLine(fullName.substring(0, W)));  // truncate only at paper width
+      bytes.push(...textLine(fullName.substring(0, W)));
       bytes.push(...textLine(' '.repeat(nameW) + qtyS + rateS + amtS));
     } else {
-      // Name fits on same line as numbers
       bytes.push(...textLine(fullName.padEnd(nameW) + qtyS + rateS + amtS));
     }
   });
 
   bytes.push(...textLine(DASHES));
-
-  // Total — no double-height (double-height + twoColumnLine causes right-shift)
   bytes.push(...BOLD_ON);
   bytes.push(...twoColumnLine('TOTAL:', `Rs.${total}`, W));
   bytes.push(...BOLD_OFF);
-
-  if (paymentMethod) {
-    bytes.push(...textLine(''));  // blank line between TOTAL and Payment
-    bytes.push(...twoColumnLine('Payment:', paymentMethod.toUpperCase(), W));
-  }
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_CENTER);
-  bytes.push(...textLine(footerText || 'Thank you! Visit Again'));
+  bytes.push(...textLine(footerText || 'THANK YOU! PLEASE VISIT AGAIN'));
+  bytes.push(...textLine('* * * * *'));
   bytes.push(...feed(3));
   bytes.push(...CUT_PARTIAL);
 
   return Buffer.from(bytes);
 }
 
-// â”€â”€â”€ Main print function â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-/**
- * Print KOT silently to the assigned kitchen printer
- * @param {Object} data - { restaurantName, orderId, tableNumber, roomNumber, orderType, items, time }
- * @param {string} printerName - Windows printer name (e.g. "Epson TM-T82")
- */
 async function printKOT(data, printerName) {
   try {
     const buf = buildKOTBuffer(data);
