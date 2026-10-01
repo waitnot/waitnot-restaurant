@@ -209,13 +209,16 @@ function buildKOTBuffer(data) {
 
   // Init
   bytes.push(...INIT);
+  // Use hardware ALIGN_CENTER only — centeredLine() adds manual spaces which
+  // double-centers text and shifts double-width headers to the right.
   bytes.push(...ALIGN_CENTER);
   bytes.push(...DOUBLE_HEIGHT_ON);
   bytes.push(...BOLD_ON);
-  bytes.push(...centeredLine(restaurantName.toUpperCase(), W));
+  bytes.push(...textLine(restaurantName.toUpperCase()));
   bytes.push(...DOUBLE_HEIGHT_OFF);
-  bytes.push(...centeredLine('** KOT **', W));
+  bytes.push(...textLine('** KOT **'));
   bytes.push(...BOLD_OFF);
+  bytes.push(...ALIGN_LEFT);
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_LEFT);
@@ -241,7 +244,7 @@ function buildKOTBuffer(data) {
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_CENTER);
-  bytes.push(...centeredLine('-- PREPARE WITH CARE --', W));
+  bytes.push(...textLine('-- PREPARE WITH CARE --'));
   bytes.push(...feed(3));
   bytes.push(...CUT_PARTIAL);
 
@@ -259,17 +262,20 @@ function buildBillBuffer(data) {
 
   // Init
   bytes.push(...INIT);
+  // Use hardware ALIGN_CENTER only — centeredLine() adds manual spaces which
+  // double-centers text and shifts double-width headers to the right.
   bytes.push(...ALIGN_CENTER);
   bytes.push(...DOUBLE_HEIGHT_ON);
   bytes.push(...BOLD_ON);
-  bytes.push(...centeredLine(restaurantName.toUpperCase(), W));
+  bytes.push(...textLine(restaurantName.toUpperCase()));
   bytes.push(...DOUBLE_HEIGHT_OFF);
-  bytes.push(...centeredLine('BILL', W));
+  bytes.push(...textLine('BILL'));
   bytes.push(...BOLD_OFF);
+  bytes.push(...ALIGN_LEFT);
   bytes.push(...textLine(DASHES));
 
-  bytes.push(...ALIGN_LEFT);
-  bytes.push(...twoColumnLine('Ref:', tableLabel, W));
+  // Skip Ref when blank — don't print "Ref:    " with empty value
+  if (tableLabel && tableLabel.trim()) bytes.push(...twoColumnLine('Ref:', tableLabel, W));
   bytes.push(...twoColumnLine('Date:', date, W));
   bytes.push(...twoColumnLine('Time:', time, W));
   bytes.push(...textLine(DASHES));
@@ -310,20 +316,19 @@ function buildBillBuffer(data) {
 
   bytes.push(...textLine(DASHES));
 
-  // Total
+  // Total — no double-height (double-height + twoColumnLine causes right-shift)
   bytes.push(...BOLD_ON);
-  bytes.push(...DOUBLE_HEIGHT_ON);
   bytes.push(...twoColumnLine('TOTAL:', `Rs.${total}`, W));
-  bytes.push(...DOUBLE_HEIGHT_OFF);
   bytes.push(...BOLD_OFF);
 
   if (paymentMethod) {
+    bytes.push(...textLine(''));  // blank line between TOTAL and Payment
     bytes.push(...twoColumnLine('Payment:', paymentMethod.toUpperCase(), W));
   }
   bytes.push(...textLine(DASHES));
 
   bytes.push(...ALIGN_CENTER);
-  bytes.push(...centeredLine(footerText || 'Thank you! Visit Again', W));
+  bytes.push(...textLine(footerText || 'Thank you! Visit Again'));
   bytes.push(...feed(3));
   bytes.push(...CUT_PARTIAL);
 
