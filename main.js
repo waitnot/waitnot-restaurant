@@ -1350,70 +1350,102 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
 
   try {
     const data = parseHtmlReceipt(html);
-    console.log(`📋 Parsed: ${data.isKOT ? 'KOT' : 'BILL'} | ${data.items.length} items | ${data.restaurantName}`);
+    console.log(`[silent-print] Parsed: ${data.isKOT ? 'KOT' : 'BILL'} | ${data.items.length} items | "${data.restaurantName}" | slot="${data.slotLabel}"`);
+
+    if (data.items.length === 0 && !data.isKOT) {
+      console.warn('[silent-print] No items parsed from HTML — skipping ESC/POS, falling back to HTML');
+      throw new Error('No items parsed from HTML (regex failed)');
+    }
+
+    // Normalise slotLabel: if it is a bare number, prefix "Table "
+    const slotLabel = data.slotLabel
+      ? (/^\d+$/.test(data.slotLabel.trim()) ? `Table ${data.slotLabel.trim()}` : data.slotLabel.trim())
+      : '';
 
     let buf;
     if (data.isKOT) {
       buf = buildKOTBuffer({
         restaurantName: data.restaurantName,
-        orderId: data.slotLabel || 'ORDER',
-        tableNumber: data.slotLabel,
-        orderType: 'dine-in',
-        items: data.items,
-        time: data.time,
+        orderId       : slotLabel || 'ORDER',
+        tableNumber   : slotLabel,
+        orderType     : 'dine-in',
+        items         : data.items,
+        time          : data.time,
         paperWidth,
       });
     } else {
       buf = buildBillBuffer({
         restaurantName: data.restaurantName,
-        tableLabel: data.slotLabel,
-        items: data.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
-        total: data.total,
-        paymentMethod: data.paymentMethod,
-        time: data.time,
-        date: data.date,
-        footerText: 'Thank you! Please Visit Again',
+        tableLabel    : slotLabel,
+        items         : data.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
+        total         : data.total,
+        paymentMethod : data.paymentMethod,
+        time          : data.time,
+        date          : data.date,
+        footerText    : 'Thank you! Please Visit Again',
         paperWidth,
       });
     }
 
-    // Send raw ESC/POS to printer
-    // Priority: 1) passed printerName  2) saved kitchen/bill  3) auto-detect
-    const savedPrinter = store.get('selectedPrinter', '');
-    const savedKitchen = store.get('kitchenPrinter', '');
-    const savedBill    = store.get('billPrinter', '');
-    const autoKot      = store.get('autoKot', false);
-    const autoBill     = store.get('autoBill', false);
-
-    // Pick the right saved printer based on what we're printing
-    const savedForType = data.isKOT ? (savedKitchen || savedPrinter) : (savedBill || savedPrinter);
+    // Pick target printer
+    const savedPrinter  = store.get('selectedPrinter', '');
+    const savedKitchen  = store.get('kitchenPrinter',  '');
+    const savedBill     = store.get('billPrinter',     '');
+    const savedForType  = data.isKOT ? (savedKitchen || savedPrinter) : (savedBill || savedPrinter);
     const targetPrinter = (printerName && printerName.trim())
       ? printerName.trim()
       : (savedForType || await autoDetectThermalPrinter(mainWindow));
-    console.log(`🖨️ Target printer: "${targetPrinter}" (${data.isKOT ? 'KOT' : 'BILL'})`);
-    fs.writeFileSync(tmpBin, buf);
 
-    const result = await new Promise((res) => {
+    console.log(`[silent-print] ESC/POS → printer="${targetPrinter}" paperWidth=${paperWidth} bytes=${buf.length}`);
+
+    // Use printer.js rawPrintWindows — it resolves the printer name to its
+    // hardware port via WMI (e.g. "POS58 Printer" → "USB001"), bypassing the
+    // "file named after the printer" trap that silently ate our bytes before.
+    const { rawPrintWindows: _rawPrint } = require('./printer');
+    // rawPrintWindows is not exported — use printKOT/printBill which call it internally.
+    // Instead, replicate the WMI lookup directly here so we have full visibility.
+    const _escResult = await new Promise((res) => {
       const { exec } = require('child_process');
-      const cmd = `COPY /B "${tmpBin}" "${targetPrinter}"`;
-      console.log(`🖨️ Running: ${cmd}`);
-      exec(cmd, (err, stdout, stderr) => {
-        try { fs.unlinkSync(tmpBin); } catch {}
-        if (err) {
-          console.warn('COPY /B failed:', err.message);
-          res({ success: false, error: err.message });
-        } else {
-          console.log('✅ ESC/POS print sent successfully');
-          res({ success: true });
+      const os   = require('os');
+      const tmpBin = path.join(os.tmpdir(), `wn-escpos-${Date.now()}.bin`);
+      fs.writeFileSync(tmpBin, buf);
+
+      // WMI lookup: resolve printer display name → hardware port (e.g. USB001)
+      exec(
+        `powershell -NoProfile -Command "(Get-WmiObject Win32_Printer | Where-Object { $_.Name -eq '${targetPrinter.replace(/'/g, "''")}' } | Select-Object -First 1).PortName"`,
+        { timeout: 4000 },
+        (wmiErr, wmiOut) => {
+          const port   = (!wmiErr && wmiOut && wmiOut.trim()) ? wmiOut.trim() : null;
+          const target = port || targetPrinter;
+          console.log(`[silent-print] WMI port="${port}" → sending to "${target}"`);
+          const cmd = `COPY /B "${tmpBin}" "${target}"`;
+          exec(cmd, (copyErr) => {
+            try { fs.unlinkSync(tmpBin); } catch {}
+            if (copyErr) {
+              console.error(`[silent-print] COPY /B FAILED: ${copyErr.message}`);
+              res({ success: false, error: copyErr.message });
+            } else {
+              console.log(`[silent-print] ✅ ESC/POS sent to "${target}"`);
+              res({ success: true });
+            }
+          });
         }
-      });
+      );
     });
 
-    if (result.success) return result;
+    if (_escResult.success) return _escResult;
 
-    // ESC/POS failed — fall through to HTML print
-    console.warn('ESC/POS failed, falling back to HTML print');
+    // ESC/POS failed — log the reason visibly and fall through to HTML
+    console.warn(`[silent-print] ESC/POS failed (${_escResult.error}) — falling back to HTML print`);
+    // Notify the cashier in the renderer
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(
+        `console.warn('[print] ESC/POS fallback: ${_escResult.error?.replace(/`/g,'')}')`
+      ).catch(() => {});
+    }
+
   } catch (parseErr) {
+    console.warn(`[silent-print] ESC/POS path error: ${parseErr.message} — falling back to HTML`);
     console.warn('Parse/ESC/POS error:', parseErr.message, '— falling back to HTML print');
   }
 

@@ -259,16 +259,25 @@ function buildBillBuffer(data) {
   bytes.push(...BOLD_OFF);
   bytes.push(...textLine(DASHES));
 
-  // Items
+  // Items — if name is longer than nameW, print it on its own line first,
+  // then the qty/rate/amt on the next line (right-aligned).
   items.forEach(item => {
     const qty   = item.qty || item.quantity || 1;
     const price = parseFloat(item.price || 0);
     const amt   = Math.round(price * qty);
-    const name  = (item.name || '').substring(0, nameW).padEnd(nameW);
+    const fullName = (item.name || '');
     const qtyS  = String(qty).padStart(qtyW);
     const rateS = Math.round(price).toString().padStart(rateW);
     const amtS  = amt.toString().padStart(amtW);
-    bytes.push(...textLine(name + qtyS + rateS + amtS));
+
+    if (fullName.length > nameW) {
+      // Name is too long for one line — print name first, numbers on next line
+      bytes.push(...textLine(fullName.substring(0, W)));  // truncate only at paper width
+      bytes.push(...textLine(' '.repeat(nameW) + qtyS + rateS + amtS));
+    } else {
+      // Name fits on same line as numbers
+      bytes.push(...textLine(fullName.padEnd(nameW) + qtyS + rateS + amtS));
+    }
   });
 
   bytes.push(...textLine(DASHES));
