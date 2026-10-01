@@ -1403,35 +1403,69 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
     const { rawPrintWindows: _rawPrint } = require('./printer');
     // rawPrintWindows is not exported — use printKOT/printBill which call it internally.
     // Instead, replicate the WMI lookup directly here so we have full visibility.
-    const _escResult = await new Promise((res) => {
-      const { exec } = require('child_process');
-      const os   = require('os');
-      const tmpBin = path.join(os.tmpdir(), `wn-escpos-${Date.now()}.bin`);
-      fs.writeFileSync(tmpBin, buf);
+    // Use Windows WritePrinter RAW API (bypasses POS58ENG GDI driver).
+    // COPY /B sends through the driver which converts ESC/POS to raster — nothing prints.
+    const _escResult = await (async () => {
+      const { exec: _e } = require('child_process');
+      const _os = require('os');
+      const _base64   = buf.toString('base64');
+      const _safe     = targetPrinter.replace(/'/g, "''");
+      const _ps1Path  = path.join(_os.tmpdir(), `wn-sp-${Date.now()}.ps1`);
+      const _psScript = [
+        'Add-Type -TypeDefinition @"',
+        'using System; using System.Runtime.InteropServices;',
+        'public class RawPrinter2 {',
+        '  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]',
+        '  public struct DOCINFO { [MarshalAs(UnmanagedType.LPWStr)] public string pDocName; [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile; [MarshalAs(UnmanagedType.LPWStr)] public string pDataType; }',
+        '  [DllImport("winspool.drv",CharSet=CharSet.Unicode)] public static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);',
+        '  [DllImport("winspool.drv")] public static extern bool ClosePrinter(IntPtr h);',
+        '  [DllImport("winspool.drv",CharSet=CharSet.Unicode)] public static extern Int32 StartDocPrinter(IntPtr h, Int32 l, ref DOCINFO d);',
+        '  [DllImport("winspool.drv")] public static extern bool EndDocPrinter(IntPtr h);',
+        '  [DllImport("winspool.drv")] public static extern bool StartPagePrinter(IntPtr h);',
+        '  [DllImport("winspool.drv")] public static extern bool EndPagePrinter(IntPtr h);',
+        '  [DllImport("winspool.drv")] public static extern bool WritePrinter(IntPtr h, IntPtr b, Int32 c, out Int32 w);',
+        '  public static int SendRaw(string name, byte[] data) {',
+        '    IntPtr hP; if (!OpenPrinter(name, out hP, IntPtr.Zero)) return -1;',
+        '    var di = new DOCINFO { pDocName="ESCPOS", pOutputFile=null, pDataType="RAW" };',
+        '    StartDocPrinter(hP,1,ref di); StartPagePrinter(hP);',
+        '    var ptr = System.Runtime.InteropServices.Marshal.AllocHGlobal(data.Length);',
+        '    System.Runtime.InteropServices.Marshal.Copy(data,0,ptr,data.Length);',
+        '    int w=0; WritePrinter(hP,ptr,data.Length,out w);',
+        '    System.Runtime.InteropServices.Marshal.FreeHGlobal(ptr);',
+        '    EndPagePrinter(hP); EndDocPrinter(hP); ClosePrinter(hP); return w;',
+        '  }',
+        '}',
+        '"@ -Language CSharp',
+        `$b = [Convert]::FromBase64String('` + _base64 + `')`,
+        `$w = [RawPrinter2]::SendRaw('` + _safe + `', $b)`,
+        'Write-Host "written=$w"',
+      ].join('\n');
 
-      // WMI lookup: resolve printer display name → hardware port (e.g. USB001)
-      exec(
-        `powershell -NoProfile -Command "(Get-WmiObject Win32_Printer | Where-Object { $_.Name -eq '${targetPrinter.replace(/'/g, "''")}' } | Select-Object -First 1).PortName"`,
-        { timeout: 4000 },
-        (wmiErr, wmiOut) => {
-          const port   = (!wmiErr && wmiOut && wmiOut.trim()) ? wmiOut.trim() : null;
-          const target = port || targetPrinter;
-          console.log(`[silent-print] WMI port="${port}" → sending to "${target}"`);
-          const cmd = `COPY /B "${tmpBin}" "${target}"`;
-          exec(cmd, (copyErr) => {
-            try { fs.unlinkSync(tmpBin); } catch {}
-            if (copyErr) {
-              console.error(`[silent-print] COPY /B FAILED: ${copyErr.message}`);
-              res({ success: false, error: copyErr.message });
-            } else {
-              console.log(`[silent-print] ✅ ESC/POS sent to "${target}"`);
+      try { fs.writeFileSync(_ps1Path, _psScript, 'utf8'); } catch {}
+
+      return new Promise((res) => {
+        _e(`powershell -NoProfile -ExecutionPolicy Bypass -File "${_ps1Path}"`,
+          { timeout: 15000 },
+          (_psErr, _psOut) => {
+            try { fs.unlinkSync(_ps1Path); } catch {}
+            const _written = parseInt((_psOut || '').match(/written=(\d+)/)?.[1] || '-1');
+            if (!_psErr && _written > 0) {
+              console.log(`[silent-print] ✅ WritePrinter RAW: ${_written} bytes → "${targetPrinter}"`);
               res({ success: true });
+            } else {
+              console.warn(`[silent-print] WritePrinter failed (${_written}) — COPY /B fallback`);
+              const _tmpBin = path.join(require('os').tmpdir(), `wn-fb-${Date.now()}.bin`);
+              try { fs.writeFileSync(_tmpBin, buf); } catch {}
+              _e(`COPY /B "${_tmpBin}" "USB001"`, (_cpErr) => {
+                try { fs.unlinkSync(_tmpBin); } catch {}
+                if (_cpErr) res({ success: false, error: _cpErr.message });
+                else res({ success: true });
+              });
             }
-          });
-        }
-      );
-    });
-
+          }
+        );
+      });
+    })();
     if (_escResult.success) return _escResult;
 
     // ESC/POS failed — log the reason visibly and fall through to HTML
