@@ -1,156 +1,315 @@
 /**
- * Desktop print templates — EXACT PORT of client/src/utils/printTemplates.js
- * Same HTML/CSS that the web app uses, so the desktop print is identical.
- * CommonJS (require/module.exports) instead of ES module export.
+ * escpos-builder.js — WaitNot Desktop ESC/POS Byte Builder
+ *
+ * Exact port of the phone's buildKOTBytes / buildBillBytes from
+ * client/src/utils/qzPrint.js — pure Node.js, zero Capacitor/mobile imports.
+ *
+ * Paper width : W = 32 chars (58 mm roll, Font A default)
+ * Currency    : Rs. (not ₹ — outside standard ESC/POS codepage)
+ * Item names  : TRUNCATED (not wrapped) — KOT: 24 chars, Bill: 20 chars
+ * Encoding    : ASCII / Latin-1 — charCodeAt() & 0xFF per character
  */
 
-const PAGE_CSS = (width = '80mm') => `
-  @page { size: ${width} auto; margin: 3mm; }
-  * { box-sizing: border-box; }
-  body { margin:0; padding:0; background:#fff; font-family:'Courier New',Courier,monospace; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .w { width:100%; max-width:${width === '58mm' ? '218px' : '302px'}; margin:0 auto; }
-  .c { text-align:center; }
-  .b { font-weight:900; }
-  .sep  { border:none; border-top:2px solid #000; margin:5px 0; }
-  .dash { border:none; border-top:1px dashed #000; margin:5px 0; }
-  table { width:100%; border-collapse:collapse; }
-`;
+'use strict';
 
-// ── KOT ──────────────────────────────────────────────────────────────────────
+// ── ESC/POS command bytes ─────────────────────────────────────────────────────
+const B = {
+  INIT:       [0x1B, 0x40],           // Reset printer to defaults
+  BOLD_ON:    [0x1B, 0x45, 0x01],
+  BOLD_OFF:   [0x1B, 0x45, 0x00],
+  CENTER:     [0x1B, 0x61, 0x01],
+  LEFT:       [0x1B, 0x61, 0x00],
+  DOUBLE_ON:  [0x1B, 0x21, 0x30],    // Double height + width
+  DOUBLE_OFF: [0x1B, 0x21, 0x00],
+  CUT:        [0x1D, 0x56, 0x42, 0x03], // Full cut
+  LF:         [0x0A],                 // Line feed
+};
 
-function buildKOTEscPos({ restaurantName, slotLabel, orderId, orderType, customerName,
-                           deliveryAddress, specialInstructions, items, width = '80mm' }) {
-  const now = new Date();
-  const d = now.toLocaleDateString('en-IN');
-  const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+// ── Primitive helpers ─────────────────────────────────────────────────────────
 
-  const rows = (items || []).map(i => `
-    <tr>
-      <td style="padding:5px 2px;font-size:14px;font-weight:900;border-bottom:1px dashed #000;word-break:break-word;">${esc(i.name)}</td>
-      <td style="padding:5px 2px;font-size:18px;font-weight:900;text-align:right;border-bottom:1px dashed #000;white-space:nowrap;">× ${+(i.quantity || i.qty || 1)}</td>
-    </tr>`).join('');
-
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT</title>
-<style>${PAGE_CSS(width)}</style></head><body>
-<div class="w">
-  <div class="c" style="margin-bottom:8px;">
-    <div style="font-size:20px;font-weight:900;letter-spacing:2px;">${esc((restaurantName || '').toUpperCase())}</div>
-    <div style="font-size:13px;font-weight:900;margin-top:4px;">★ KITCHEN ORDER TICKET ★</div>
-    <div style="font-size:11px;margin-top:2px;font-weight:700;">${esc((orderType || 'ORDER').toUpperCase())}</div>
-  </div>
-  <hr class="sep">
-  <table style="font-size:12px;margin-bottom:5px;">
-    <tr><td class="b">SLOT</td><td style="text-align:right;font-size:16px;font-weight:900;">${esc(slotLabel || '')}</td></tr>
-    <tr><td class="b">DATE</td><td style="text-align:right;">${d}</td></tr>
-    <tr><td class="b">TIME</td><td style="text-align:right;font-weight:900;">${t}</td></tr>
-    ${orderId       ? `<tr><td class="b">REF</td><td style="text-align:right;font-weight:900;">${esc(String(orderId).slice(-12))}</td></tr>` : ''}
-    ${customerName  ? `<tr><td class="b">NAME</td><td style="text-align:right;">${esc(customerName)}</td></tr>` : ''}
-    ${deliveryAddress ? `<tr><td class="b" colspan="2" style="padding-top:4px;">ADDR: ${esc(deliveryAddress)}</td></tr>` : ''}
-  </table>
-  <hr class="sep">
-  <div class="c b" style="font-size:13px;padding:4px 0;letter-spacing:1px;">── ITEMS TO PREPARE ──</div>
-  <hr class="sep">
-  <table style="margin-bottom:5px;">${rows}</table>
-  <hr class="sep">
-  ${specialInstructions ? `<div style="font-size:12px;font-weight:900;padding:4px 0;border-bottom:2px solid #000;margin-bottom:5px;">⚠ NOTE: ${esc(specialInstructions)}</div>` : ''}
-  <div class="c" style="font-size:13px;font-weight:900;padding:6px 0;">─── PREPARE WITH CARE ───</div>
-  <div class="c" style="font-size:10px;margin-top:4px;color:#555;">Printed: ${d} ${t}</div>
-</div>
-</body></html>`;
+/** Merge arrays / strings / numbers into one flat byte array */
+function bytes(...parts) {
+  const out = [];
+  for (const p of parts) {
+    if (Array.isArray(p)) {
+      out.push(...p);
+    } else if (typeof p === 'string') {
+      for (let i = 0; i < p.length; i++) out.push(p.charCodeAt(i) & 0xFF);
+    } else if (typeof p === 'number') {
+      out.push(p & 0xFF);
+    }
+    // ignore null / undefined / empty array silently
+  }
+  return out;
 }
 
-// ── Bill ──────────────────────────────────────────────────────────────────────
+/** Convert byte array to lowercase hex string: [0x1B,0x40] → "1b40" */
+function toHex(arr) {
+  return arr.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
-function buildBillEscPos({ restaurantName, slotLabel, orderType, customerName, customerPhone,
-                            deliveryAddress, items, packagingCharge = 0, deliveryCharge = 0,
-                            extraCharge = 0, extraChargeLabel = '', paymentMethod, width = '80mm',
-                            // desktop passes total directly — use it if items are missing prices
-                            total = 0 }) {
+/** n × line-feed bytes */
+function lf(n = 1) {
+  const o = [];
+  for (let i = 0; i < n; i++) o.push(...B.LF);
+  return o;
+}
+
+/** One line of text + LF */
+function line(t) {
+  return bytes(t, B.LF);
+}
+
+/**
+ * Centre-aligned text, padded to width W, + LF.
+ * Text is truncated to W if longer.
+ */
+function cLine(t, W) {
+  const s = String(t).substring(0, W);
+  return line(' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s);
+}
+
+/**
+ * Left label + right value on the same line, total width W, + LF.
+ * Left side is truncated to fit; at least 1 space separates left and right.
+ *
+ * Example (W=32):  lrLine('SLOT:', 'TABLE 3', 32)
+ *   → "SLOT:                  TABLE 3\n"
+ */
+function lrLine(l, r, W) {
+  const rv  = String(r);
+  const lv  = String(l).substring(0, W - rv.length - 1);
+  const pad = Math.max(1, W - lv.length - rv.length);
+  return line(lv + ' '.repeat(pad) + rv);
+}
+
+/** Full separator line, character c repeated W times, + LF */
+function sep(W, c) {
+  return line(c.repeat(W));
+}
+
+// ── KOT builder ───────────────────────────────────────────────────────────────
+
+/**
+ * Build raw ESC/POS bytes for a Kitchen Order Ticket.
+ *
+ * @param {object} p
+ * @param {string}   p.restaurantName
+ * @param {string}   p.slotLabel          e.g. "TABLE 3" | "ROOM 2" | "TAKEAWAY"
+ * @param {string}   [p.orderId]          last 8 chars printed as REF
+ * @param {string}   [p.orderType]        "dine-in" | "room" | "takeaway" | "delivery"
+ * @param {string}   [p.customerName]
+ * @param {string}   [p.deliveryAddress]
+ * @param {string}   [p.specialInstructions]
+ * @param {Array}    p.items              [{name: string, quantity: number}]
+ * @returns {number[]} byte array
+ *
+ * Sample input:
+ * {
+ *   restaurantName:      "Hotel King",
+ *   slotLabel:           "TABLE 3",
+ *   orderId:             "64f3a2b1c9e4",
+ *   orderType:           "dine-in",
+ *   customerName:        "Waiter W01",
+ *   deliveryAddress:     null,
+ *   specialInstructions: null,
+ *   items: [
+ *     { name: "Butter Chicken", quantity: 2 },
+ *     { name: "Garlic Naan",    quantity: 4 },
+ *   ]
+ * }
+ */
+function buildKOTBytes({
+  restaurantName,
+  slotLabel,
+  orderId,
+  orderType,
+  customerName,
+  deliveryAddress,
+  specialInstructions,
+  items,
+}) {
   const now = new Date();
-  const d = now.toLocaleDateString('en-IN');
-  const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const W   = 32;   // characters per line for 58 mm paper
 
-  const billItems = (items || []).map(i => ({
+  return bytes(
+    // ── Header ──────────────────────────────────────────────────
+    B.INIT,
+    B.CENTER,
+    B.DOUBLE_ON, B.BOLD_ON,
+    line((restaurantName || 'RESTAURANT').toUpperCase().substring(0, 16)),
+    B.DOUBLE_OFF,
+    line('KITCHEN ORDER TICKET'),
+    orderType ? line(orderType.toUpperCase()) : [],
+    B.BOLD_OFF,
+
+    // ── Meta ────────────────────────────────────────────────────
+    sep(W, '='),
+    B.LEFT,
+    slotLabel ? bytes(B.BOLD_ON, lrLine('SLOT:', slotLabel, W), B.BOLD_OFF) : [],
+    lrLine('DATE:', now.toLocaleDateString('en-IN'), W),
+    bytes(B.BOLD_ON, lrLine('TIME:', now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), W), B.BOLD_OFF),
+    orderId       ? lrLine('REF:',   String(orderId).slice(-8).toUpperCase(), W) : [],
+    customerName  ? lrLine('NAME:',  customerName,    W) : [],
+    deliveryAddress ? line('ADDR: ' + deliveryAddress) : [],
+
+    // ── Items ───────────────────────────────────────────────────
+    sep(W, '='),
+    B.CENTER, B.BOLD_ON, line('-- ITEMS TO PREPARE --'), B.BOLD_OFF,
+    sep(W, '='),
+    B.LEFT,
+    ...(items || []).map(i =>
+      bytes(
+        B.BOLD_ON,
+        // Name truncated to 24 chars; quantity right-aligned e.g. "x2"
+        lrLine(String(i.name).substring(0, 24), 'x' + (i.quantity || 1), W),
+        B.BOLD_OFF,
+      )
+    ),
+
+    // ── Footer ──────────────────────────────────────────────────
+    sep(W, '='),
+    specialInstructions
+      ? bytes(B.BOLD_ON, line('NOTE: ' + specialInstructions), B.BOLD_OFF, sep(W, '-'))
+      : [],
+    B.CENTER, B.BOLD_ON,
+    line('PREPARE WITH CARE'),
+    B.BOLD_OFF,
+    lf(1),
+    B.CUT,
+  );
+}
+
+// ── Bill builder ──────────────────────────────────────────────────────────────
+
+/**
+ * Build raw ESC/POS bytes for a Customer Bill / Receipt.
+ *
+ * Total is computed from items + charges — do NOT pass a pre-computed total.
+ *
+ * @param {object} p
+ * @param {string}   p.restaurantName
+ * @param {string}   [p.slotLabel]         e.g. "TABLE 3"
+ * @param {string}   [p.orderType]         "dine-in" | "room" | "takeaway" | "delivery"
+ * @param {string}   [p.customerName]
+ * @param {string}   [p.customerPhone]
+ * @param {string}   [p.deliveryAddress]
+ * @param {string}   [p.paymentMethod]     "cash" | "upi" | "card" | "online"
+ * @param {number}   [p.packagingCharge]   default 0
+ * @param {number}   [p.deliveryCharge]    default 0
+ * @param {Array}    p.items               [{name, quantity, price, complimentary?}]
+ * @returns {number[]} byte array
+ *
+ * Sample input:
+ * {
+ *   restaurantName:  "Hotel King",
+ *   slotLabel:       "TABLE 3",
+ *   orderType:       "dine-in",
+ *   customerName:    "Rahul",
+ *   customerPhone:   "9876543210",
+ *   deliveryAddress: null,
+ *   paymentMethod:   "cash",
+ *   packagingCharge: 0,
+ *   deliveryCharge:  0,
+ *   items: [
+ *     { name: "Butter Chicken", quantity: 2, price: 280, complimentary: false },
+ *     { name: "Garlic Naan",    quantity: 4, price: 40,  complimentary: false },
+ *     { name: "Papad",          quantity: 2, price: 20,  complimentary: true  },
+ *   ]
+ * }
+ */
+function buildBillBytes({
+  restaurantName,
+  slotLabel,
+  orderType,
+  customerName,
+  customerPhone,
+  deliveryAddress,
+  items,
+  packagingCharge,
+  deliveryCharge,
+  paymentMethod,
+}) {
+  const now = new Date();
+  const W   = 32;
+
+  // Normalise items
+  const bi = (items || []).map(i => ({
     name:         String(i.name || ''),
-    price:        parseFloat(i.price) || 0,
-    quantity:     parseInt(i.quantity || i.qty) || 1,
+    price:        parseFloat(i.price)    || 0,
+    quantity:     parseInt(i.quantity)   || 1,
     complimentary: !!i.complimentary,
   }));
 
-  const subtotal   = billItems.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
-  const compTotal  = billItems.filter(i =>  i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
-  const pack       = parseFloat(packagingCharge) || 0;
-  const deliv      = parseFloat(deliveryCharge)  || 0;
-  const extra      = parseFloat(extraCharge)     || 0;
-  const grandTotal = subtotal + pack + deliv + extra;
+  // Totals — computed here, NOT taken from a passed-in total field
+  const sub  = bi.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
+  const ext  = (parseFloat(packagingCharge) || 0) + (parseFloat(deliveryCharge) || 0);
+  const total = sub + ext;
 
-  const rows = billItems.map(i => `
-    <tr>
-      <td style="padding:5px 2px;font-size:12px;font-weight:900;border-bottom:1px dashed #000;word-break:break-word;width:50%;">${esc(i.name)}${i.complimentary ? ' ★COMP' : ''}</td>
-      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:center;border-bottom:1px dashed #000;width:12%;">${i.quantity}</td>
-      <td style="padding:5px 2px;font-size:11px;text-align:right;border-bottom:1px dashed #000;width:18%;">${i.complimentary ? 'COMP' : '₹' + i.price.toFixed(2)}</td>
-      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:right;border-bottom:1px dashed #000;width:20%;">${i.complimentary ? '₹0' : '₹' + (i.price * i.quantity).toFixed(2)}</td>
-    </tr>`).join('');
+  // Receipt title
+  const rt = orderType === 'delivery' ? 'DELIVERY RECEIPT'
+           : orderType === 'takeaway' ? 'TAKEAWAY RECEIPT'
+           : orderType === 'room'     ? 'ROOM RECEIPT'
+           :                            'DINE-IN RECEIPT';
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title>
-<style>${PAGE_CSS(width)}</style></head><body>
-<div class="w">
-  <div class="c" style="margin-bottom:8px;">
-    <div style="font-size:22px;font-weight:900;letter-spacing:2px;">${esc((restaurantName || '').toUpperCase())}</div>
-    <div style="font-size:12px;font-weight:900;margin-top:4px;">${
-      orderType === 'delivery' ? 'DELIVERY RECEIPT'
-      : orderType === 'takeaway' ? 'TAKEAWAY RECEIPT'
-      : orderType === 'room'     ? 'ROOM RECEIPT'
-      : 'DINE-IN RECEIPT'
-    }</div>
-  </div>
-  <hr class="sep">
-  <table style="font-size:12px;margin-bottom:5px;">
-    ${slotLabel     ? `<tr><td class="b">SLOT</td><td style="text-align:right;font-size:14px;font-weight:900;">${esc(slotLabel)}</td></tr>` : ''}
-    <tr><td class="b">DATE</td><td style="text-align:right;">${d}</td></tr>
-    <tr><td class="b">TIME</td><td style="text-align:right;">${t}</td></tr>
-    ${customerName  ? `<tr><td class="b">NAME</td><td style="text-align:right;">${esc(customerName)}</td></tr>` : ''}
-    ${customerPhone ? `<tr><td class="b">PHONE</td><td style="text-align:right;">${esc(customerPhone)}</td></tr>` : ''}
-    ${paymentMethod ? `<tr><td class="b">PAYMENT</td><td style="text-align:right;font-weight:900;">${esc(paymentMethod.toUpperCase())}</td></tr>` : ''}
-    ${deliveryAddress ? `<tr><td class="b" colspan="2" style="padding-top:4px;">ADDR: ${esc(deliveryAddress)}</td></tr>` : ''}
-  </table>
-  <hr class="sep">
-  <table style="margin-bottom:4px;">
-    <tr>
-      <th style="text-align:left;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:50%;">ITEM</th>
-      <th style="text-align:center;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:12%;">QTY</th>
-      <th style="text-align:right;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:18%;">RATE</th>
-      <th style="text-align:right;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:20%;">AMT</th>
-    </tr>
-    ${rows}
-  </table>
-  <hr class="sep">
-  <table style="font-size:12px;margin-bottom:5px;">
-    ${compTotal > 0 ? `<tr><td class="b">COMPLIMENTARY</td><td style="text-align:right;">−₹${compTotal.toFixed(2)}</td></tr>` : ''}
-    ${pack  > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">₹${pack.toFixed(2)}</td></tr>`  : ''}
-    ${deliv > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">₹${deliv.toFixed(2)}</td></tr>`  : ''}
-    ${extra > 0 ? `<tr><td class="b">${esc((extraChargeLabel || 'EXTRA').toUpperCase())}</td><td style="text-align:right;">₹${extra.toFixed(2)}</td></tr>` : ''}
-  </table>
-  <hr class="sep">
-  <table style="margin-bottom:6px;">
-    <tr>
-      <td style="font-size:18px;font-weight:900;padding:4px 2px;">TOTAL</td>
-      <td style="text-align:right;font-size:22px;font-weight:900;padding:4px 2px;">₹${grandTotal.toFixed(2)}</td>
-    </tr>
-  </table>
-  <hr class="sep">
-  <div class="c" style="font-size:13px;font-weight:900;padding:6px 0;">THANK YOU! PLEASE VISIT AGAIN</div>
-  <div class="c" style="font-size:18px;padding:3px 0;">★ ★ ★ ★ ★</div>
-  <div class="c" style="font-size:10px;margin-top:6px;color:#555;">Printed: ${d} ${t}</div>
-</div>
-</body></html>`;
+  return bytes(
+    // ── Header ──────────────────────────────────────────────────
+    B.INIT,
+    B.CENTER,
+    B.DOUBLE_ON, B.BOLD_ON,
+    line((restaurantName || 'RESTAURANT').toUpperCase().substring(0, 16)),
+    B.DOUBLE_OFF,
+    line(rt),
+    B.BOLD_OFF,
+
+    // ── Meta ────────────────────────────────────────────────────
+    sep(W, '='),
+    B.LEFT,
+    slotLabel     ? bytes(B.BOLD_ON, lrLine('SLOT:',    slotLabel,                  W), B.BOLD_OFF) : [],
+    lrLine('DATE:',    now.toLocaleDateString('en-IN'), W),
+    lrLine('TIME:',    now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), W),
+    customerName  ? lrLine('NAME:',    customerName,   W) : [],
+    customerPhone ? lrLine('PHONE:',   customerPhone,  W) : [],
+    paymentMethod ? bytes(B.BOLD_ON, lrLine('PAYMENT:', paymentMethod.toUpperCase(), W), B.BOLD_OFF) : [],
+    deliveryAddress ? line('ADDR: ' + deliveryAddress) : [],
+
+    // ── Items ───────────────────────────────────────────────────
+    sep(W, '='),
+    bytes(B.BOLD_ON, lrLine('ITEM', 'AMT', W), B.BOLD_OFF),
+    sep(W, '-'),
+    ...bi.map(i =>
+      // Name truncated to 20 chars + " x<qty>"; amount right-aligned
+      // Complimentary items show COMP instead of Rs.amount
+      lrLine(
+        i.name.substring(0, 20) + ' x' + i.quantity,
+        i.complimentary ? 'COMP' : 'Rs.' + (i.price * i.quantity).toFixed(0),
+        W,
+      )
+    ),
+
+    // ── Charges ─────────────────────────────────────────────────
+    sep(W, '='),
+    packagingCharge > 0 ? lrLine('PACKAGING:', 'Rs.' + Number(packagingCharge).toFixed(0), W) : [],
+    deliveryCharge  > 0 ? lrLine('DELIVERY:',  'Rs.' + Number(deliveryCharge).toFixed(0),  W) : [],
+
+    // ── Total (double size) ─────────────────────────────────────
+    bytes(B.BOLD_ON, B.DOUBLE_ON, lrLine('TOTAL:', 'Rs.' + total.toFixed(0), W), B.DOUBLE_OFF, B.BOLD_OFF),
+    sep(W, '='),
+
+    // ── Footer ──────────────────────────────────────────────────
+    B.CENTER,
+    line('THANK YOU! VISIT AGAIN'),
+    line('* * * * * * * *'),
+    lf(1),
+    B.CUT,
+  );
 }
 
-function esc(str) {
-  return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
+// ── Exports ───────────────────────────────────────────────────────────────────
 
-module.exports = { buildKOTEscPos, buildBillEscPos };
+module.exports = {
+  buildKOTBytes,
+  buildBillBytes,
+  toHex,
+  B,          // export commands in case caller needs them
+};
