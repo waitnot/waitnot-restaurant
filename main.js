@@ -503,15 +503,19 @@ async function doPoll() {
       if (!sd || !tk) return null;
       const staff = JSON.parse(sd);
       if (!staff.restaurant_id) return null;
-      const rd = localStorage.getItem('restaurantData');
-      return { rid: staff.restaurant_id, tk, rname: rd ? JSON.parse(rd).name : null, staffEmail: staff.email || null };
+      // Restaurant name is stored under restaurant_cache_<id> by the dashboard
+      const rdCached = localStorage.getItem('restaurant_cache_' + staff.restaurant_id);
+      const rdFallback = localStorage.getItem('restaurantData');
+      const rd = rdCached || rdFallback;
+      const rname = rd ? (JSON.parse(rd).name || null) : null;
+      return { rid: staff.restaurant_id, tk, rname, staffEmail: staff.email || null };
     } catch(e) { return null; }
   })()`);
 
   if (!info || !info.rid) return;  // not logged in yet — running=false in finally
 
   const { rid, tk } = info;
-  const restaurantName = info.rname || store.get('restaurantName', 'Restaurant');
+  const restaurantName = info.rname || store.get('restaurantName', '') || 'Restaurant';
   if (info.rname) store.set('restaurantName', info.rname);
 
   // Cache staff credentials for offline login (refreshed every poll cycle)
