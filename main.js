@@ -611,7 +611,7 @@ async function doPoll() {
           orderType     : (order.orderType||'dine-in').toLowerCase(),
           customerName  : order.customerName || '',
           deliveryAddress: order.deliveryAddress || null,
-          items         : (order.items||[]).map(i => ({ name: i.name, quantity: i.quantity||1 })),
+          items         : (order.items||[]).map(i => ({ name: i.name, quantity: i.quantity || i.qty || 1 })),
         }));
         return rawPrintWindows(printer, _kotBuf);
       })()
@@ -649,7 +649,7 @@ async function doPoll() {
           paymentMethod : ((order.paymentMethod||'cash')).toLowerCase(),
           items         : (order.items||[]).map(i => ({
             name         : i.name,
-            quantity     : i.quantity || 1,
+            quantity     : i.quantity || i.qty || 1,
             price        : parseFloat(i.price) || 0,
             complimentary: !!i.complimentary,
           })),
