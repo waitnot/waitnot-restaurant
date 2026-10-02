@@ -579,6 +579,13 @@ async function doPoll() {
 
       console.log(`📦 Orders synced: ${activeOrders.length} server + ${pendingOffline.length} offline pending`);
       pushOrdersToUI(merged);
+      // If __wn_setOrders is not available (nulled after remount), fall back to
+      // triggering a React re-fetch so the table grid always stays current.
+      safeExecJS(`
+        if (typeof window.__wn_setOrders !== 'function' && typeof window.__wn_refreshOrders === 'function') {
+          window.__wn_refreshOrders();
+        }
+      `).catch(() => {});
     }
   }
 
