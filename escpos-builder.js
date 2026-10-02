@@ -297,7 +297,8 @@ function buildBillBytes({
     deliveryCharge  > 0 ? lrLine('DELIVERY:',  'Rs.' + Number(deliveryCharge).toFixed(0),  W) : [],
 
     // ΓöÇΓöÇ Total (double size) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-    bytes(B.BOLD_ON, B.DOUBLE_ON, lrLine('TOTAL:', 'Rs.' + total.toFixed(0), W), B.DOUBLE_OFF, B.BOLD_OFF),
+    // TOTAL in double-width: effective width = W/2 = 16 chars
+    bytes(B.BOLD_ON, B.DOUBLE_ON, lrLine('TOTAL:', 'Rs.' + total.toFixed(0), Math.floor(W / 2)), B.DOUBLE_OFF, B.BOLD_OFF),
     sep(W, '='),
 
     // ΓöÇΓöÇ Footer ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
