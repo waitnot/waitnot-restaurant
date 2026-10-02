@@ -3,6 +3,7 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const { listPrinters, printKOT, printBill, rawPrintWindows } = require('./printer');
+const { buildKOTBytes, buildBillBytes } = require('./escpos-builder');
 const offlineDb     = require('./offline-db');
 const syncEngine    = require('./sync-engine');
 const uploadEngine  = require('./upload-engine');
@@ -1361,9 +1362,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
   }
 
   // ── Step 2: Try ESC/POS raw print first (fastest, most reliable) ─────────
-  const { buildKOTBytes, buildBillBytes } = require('./escpos-builder');
-  // Resolve paper width — prefer the @page size embedded in the HTML by the template,
-  // fall back to stored setting, default 58mm (most common desktop thermal printer)
+  // paperWidth from electron store
   const storedWidth = store.get('paperWidth', '58mm');
   const paperWidth  = html.includes('size: 58mm') ? '58mm'
                     : html.includes('size: 80mm') ? '80mm'
