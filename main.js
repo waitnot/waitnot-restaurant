@@ -662,6 +662,26 @@ async function doPoll() {
     }
   }
 }
+
+// ─── Orders history instant refresh ─────────────────────────────────────────
+// When on the history tab, call window.__wn_refreshHistory() which calls Ke()
+// (the React fetch for completed orders) so orders cleared on other devices
+// show up immediately without a manual tab click.
+async function pollCompletedOrders() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    const onDashboard = await safeExecJS(`(window.location.hash||'').includes('staff-dashboard')`);
+    if (!onDashboard) return;
+    // Refresh history list if the hook is available (set after Me() runs)
+    safeExecJS(`
+      if (typeof window.__wn_refreshHistory === 'function') window.__wn_refreshHistory();
+    `).catch(() => {});
+  } catch {}
+}
+
+// Run history refresh every 5 seconds
+setInterval(() => pollCompletedOrders(), 5000);
+
 // App event handlers
 
 // ─── Node-side connectivity watchdog ────────────────────────────────────────

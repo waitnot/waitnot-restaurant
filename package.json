@@ -1,6 +1,6 @@
 {
     "name":  "waitnot-staff-dashboard",
-    "version":  "3.10.0-v",
+    "version":  "3.10.0-w",
     "description":  "WaitNot Staff Dashboard Desktop Application",
     "main":  "main.js",
     "scripts":  {
@@ -39,10 +39,11 @@
                   "productName":  "WaitNot Staff",
                   "copyright":  "Copyright © 2024 WaitNot Team",
                   "directories":  {
-                                      "output":  "C:\\\\WaitNot-310v",
+                                      "output":  "C:\\\\WaitNot-310w",
                                       "buildResources":  "build"
                                   },
                   "files":  [
+                                "logo.ico",
                                 "main.js",
                                 "preload.js",
                                 "printer.js",
@@ -69,7 +70,7 @@
                                                           ]
                                              }
                                          ],
-                              "icon":  "logo.png",
+                              "icon":  "logo.ico",
                               "requestedExecutionLevel":  "asInvoker",
                               "publisherName":  "WaitNot Team",
                               "verifyUpdateCodeSignature":  false,
