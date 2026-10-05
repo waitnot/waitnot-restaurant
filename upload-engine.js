@@ -33,9 +33,10 @@
  *     If not found: re-queue as PENDING (retry the upload)
  */
 
-const https  = require('https');
+const https        = require('https');
+const remoteConfig = require('./remote-config');
 
-const API_HOST           = 'waitnot-restaurant.onrender.com';
+// API_HOST is now dynamic — always call remoteConfig.getApiHost() at request time
 const UPLOAD_TIMEOUT_MS  = 12000;   // 12 seconds — timeout → UNKNOWN
 const UPLOAD_INTERVAL_MS = 30000;   // check queue every 30 seconds
 const MAX_PARALLEL       = 3;       // upload at most 3 orders at once
@@ -51,7 +52,7 @@ function nodePost(path, body, token) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const req  = https.request({
-      hostname: API_HOST,
+      hostname: remoteConfig.getApiHost(),
       path,
       method : 'POST',
       headers: {
@@ -87,7 +88,7 @@ function nodePost(path, body, token) {
 function nodeGet(path, token) {
   return new Promise((resolve) => {
     const req = https.request({
-      hostname: API_HOST,
+      hostname: remoteConfig.getApiHost(),
       path,
       method : 'GET',
       headers: {

@@ -29,11 +29,12 @@
  *   SYNC_ERROR → last sync failed with an error
  */
 
-const https  = require('https');
-const crypto = require('crypto');
+const https        = require('https');
+const crypto       = require('crypto');
+const remoteConfig = require('./remote-config');
 
 // ─── Configuration ────────────────────────────────────────────────────────────
-const API_HOST          = 'waitnot-restaurant.onrender.com';
+// API_HOST is now dynamic — always call remoteConfig.getApiHost() at request time
 const SYNC_INTERVAL_MS  = 5 * 60 * 1000;   // 5 minutes
 const CONNECT_TIMEOUT_MS = 8000;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -56,7 +57,7 @@ const state = {
 function nodeGet(path, { timeout = REQUEST_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
     const req = https.request({
-      hostname: API_HOST,
+      hostname: remoteConfig.getApiHost(),
       path,
       method: 'GET',
       headers: { Accept: 'application/json' },

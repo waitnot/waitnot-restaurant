@@ -7,6 +7,7 @@ const { buildKOTBytes, buildBillBytes } = require('./escpos-builder');
 const offlineDb     = require('./offline-db');
 const syncEngine    = require('./sync-engine');
 const uploadEngine  = require('./upload-engine');
+const remoteConfig  = require('./remote-config');
 
 // Register 'waitnot' as a privileged scheme BEFORE app is ready.
 // This gives it the same permissions as https:// — localStorage, cookies,
@@ -104,7 +105,7 @@ function createWindow() {
             if (typeof window.io === 'function' && !window.io.__patched) {
               const orig = window.io;
               window.io = function(url, opts) {
-                const target = (!url || url === '' || url === '/') ? 'https://waitnot-restaurant.onrender.com' : url;
+                const target = (!url || url === '' || url === '/') ? remoteConfig.getApiUrl() : url;
                 return orig(target, opts);
               };
               Object.assign(window.io, orig);
@@ -153,7 +154,7 @@ function createWindow() {
           pollActive = true;
 
           const req = https.request({
-            hostname: 'waitnot-restaurant.onrender.com',
+            hostname: remoteConfig.getApiHost(),
             path: `/api/orders/restaurant/${rid}?status=active`,
             method: 'GET',
             headers: { 'Authorization': `Bearer ${tk}` },
@@ -356,6 +357,30 @@ function createMenu() {
           }
         },
         {
+          label: 'Check for Updates',
+          click: () => {
+            autoUpdater.checkForUpdates().then(result => {
+              if (!result) {
+                dialog.showMessageBox(mainWindow, {
+                  type: 'info',
+                  title: 'Up to date',
+                  message: 'You are running the latest version.',
+                  detail: `Version: ${app.getVersion()}`,
+                  buttons: ['OK']
+                });
+              }
+            }).catch(err => {
+              dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: 'Update Check Failed',
+                message: 'Could not check for updates.',
+                detail: err.message,
+                buttons: ['OK']
+              });
+            });
+          }
+        },
+        {
           label: 'Contact Support',
           click: () => {
             shell.openExternal('https://wa.me/916364039135?text=Hello%2C%20I%20need%20help%20with%20WaitNot%20Restaurant%20App');
@@ -426,7 +451,7 @@ let   lastOrdersBody = '';
 function nodeGet(path, token) {
   return new Promise((resolve) => {
     const req = https.request({
-      hostname: 'waitnot-restaurant.onrender.com',
+      hostname: remoteConfig.getApiHost(),
       path, method: 'GET',
       headers: Object.assign({ Accept: 'application/json' },
                token ? { Authorization: `Bearer ${token}` } : {}),
@@ -693,7 +718,7 @@ let _wasOnline = true; // assume online at start
 function startConnectivityWatchdog() {
   const dns = require('dns');
   setInterval(() => {
-    dns.lookup('waitnot-restaurant.onrender.com', (err) => {
+    dns.lookup(remoteConfig.getApiHost(), (err) => {
       const isOnline = !err;
       if (isOnline && !_wasOnline) {
         // Just came back online
@@ -708,12 +733,15 @@ function startConnectivityWatchdog() {
   }, 15000);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // ── Load remote server config first so API_URL is set before anything connects ─
+  await remoteConfig.init(app.getPath('userData'));
+
   // ── Intercept all HTTP responses from the backend and inject CORS headers.
   // This runs at the Chromium network layer, so it catches every request made
   // by Axios, fetch, XHR, Socket.IO — regardless of when they initialised.
   const { session } = require('electron');
-  const API_ORIGIN = 'https://waitnot-restaurant.onrender.com';
+  const API_ORIGIN = remoteConfig.getApiUrl();
 
   session.defaultSession.webRequest.onHeadersReceived(
     { urls: [`${API_ORIGIN}/*`] },
@@ -1067,6 +1095,20 @@ ipcMain.handle('offline:getCachedStaff', (event, { email, password }) => {
   } catch (e) {
     return { success: false, error: e.message };
   }
+});
+
+// ─── Remote config IPC ────────────────────────────────────────────────────────
+ipcMain.handle('config:getApiUrl', () => {
+  return remoteConfig.getApiUrl();
+});
+
+ipcMain.handle('config:getStatus', () => {
+  return remoteConfig.getStatus();
+});
+
+ipcMain.handle('config:refresh', async () => {
+  const changed = await remoteConfig.refresh();
+  return { changed, ...remoteConfig.getStatus() };
 });
 
 // ─── Sync engine IPC ──────────────────────────────────────────────────────────
@@ -1672,7 +1714,7 @@ ipcMain.handle('auto-print-bill', async (event, { orderIds }) => {
     const firstId = orderIds[0];
     const orderData = await new Promise((resolve) => {
       const req = https.request({
-        hostname: 'waitnot-restaurant.onrender.com',
+        hostname: remoteConfig.getApiHost(),
         path: `/api/orders/${firstId}`,
         method: 'GET',
         rejectUnauthorized: false,
@@ -1696,7 +1738,7 @@ ipcMain.handle('auto-print-bill', async (event, { orderIds }) => {
       const extras = await Promise.all(
         orderIds.slice(1).map(id => new Promise((resolve) => {
           const req = https.request({
-            hostname: 'waitnot-restaurant.onrender.com',
+            hostname: remoteConfig.getApiHost(),
             path: `/api/orders/${id}`,
             method: 'GET',
             rejectUnauthorized: false,

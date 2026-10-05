@@ -14,7 +14,16 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-const API = 'https://waitnot-restaurant.onrender.com';
+// API URL is resolved dynamically from remote-config via IPC.
+// We start with the known fallback so Socket.IO patch works immediately,
+// then replace it once the async IPC response comes back.
+let API = 'https://waitnot-restaurant-2.onrender.com';
+ipcRenderer.invoke('config:getApiUrl').then(url => {
+  if (url && typeof url === 'string' && url.startsWith('https://')) {
+    API = url;
+    console.log('[WaitNot] API URL resolved from remote config:', API);
+  }
+}).catch(() => {});
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. Expose electronAPI — called synchronously before any page script
@@ -67,6 +76,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Network events
   notifyReconnected: () => ipcRenderer.invoke('network:reconnected'),
+
+  // Remote config
+  config: {
+    getApiUrl : ()  => ipcRenderer.invoke('config:getApiUrl'),
+    getStatus : ()  => ipcRenderer.invoke('config:getStatus'),
+    refresh   : ()  => ipcRenderer.invoke('config:refresh'),
+  },
 
   showNotification: (title, body) => {
     if (Notification.permission === 'granted') {
