@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WaitNot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #ef4444;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: white;
+      user-select: none;
+    }
+    .logo {
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    .sub {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 40px;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .status {
+      margin-top: 16px;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="logo">WaitNot</div>
+  <div class="sub">Restaurant Management</div>
+  <div class="spinner"></div>
+  <div class="status" id="status">Starting server...</div>
+  <script>
+    const msgs = ['Starting server...', 'Loading database...', 'Preparing app...', 'Almost ready...'];
+    let i = 0;
+    setInterval(() => {
+      i = (i + 1) % msgs.length;
+      document.getElementById('status').textContent = msgs[i];
+    }, 1800);
+  </script>
+</body>
+</html>
