@@ -689,18 +689,61 @@ async function doPoll() {
 }
 
 // ─── Orders history instant refresh ─────────────────────────────────────────
-// When on the history tab, call window.__wn_refreshHistory() which calls Ke()
-// (the React fetch for completed orders) so orders cleared on other devices
-// show up immediately without a manual tab click.
+// Fetches completed orders from Node (no CORS) every 5s and pushes them into
+// the React history tab via window.__wn_setHistory or __wn_refreshHistory.
+// Falls back to triggering a React re-fetch if neither hook is available.
+let lastHistoryBody = '';
+
 async function pollCompletedOrders() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   try {
-    const onDashboard = await safeExecJS(`(window.location.hash||'').includes('staff-dashboard')`);
-    if (!onDashboard) return;
-    // Refresh history list if the hook is available (set after Me() runs)
-    safeExecJS(`
-      if (typeof window.__wn_refreshHistory === 'function') window.__wn_refreshHistory();
-    `).catch(() => {});
+    const info = await safeExecJS(`(function(){
+      try {
+        const hash = window.location.hash || '';
+        if (!hash.includes('staff-dashboard')) return null;
+        const sd = localStorage.getItem('staffData');
+        const tk = localStorage.getItem('staffToken');
+        if (!sd || !tk) return null;
+        const rid = JSON.parse(sd).restaurant_id;
+        return rid ? { rid, tk } : null;
+      } catch { return null; }
+    })()`);
+    if (!info || !info.rid) return;
+
+    const { rid, tk } = info;
+
+    // Fetch completed orders directly from Node — no CORS, no browser involved
+    const completed = await nodeGet(`/api/orders/restaurant/${rid}?status=completed`, tk);
+    if (!Array.isArray(completed)) return;
+
+    const body = JSON.stringify(completed);
+    if (body === lastHistoryBody) return; // no change
+    lastHistoryBody = body;
+
+    const safe = body
+      .replace(/\\/g, '\\\\')
+      .replace(/`/g, '\\`')
+      .replace(/\$\{/g, '\\${');
+
+    // Push into renderer: try direct setter first, then trigger React re-fetch
+    safeExecJS(`(function(){
+      try {
+        const orders = JSON.parse(\`${safe}\`);
+        if (!Array.isArray(orders)) return;
+        // Method 1: direct history setter (if bundle exposes it)
+        if (typeof window.__wn_setHistory === 'function') {
+          window.__wn_setHistory(orders); return;
+        }
+        // Method 2: trigger React re-fetch via exposed refresh hook
+        if (typeof window.__wn_refreshHistory === 'function') {
+          window.__wn_refreshHistory(); return;
+        }
+        // Method 3: inject into window so React picks it up on next render
+        window.__wn_history_cache = orders;
+        window.dispatchEvent(new CustomEvent('__waitnot_history__', { detail: orders }));
+      } catch(e) {}
+    })()`).catch(() => {});
+
   } catch {}
 }
 
