@@ -316,5 +316,5 @@ module.exports = {
   buildKOTBytes,
   buildBillBytes,
   toHex,
-  B,          // export commands in case caller needs them
+  B,
 };
