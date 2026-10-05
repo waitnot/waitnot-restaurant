@@ -39,7 +39,7 @@
                   "productName":  "WaitNot Staff",
                   "copyright":  "Copyright © 2024 WaitNot Team",
                   "directories":  {
-                                      "output":  "C:\\\\WaitNot-311w",
+                                      "output":  "C:\\\\WaitNot-310w",
                                       "buildResources":  "build"
                                   },
                   "publish": [
