@@ -66,7 +66,7 @@ app.use(cors({
     if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
       return callback(null, true);
     }
-    if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
+    if (allowedOrigins.includes(origin) || origin.includes('vercel.app') || origin.includes('onrender.com')) {
       return callback(null, true);
     }
     console.log('❌ CORS blocked origin:', origin);
