@@ -1,0 +1,95 @@
+User-agent: *
+Allow: /
+
+# Allow important restaurant management system pages
+Allow: /
+Allow: /restaurant-login
+Allow: /qr/
+Allow: /restaurant/
+Allow: /restaurant-management-system
+Allow: /digital-menu-system
+Allow: /qr-code-ordering
+Allow: /restaurant-pos-system
+Allow: /online-food-ordering
+Allow: /restaurant-software
+Allow: /contactless-ordering
+Allow: /restaurant-technology
+Allow: /menu-management-system
+Allow: /kitchen-order-system
+Allow: /restaurant-analytics
+
+# Disallow admin and private areas
+Disallow: /admin-login
+Disallow: /admin-dashboard
+Disallow: /admin/
+Disallow: /restaurant-dashboard
+Disallow: /restaurant-profile
+Disallow: /printer-settings
+Disallow: /analytics
+
+# Sitemap location
+Sitemap: https://waitnot.in/sitemap.xml
+
+# Crawl delay for optimal indexing
+Crawl-delay: 0.5
+
+# Specific bot instructions for restaurant keywords
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+# Focus on restaurant management system content
+Allow: /restaurant-management-system
+Allow: /digital-menu-system
+Allow: /qr-code-ordering
+Allow: /restaurant-pos-system
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+# Restaurant software focus
+Allow: /restaurant-software
+Allow: /online-food-ordering
+Allow: /contactless-ordering
+
+# Block irrelevant bots to focus crawl budget on restaurant keywords
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MajesticSEO
+Disallow: /
+
+# Allow important SEO bots for restaurant industry
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+# Restaurant management system specific instructions
+# Priority pages for restaurant keywords
+# /restaurant-management-system - highest priority
+# /digital-menu-system - high priority  
+# /qr-code-ordering - high priority
+# /restaurant-pos-system - high priority
+# /online-food-ordering - high priority
+# /restaurant-software - high priority
+# /contactless-ordering - medium priority
+# /restaurant-technology - medium priority
+# /menu-management-system - medium priority
+# /kitchen-order-system - medium priority
+# /restaurant-analytics - medium priority
