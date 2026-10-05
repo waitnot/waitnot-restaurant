@@ -34,9 +34,8 @@ const io = new Server(httpServer, {
 // CORS configuration with Edge browser support and Vercel domains
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://waitnot-restaurant.onrender.com',
+      'https://waitnot-restaurant-2.onrender.com',
       'https://waitnot-restaurant-app.vercel.app',
-      'https://your-domain.com',
       'https://localhost',
       'http://localhost',
       'http://localhost:3000',

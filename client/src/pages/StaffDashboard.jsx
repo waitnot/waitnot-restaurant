@@ -34,7 +34,7 @@ import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
 
-const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
+const PRODUCTION_URL = 'https://waitnot-restaurant-2.onrender.com';
 const _isCapacitor = typeof window !== 'undefined' && (
   window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:'
 );

@@ -4,7 +4,7 @@ import { Users, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import axios from '../config/axios.js';
 import { secureSet } from '../utils/secureStorage.js';
 
-const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
+const PRODUCTION_URL = 'https://waitnot-restaurant-2.onrender.com';
 
 export default function StaffLogin() {
   const navigate = useNavigate();

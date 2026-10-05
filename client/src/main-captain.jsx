@@ -6,7 +6,7 @@ import './index.css';
 
 // Force production API for APK - must be set before any imports that use axios
 import axios from 'axios';
-axios.defaults.baseURL = 'https://waitnot-restaurant.onrender.com';
+axios.defaults.baseURL = 'https://waitnot-restaurant-2.onrender.com';
 
 import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
