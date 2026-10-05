@@ -261,9 +261,13 @@ function createWindow() {
     }
   });
 
-  // Handle app updates
+  // Handle app updates — silent background check on startup
   if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(err => {
+        console.warn('[updater] Startup check failed:', err.message);
+      });
+    }, 15000); // wait 15s after launch before checking
   }
 }
 
@@ -359,17 +363,9 @@ function createMenu() {
         {
           label: 'Check for Updates',
           click: () => {
-            autoUpdater.checkForUpdates().then(result => {
-              if (!result) {
-                dialog.showMessageBox(mainWindow, {
-                  type: 'info',
-                  title: 'Up to date',
-                  message: 'You are running the latest version.',
-                  detail: `Version: ${app.getVersion()}`,
-                  buttons: ['OK']
-                });
-              }
-            }).catch(err => {
+            _updateCheckTriggeredByUser = true;
+            autoUpdater.checkForUpdates().catch(err => {
+              _updateCheckTriggeredByUser = false;
               dialog.showMessageBox(mainWindow, {
                 type: 'warning',
                 title: 'Update Check Failed',
@@ -889,48 +885,117 @@ app.on('web-contents-created', (event, contents) => {
   });
 });
 
-// Auto-updater events
+// ─── Auto-updater ────────────────────────────────────────────────────────────
+// autoUpdater is configured via the "publish" block in package.json.
+// For portable builds, electron-updater downloads the new exe to a temp dir,
+// launches it, and quits the current instance.
+
+autoUpdater.autoDownload    = false;   // only download when user confirms
+autoUpdater.autoInstallOnAppQuit = false;
+
+let _updateAvailableInfo    = null;
+let _updateCheckTriggeredByUser = false;
+
 autoUpdater.on('checking-for-update', () => {
-  console.log('Checking for update...');
+  console.log('[updater] Checking for update...');
 });
 
 autoUpdater.on('update-available', (info) => {
-  console.log('Update available.');
+  _updateAvailableInfo = info;
+  console.log(`[updater] Update available: v${info.version}`);
   dialog.showMessageBox(mainWindow, {
     type: 'info',
     title: 'Update Available',
-    message: 'A new version is available. It will be downloaded in the background.',
-    buttons: ['OK']
+    message: `WaitNot Staff v${info.version} is available`,
+    detail: `You are on v${app.getVersion()}.\nDownload and install the update now?`,
+    buttons: ['Download & Install', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+  }).then(({ response }) => {
+    if (response === 0) {
+      autoUpdater.downloadUpdate();
+      // Show a progress window
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.executeJavaScript(`
+          (function(){
+            if (document.getElementById('__wn_update_bar')) return;
+            const bar = document.createElement('div');
+            bar.id = '__wn_update_bar';
+            bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;font-size:13px;font-family:sans-serif;padding:8px 16px;text-align:center;';
+            bar.textContent = 'Downloading update… 0%';
+            document.body.appendChild(bar);
+          })()
+        `).catch(() => {});
+      }
+    }
   });
 });
 
 autoUpdater.on('update-not-available', (info) => {
-  console.log('Update not available.');
+  console.log('[updater] Up to date.');
+  if (_updateCheckTriggeredByUser) {
+    _updateCheckTriggeredByUser = false;
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Up to Date',
+      message: `You're running the latest version (v${app.getVersion()}).`,
+      buttons: ['OK'],
+    });
+  }
 });
 
 autoUpdater.on('error', (err) => {
-  console.log('Error in auto-updater. ' + err);
+  console.error('[updater] Error:', err.message);
+  if (_updateCheckTriggeredByUser) {
+    _updateCheckTriggeredByUser = false;
+    dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Update Check Failed',
+      message: 'Could not check for updates.',
+      detail: err.message,
+      buttons: ['OK'],
+    });
+  }
 });
 
-autoUpdater.on('download-progress', (progressObj) => {
-  let log_message = "Download speed: " + progressObj.bytesPerSecond;
-  log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
-  log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
-  console.log(log_message);
+autoUpdater.on('download-progress', (p) => {
+  const pct = Math.round(p.percent);
+  const mb  = (p.transferred / 1048576).toFixed(1);
+  const tot = (p.total       / 1048576).toFixed(1);
+  console.log(`[updater] Downloading… ${pct}% (${mb}/${tot} MB)`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.executeJavaScript(`
+      (function(){
+        const bar = document.getElementById('__wn_update_bar');
+        if (bar) bar.textContent = 'Downloading update… ${pct}% (${mb} / ${tot} MB)';
+      })()
+    `).catch(() => {});
+  }
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  console.log('Update downloaded');
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'Update Ready',
-    message: 'Update downloaded. The application will restart to apply the update.',
-    buttons: ['Restart Now', 'Later']
-  }).then((result) => {
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall();
-    }
-  });
+  console.log('[updater] Update downloaded — ready to install');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.executeJavaScript(`
+      (function(){
+        const bar = document.getElementById('__wn_update_bar');
+        if (bar) { bar.style.background='#15803d'; bar.textContent='Update downloaded — restarting…'; }
+      })()
+    `).catch(() => {});
+  }
+  setTimeout(() => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update Ready',
+      message: `v${info.version} downloaded successfully.`,
+      detail: 'The app will now restart to apply the update.',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall(false, true);
+    });
+  }, 800);
 });
 
 // IPC handlers for renderer process
