@@ -1,2 +1,2 @@
 // Always use production URL - works for web, Electron, and Capacitor APK
-export const API_BASE_URL = 'https://waitnot-restaurant-2.onrender.com';
+export const API_BASE_URL = 'https://waitnot-restaurant1.onrender.com';

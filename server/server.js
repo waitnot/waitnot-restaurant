@@ -35,7 +35,7 @@ const io = new Server(httpServer, {
 // CORS configuration with Edge browser support and Vercel domains
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://waitnot-restaurant-2.onrender.com',
+      'https://waitnot-restaurant1.onrender.com',
       'https://waitnot-restaurant-app.vercel.app',
       'https://localhost',
       'http://localhost',
@@ -123,6 +123,9 @@ app.use('/api/app-version', appVersionRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
+  // Serve APK downloads (place new APK at server/downloads/waitnot-captain.apk)
+  app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
+
   // Serve static files from React build
   app.use(express.static(path.join(__dirname, '../client/dist')));
   

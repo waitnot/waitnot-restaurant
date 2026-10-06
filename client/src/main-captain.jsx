@@ -6,7 +6,7 @@ import './index.css';
 
 // Force production API for APK - must be set before any imports that use axios
 import axios from 'axios';
-axios.defaults.baseURL = 'https://waitnot-restaurant-2.onrender.com';
+axios.defaults.baseURL = 'https://waitnot-restaurant1.onrender.com';
 
 import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
@@ -17,7 +17,7 @@ const CURRENT_VERSION_CODE = 1;
 
 async function checkForUpdate() {
   try {
-    const res = await fetch('https://waitnot-restaurant-2.onrender.com/api/app-version');
+    const res = await fetch('https://waitnot-restaurant1.onrender.com/api/app-version');
     if (!res.ok) return;
     const data = await res.json();
     if (data.versionCode > CURRENT_VERSION_CODE) {
