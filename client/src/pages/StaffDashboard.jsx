@@ -87,7 +87,7 @@ export default function StaffDashboard() {
   const printedRecently = useRef(new Set());
   const markPrintedRef = (key) => {
     printedRecently.current.add(key);
-    setTimeout(() => printedRecently.current.delete(key), 20000);
+    setTimeout(() => printedRecently.current.delete(key), 30000);
   };
   const alreadyPrinted = (key) => printedRecently.current.has(key);
 
@@ -99,6 +99,7 @@ export default function StaffDashboard() {
   const [onlinePayType, setOnlinePayType] = useState('upi');
   const [utrNumber, setUtrNumber] = useState('');
   const [toast, setToast] = useState(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false); // for manual update check
 
   // Printer settings for staff
   const [printerSettings, setPrinterSettings] = useState({
@@ -314,7 +315,7 @@ export default function StaffDashboard() {
       if (!settings.autoPrintKitchenBill) return;
       if (!_isCapacitor) return;
       if (!settings.btKitchenPrinter && !settings.wifiPrinterIp) return;
-      // Shared ref dedup: blocks duplicate events from reconnect or multi-device
+      // Dedup: 30s window — prevents double KOT from reconnect/replay
       const printKey = `kot-${order._id}`;
       if (alreadyPrinted(printKey)) return;
       markPrintedRef(printKey);
@@ -333,7 +334,7 @@ export default function StaffDashboard() {
       if (!settings.autoPrintFinalBill) return;
       if (!_isCapacitor) return;
       if (!settings.btBillPrinter && !settings.wifiPrinterIp) return;
-      // Shared ref dedup
+      // Dedup: 30s window — prevents double bill
       const printKey = `bill-${order?._id}`;
       if (alreadyPrinted(printKey)) return;
       markPrintedRef(printKey);
@@ -971,19 +972,9 @@ export default function StaffDashboard() {
 
           setSelectedTable(null);
           showToast('Table cleared — saved as combined bill');
-          // Auto-print bill — mark in dedup ref FIRST so the print-bill socket event
-          // that arrives right after won't fire a second print on the same device.
-          const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
-          if (savedSettings.autoPrintFinalBill && _isCapacitor) {
-            const label = firstOrder?.orderType === 'room'
-              ? (restaurant?.features?.roomNames?.[firstOrder.roomNumber] || `Room ${firstOrder.roomNumber}`)
-              : firstOrder?.orderType === 'dine-in' ? `Table ${firstOrder.tableNumber}`
-              : firstOrder?.orderType === 'takeaway' ? 'Takeaway'
-              : 'Delivery';
-            // We don't have the merged order _id yet, so block socket bill for all orders in this batch
-            tableOrders.forEach(o => markPrintedRef(`bill-${o._id}`));
-            printBill(tableOrders, label, tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0), true);
-          }
+          // Auto-print is handled by the server's print-bill socket event
+          // (emitted by merge-and-complete with the merged order).
+          // Do NOT call printBill() here — it causes a double print.
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
           console.error('❌ Error clearing table:', err);
@@ -1642,6 +1633,49 @@ export default function StaffDashboard() {
                   </div>
                 ))}
               </div>
+
+              {/* Check for Updates */}
+              {_isCapacitor && (
+                <div className="bg-white rounded-2xl shadow-sm p-4 mt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-800 text-sm">App Updates</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Current version: 1.0.2</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setCheckingUpdate(true);
+                        try {
+                          const res = await fetch(`${API}/api/app-version`, { cache: 'no-store' });
+                          const data = await res.json();
+                          if (data.versionCode <= 2) {
+                            showToast('You are on the latest version ✓');
+                          } else {
+                            // Show update dialog
+                            const url = data.downloadUrl || `${API}/updates-apk`;
+                            setConfirmModal({
+                              message: `Version ${data.version} is available!\n\n${data.releaseNotes || 'New features and fixes.'}`,
+                              onConfirm: () => {
+                                setConfirmModal(null);
+                                window.open(url, '_system');
+                              }
+                            });
+                          }
+                        } catch {
+                          showToast('Could not check for updates', 'error');
+                        } finally {
+                          setCheckingUpdate(false);
+                        }
+                      }}
+                      disabled={checkingUpdate}
+                      className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
+                    >
+                      <RefreshCw size={14} className={checkingUpdate ? 'animate-spin' : ''} />
+                      {checkingUpdate ? 'Checking...' : 'Check Now'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
