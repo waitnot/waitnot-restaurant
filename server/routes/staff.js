@@ -570,6 +570,24 @@ router.get('/restaurant/:restaurantId/activity', async (req, res) => {
   }
 });
 
+// Reset staff password (for restaurant owners - no auth required)
+router.post('/restaurant/:restaurantId/reset-password', async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) return res.status(400).json({ error: 'email and newPassword required' });
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const result = await query(
+      'UPDATE staff SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE email = $2 AND restaurant_id = $3 RETURNING id, email, name',
+      [hashedPassword, email, restaurantId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Staff not found' });
+    res.json({ success: true, staff: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get available roles
 router.get('/roles', (req, res) => {
   res.json(STAFF_ROLES);
