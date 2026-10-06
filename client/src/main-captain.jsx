@@ -20,6 +20,14 @@ async function checkForUpdate() {
     const res = await fetch('https://waitnot-restaurant1.onrender.com/api/app-version');
     if (!res.ok) return;
     const data = await res.json();
+
+    // Check if user already dismissed this version recently (within 24h)
+    const dismissed = localStorage.getItem('app_version_dismissed');
+    if (dismissed && !data.forceUpdate) {
+      const hoursSince = (Date.now() - parseInt(dismissed)) / 3600000;
+      if (hoursSince < 24) return;
+    }
+
     if (data.versionCode > CURRENT_VERSION_CODE) {
       showUpdateDialog(data);
     }
@@ -28,7 +36,7 @@ async function checkForUpdate() {
   }
 }
 
-function showUpdateDialog({ version, apkUrl, releaseNotes, forceUpdate }) {
+function showUpdateDialog({ version, releaseNotes, forceUpdate }) {
   document.getElementById('update-dialog')?.remove();
 
   const overlay = document.createElement('div');
@@ -48,13 +56,13 @@ function showUpdateDialog({ version, apkUrl, releaseNotes, forceUpdate }) {
       </div>
       ${releaseNotes ? `<p style="font-size:13px;color:#555;background:#f5f5f5;padding:10px 12px;border-radius:8px;margin:12px 0;">${releaseNotes}</p>` : ''}
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;">
-        <a href="${apkUrl}"
-          style="display:block;text-align:center;background:#EF4444;color:#fff;padding:14px;border-radius:10px;font-weight:600;font-size:16px;text-decoration:none;">
-          ⬇ Download & Install
-        </a>
+        <button onclick="document.getElementById('update-dialog').remove();window.location.href='https://waitnot-restaurant1.onrender.com/updates-apk'"
+          style="display:block;width:100%;text-align:center;background:#EF4444;color:#fff;padding:14px;border-radius:10px;font-weight:600;font-size:16px;border:none;cursor:pointer;">
+          ⬇ Update Now
+        </button>
         ${!forceUpdate ? `
         <button id="update-later"
-          style="background:none;border:1px solid #ddd;padding:12px;border-radius:10px;font-size:14px;color:#666;cursor:pointer;">
+          style="background:none;border:1px solid #ddd;padding:12px;border-radius:10px;font-size:14px;color:#666;cursor:pointer;width:100%;">
           Remind me later
         </button>` : ''}
       </div>
@@ -63,7 +71,10 @@ function showUpdateDialog({ version, apkUrl, releaseNotes, forceUpdate }) {
   `;
 
   document.body.appendChild(overlay);
-  document.getElementById('update-later')?.addEventListener('click', () => overlay.remove());
+  document.getElementById('update-later')?.addEventListener('click', () => {
+    localStorage.setItem('app_version_dismissed', Date.now());
+    overlay.remove();
+  });
   if (forceUpdate) overlay.addEventListener('click', e => e.stopPropagation());
 }
 

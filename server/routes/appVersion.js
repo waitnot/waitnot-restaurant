@@ -1,13 +1,14 @@
 import express from 'express';
 const router = express.Router();
 
-// Update these whenever you build and release a new APK
+// Bump versionCode each time you deploy new features.
+// The APK's CURRENT_VERSION_CODE is hardcoded at build time.
+// If server versionCode > app versionCode → update prompt appears.
 const APP_VERSION = {
-  version: '1.0.1',           // bump this with each release
-  versionCode: 2,              // integer, must increase each release
-  apkUrl: 'https://github.com/waitnot/waitnot-restaurant/releases/latest/download/waitnot-captain.apk',
+  version: '1.0.1',
+  versionCode: 2,
   releaseNotes: 'Bug fixes and performance improvements',
-  forceUpdate: false           // set true to block old versions
+  forceUpdate: false
 };
 
 router.get('/', (req, res) => {

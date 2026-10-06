@@ -123,13 +123,18 @@ app.use('/api/app-version', appVersionRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
-  // Serve APK downloads (place new APK at server/downloads/waitnot-captain.apk)
+  // Serve APK downloads
   app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
+
+  // /updates-apk — in-app update page
+  app.get('/updates-apk', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'updates-apk.html'));
+  });
 
   // Serve static files from React build
   app.use(express.static(path.join(__dirname, '../client/dist')));
-  
-  // Handle React routing - send all non-API requests to React
+
+  // Handle React routing
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
