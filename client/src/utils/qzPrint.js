@@ -106,13 +106,13 @@ function cLine(t,W) { const s=String(t).substring(0,W); return line(' '.repeat(M
 function lrLine(l,r,W) { const rv=String(r); const lv=String(l).substring(0,W-rv.length-1); return line(lv+' '.repeat(Math.max(1,W-lv.length-rv.length))+rv); }
 function sep(W,c) { return line(c.repeat(W)); }
 
-function buildKOTBytes({restaurantName,slotLabel,orderId,orderType,customerName,deliveryAddress,specialInstructions,items}) {
-  const now=new Date(); const W=32;
-  return bytes(B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,line((restaurantName||'RESTAURANT').toUpperCase().substring(0,16)),B.DOUBLE_OFF,line('KITCHEN ORDER TICKET'),orderType?line(orderType.toUpperCase()):[],B.BOLD_OFF,sep(W,'='),B.LEFT,slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],lrLine('DATE:',now.toLocaleDateString('en-IN'),W),bytes(B.BOLD_ON,lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),B.BOLD_OFF),orderId?lrLine('REF:',String(orderId).slice(-8).toUpperCase(),W):[],customerName?lrLine('NAME:',customerName,W):[],deliveryAddress?line('ADDR: '+deliveryAddress):[],sep(W,'='),B.CENTER,B.BOLD_ON,line('-- ITEMS TO PREPARE --'),B.BOLD_OFF,sep(W,'='),B.LEFT,...(items||[]).map(i=>bytes(B.BOLD_ON,lrLine(String(i.name).substring(0,24),'x'+i.quantity,W),B.BOLD_OFF)),sep(W,'='),specialInstructions?bytes(B.BOLD_ON,line('NOTE: '+specialInstructions),B.BOLD_OFF,sep(W,'-')):[],B.CENTER,B.BOLD_ON,line('PREPARE WITH CARE'),B.BOLD_OFF,lf(1),B.CUT);
+function buildKOTBytes({restaurantName,slotLabel,orderId,orderType,customerName,deliveryAddress,specialInstructions,items,paperWidth='58mm'}) {
+  const now=new Date(); const W=paperWidth==='80mm'?42:32;
+  return bytes(B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,line((restaurantName||'RESTAURANT').toUpperCase().substring(0,W/2)),B.DOUBLE_OFF,line('KITCHEN ORDER TICKET'),orderType?line(orderType.toUpperCase()):[],B.BOLD_OFF,sep(W,'='),B.LEFT,slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],lrLine('DATE:',now.toLocaleDateString('en-IN'),W),bytes(B.BOLD_ON,lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),B.BOLD_OFF),orderId?lrLine('REF:',String(orderId).slice(-8).toUpperCase(),W):[],customerName?lrLine('NAME:',customerName,W):[],deliveryAddress?line('ADDR: '+deliveryAddress):[],sep(W,'='),B.CENTER,B.BOLD_ON,line('-- ITEMS TO PREPARE --'),B.BOLD_OFF,sep(W,'='),B.LEFT,...(items||[]).map(i=>bytes(B.BOLD_ON,lrLine(String(i.name).substring(0,W-6),'x'+i.quantity,W),B.BOLD_OFF)),sep(W,'='),specialInstructions?bytes(B.BOLD_ON,line('NOTE: '+specialInstructions),B.BOLD_OFF,sep(W,'-')):[],B.CENTER,B.BOLD_ON,line('PREPARE WITH CARE'),B.BOLD_OFF,lf(1),B.CUT);
 }
 
-function buildBillBytes({restaurantName,slotLabel,orderType,customerName,customerPhone,deliveryAddress,items,packagingCharge,deliveryCharge,paymentMethod}) {
-  const now=new Date(); const W=32;
+function buildBillBytes({restaurantName,slotLabel,orderType,customerName,customerPhone,deliveryAddress,items,packagingCharge,deliveryCharge,paymentMethod,paperWidth='58mm'}) {
+  const now=new Date(); const W=paperWidth==='80mm'?42:32;
   const bi=(items||[]).map(i=>({...i,price:parseFloat(i.price)||0,quantity:parseInt(i.quantity)||1}));
   const sub=bi.filter(i=>!i.complimentary).reduce((s,i)=>s+i.price*i.quantity,0);
   const ext=(parseFloat(packagingCharge)||0)+(parseFloat(deliveryCharge)||0);
@@ -333,12 +333,12 @@ export async function smartPrint(html, type='bill', orderData=null) {
     try {
       if (type === 'kitchen' && orderData?.order) {
         const o = orderData.order;
-        byteArr = buildKOTBytes({ restaurantName: orderData.restaurantName, slotLabel: o.tableNumber ? 'TABLE '+o.tableNumber : o.roomNumber ? 'ROOM '+o.roomNumber : (o.orderType||'').toUpperCase(), orderId: o._id, orderType: o.orderType, customerName: o.customerName, deliveryAddress: o.deliveryAddress, specialInstructions: o.specialInstructions, items: o.items });
+        byteArr = buildKOTBytes({ restaurantName: orderData.restaurantName, slotLabel: o.tableNumber ? 'TABLE '+o.tableNumber : o.roomNumber ? 'ROOM '+o.roomNumber : (o.orderType||'').toUpperCase(), orderId: o._id, orderType: o.orderType, customerName: o.customerName, deliveryAddress: o.deliveryAddress, specialInstructions: o.specialInstructions, items: o.items, paperWidth: s.paperWidth || '58mm' });
       } else if (type === 'bill' && orderData?.orders) {
         const im = {};
         orderData.orders.forEach(o => o.items?.forEach(i => { if (im[i.name]) im[i.name].quantity += i.quantity; else im[i.name] = { name: i.name, quantity: i.quantity, price: i.price }; }));
         const o0 = orderData.orders[0] || {};
-        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: o0.orderType, customerName: o0.customerName, customerPhone: o0.customerPhone, deliveryAddress: o0.deliveryAddress, items: Object.values(im), packagingCharge: o0.packagingCharge, deliveryCharge: o0.deliveryCharge, paymentMethod: o0.paymentMethod });
+        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: o0.orderType, customerName: o0.customerName, customerPhone: o0.customerPhone, deliveryAddress: o0.deliveryAddress, items: Object.values(im), packagingCharge: o0.packagingCharge, deliveryCharge: o0.deliveryCharge, paymentMethod: o0.paymentMethod, paperWidth: s.paperWidth || '58mm' });
       }
     } catch (e) { console.warn('byte build error:', e); }
 
