@@ -44,10 +44,17 @@ export default function StaffLogin() {
     setError('');
     setServerWaking(false);
 
+    // Clear any stale auth from a previous session before attempting login
+    delete axios.defaults.headers.common['Authorization'];
+    delete axios.defaults.headers['Authorization'];
+
     try {
       const { data } = await axios.post('/api/staff/login', formData);
       localStorage.setItem('staffToken', data.token);
       localStorage.setItem('staffData', JSON.stringify(data.staff));
+      // Set new token on axios immediately so StaffDashboard requests use it right away
+      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+      axios.defaults.headers['Authorization'] = `Bearer ${data.token}`;
       try {
         await secureSet('staffToken', data.token);
         await secureSet('staffData', JSON.stringify(data.staff));
