@@ -1001,10 +1001,28 @@ export default function StaffDashboard() {
     }
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center px-6">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mx-auto mb-3"></div>
-          <p className="text-gray-500 text-sm">Loading...</p>
+          <p className="text-gray-500 text-sm font-medium">Loading...</p>
           <p className="text-gray-400 text-xs mt-1">Server may be waking up, please wait...</p>
+          <button
+            onClick={async () => {
+              localStorage.removeItem('staffToken');
+              localStorage.removeItem('staffData');
+              try {
+                const { secureRemove } = await import('../utils/secureStorage.js');
+                await secureRemove('staffToken');
+                await secureRemove('staffData');
+              } catch (_) {}
+              Object.keys(localStorage).filter(k => k.startsWith('restaurant_cache_')).forEach(k => localStorage.removeItem(k));
+              sessionStorage.clear();
+              window.location.hash = '#/staff-login';
+              window.location.reload();
+            }}
+            className="mt-5 text-xs text-gray-400 underline"
+          >
+            Switch Account
+          </button>
         </div>
       </div>
     );
