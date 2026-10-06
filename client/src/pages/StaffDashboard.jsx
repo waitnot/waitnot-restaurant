@@ -666,13 +666,15 @@ export default function StaffDashboard() {
         tableNumber: orderType === 'dine-in' ? tableNumber : undefined,
         roomNumber: orderType === 'room' ? roomNumber : undefined,
         items: orderCart.map(i => ({ menuItemId: i._id, name: i.name, price: i.price, quantity: i.quantity })),
-        totalAmount: cartSubtotal + (packagingCharge || 0) + (deliveryCharge || 0),
+        totalAmount: cartTotal,
         orderType,
         customerName: customerName || `Waiter ${staff.waiter_number || staff.name}`,
         customerPhone: customerPhone || undefined,
         deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
-        packagingCharge: orderType === 'takeaway' ? packagingCharge : undefined,
-        deliveryCharge: orderType === 'delivery' ? deliveryCharge : undefined,
+        packagingCharge: orderType === 'takeaway' ? (packagingCharge || 0) : undefined,
+        deliveryCharge: orderType === 'delivery' ? (deliveryCharge || 0) : undefined,
+        extraChargeLabel: extraCharge.amount > 0 ? (extraCharge.label || 'Extra') : undefined,
+        extraChargeAmount: extraCharge.amount > 0 ? extraCharge.amount : undefined,
         source: 'staff', status: 'pending', paymentStatus: 'pending', paymentMethod: 'cash',
       });
 
@@ -923,6 +925,11 @@ export default function StaffDashboard() {
     }));
     const mergedItems = Object.values(allItems);
     const firstOrder = ordersToUse[0] || {};
+    // Calculate charges — prefer values from orderContext (current session), fall back to order data
+    const pkgCharge = (orderContext.packagingCharge || firstOrder.packagingCharge || 0);
+    const dlvCharge = (orderContext.deliveryCharge || firstOrder.deliveryCharge || 0);
+    const exCharge  = (extraCharge.amount || 0);
+    const exLabel   = (extraCharge.label || '');
     const html = buildBillHTML({
       restaurantName: restaurant?.name,
       slotLabel: tableLabel,
@@ -930,8 +937,12 @@ export default function StaffDashboard() {
       customerName: firstOrder.customerName,
       items: mergedItems,
       paymentMethod: firstOrder.paymentMethod,
+      packagingCharge: pkgCharge,
+      deliveryCharge: dlvCharge,
+      extraCharge: exCharge,
+      extraChargeLabel: exLabel,
     });
-    printViaIframe(html, 'bill', { orders: ordersToUse, tableLabel, total, restaurantName: restaurant?.name });
+    printViaIframe(html, 'bill', { orders: ordersToUse, tableLabel, total, restaurantName: restaurant?.name, extraCharge: exCharge, extraChargeLabel: exLabel });
   };
 
   const clearTable = (tableOrders, tableNumOrLabel) => {
@@ -1366,6 +1377,7 @@ export default function StaffDashboard() {
                 {/* Bottom actions */}
                 {orderCart.length > 0 && (
                   <div className="shrink-0 border-t border-gray-100 px-3 py-2">
+                    {/* Packaging charge — takeaway only */}
                     {orderContext.orderType === 'takeaway' && (
                       <div className="flex items-center gap-2 mb-2">
                         <label className="text-xs text-gray-500 shrink-0">Packaging ₹</label>
@@ -1374,6 +1386,7 @@ export default function StaffDashboard() {
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                       </div>
                     )}
+                    {/* Delivery charge — delivery only */}
                     {orderContext.orderType === 'delivery' && (
                       <div className="flex items-center gap-2 mb-2">
                         <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
@@ -1382,7 +1395,7 @@ export default function StaffDashboard() {
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                       </div>
                     )}
-                    {/* Extra charge */}
+                    {/* Extra charge — all order types */}
                     <div className="flex items-center gap-1.5 mb-2">
                       <input type="text" value={extraCharge.label}
                         onChange={e => setExtraCharge(prev => ({ ...prev, label: e.target.value }))}
@@ -1390,6 +1403,18 @@ export default function StaffDashboard() {
                       <input type="number" min="0" value={extraCharge.amount || ''}
                         onChange={e => setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
+                    </div>
+                    {/* Breakdown */}
+                    <div className="text-xs text-gray-400 mb-1 space-y-0.5">
+                      {orderContext.orderType === 'takeaway' && (orderContext.packagingCharge || 0) > 0 && (
+                        <div className="flex justify-between"><span>Packaging</span><span>₹{orderContext.packagingCharge}</span></div>
+                      )}
+                      {orderContext.orderType === 'delivery' && (orderContext.deliveryCharge || 0) > 0 && (
+                        <div className="flex justify-between"><span>Delivery</span><span>₹{orderContext.deliveryCharge}</span></div>
+                      )}
+                      {(extraCharge.amount || 0) > 0 && (
+                        <div className="flex justify-between"><span>{extraCharge.label || 'Extra'}</span><span>₹{extraCharge.amount}</span></div>
+                      )}
                     </div>
                     <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
                       <span>{orderCart.reduce((s, i) => s + i.quantity, 0)} items{orderCart.some(i => i.complimentary) ? ' · some comp' : ''}</span>
@@ -1428,7 +1453,25 @@ export default function StaffDashboard() {
                 {orderCart.length === 0 && getActiveOrdersForSlot().length > 0 && (
                   <div className="shrink-0 border-t border-gray-100 px-3 py-2">
                     <p className="text-xs text-green-600 font-semibold mb-2 text-center">✅ Order Placed</p>
-                    {/* Extra charge even after placing */}
+                    {/* Packaging charge — takeaway */}
+                    {orderContext.orderType === 'takeaway' && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-xs text-gray-500 shrink-0">Packaging ₹</label>
+                        <input type="number" min="0" value={orderContext.packagingCharge || ''}
+                          onChange={e => setOrderContext(prev => ({ ...prev, packagingCharge: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
+                      </div>
+                    )}
+                    {/* Delivery charge — delivery */}
+                    {orderContext.orderType === 'delivery' && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
+                        <input type="number" min="0" value={orderContext.deliveryCharge || ''}
+                          onChange={e => setOrderContext(prev => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
+                      </div>
+                    )}
+                    {/* Extra charge — all order types */}
                     <div className="flex items-center gap-1.5 mb-2">
                       <input type="text" value={extraCharge.label}
                         onChange={e => setExtraCharge(prev => ({ ...prev, label: e.target.value }))}
@@ -1437,10 +1480,17 @@ export default function StaffDashboard() {
                         onChange={e => setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                     </div>
-                    {extraCharge.amount > 0 && (
-                      <p className="text-xs text-gray-500 mb-2 text-right">
-                        Order total + {extraCharge.label || 'extra'}: <span className="font-bold text-gray-800">₹{getTableTotal(getActiveOrdersForSlot()) + extraCharge.amount}</span>
-                      </p>
+                    {/* Charge breakdown */}
+                    {((orderContext.packagingCharge || 0) > 0 || (orderContext.deliveryCharge || 0) > 0 || (extraCharge.amount || 0) > 0) && (
+                      <div className="text-xs text-gray-400 mb-2 space-y-0.5">
+                        {(orderContext.packagingCharge || 0) > 0 && <div className="flex justify-between"><span>Packaging</span><span>₹{orderContext.packagingCharge}</span></div>}
+                        {(orderContext.deliveryCharge || 0) > 0 && <div className="flex justify-between"><span>Delivery</span><span>₹{orderContext.deliveryCharge}</span></div>}
+                        {(extraCharge.amount || 0) > 0 && <div className="flex justify-between"><span>{extraCharge.label || 'Extra'}</span><span>₹{extraCharge.amount}</span></div>}
+                        <div className="flex justify-between font-semibold text-gray-600 border-t border-gray-100 pt-0.5">
+                          <span>Total</span>
+                          <span>₹{getTableTotal(getActiveOrdersForSlot()) + (orderContext.packagingCharge || 0) + (orderContext.deliveryCharge || 0) + (extraCharge.amount || 0)}</span>
+                        </div>
+                      </div>
                     )}
                     <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                       <button onClick={() => printKOTBatch(getActiveOrdersForSlot())} className="bg-orange-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-orange-600">🖨 KOT</button>
