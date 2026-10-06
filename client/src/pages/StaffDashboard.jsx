@@ -1778,16 +1778,26 @@ export default function StaffDashboard() {
                         try {
                           const res = await fetch(`${API}/api/app-version`, { cache: 'no-store' });
                           const data = await res.json();
-                          if (data.versionCode <= 2) {
+                          // CURRENT_VERSION_CODE of this APK build
+                          const MY_VERSION = 2;
+                          if (!data.versionCode || data.versionCode <= MY_VERSION) {
                             showToast('You are on the latest version ✓');
                           } else {
-                            // Show update dialog
                             const url = data.downloadUrl || `${API}/updates-apk`;
                             setConfirmModal({
-                              message: `Version ${data.version} is available!\n\n${data.releaseNotes || 'New features and fixes.'}`,
+                              message: `v${data.version} is available — tap Confirm to download the update now.\n\n${data.releaseNotes || ''}`,
                               onConfirm: () => {
                                 setConfirmModal(null);
-                                window.open(url, '_system');
+                                // Try Capacitor Browser plugin first, fall back to window.open
+                                try {
+                                  if (window.Capacitor?.Plugins?.Browser) {
+                                    window.Capacitor.Plugins.Browser.open({ url });
+                                  } else {
+                                    window.open(url, '_system');
+                                  }
+                                } catch (_) {
+                                  window.open(url, '_blank');
+                                }
                               }
                             });
                           }
