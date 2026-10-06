@@ -34,7 +34,7 @@ import axios from '../config/axios.js';
 import io from 'socket.io-client';
 import SEO from '../components/SEO';
 
-const PRODUCTION_URL = 'https://waitnot-restaurant1.onrender.com';
+const PRODUCTION_URL = 'https://waitnot-restaurant.onrender.com';
 const _isCapacitor = typeof window !== 'undefined' && (
   window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:'
 );
@@ -84,6 +84,7 @@ export default function StaffDashboard() {
 
   // Modals
   const [confirmModal, setConfirmModal] = useState(null);
+  const [shiftModal, setShiftModal] = useState(null); // { orders, type: 'table'|'room', current: num }
   const [clearTablePayModal, setClearTablePayModal] = useState(null);
   const [onlinePayStep, setOnlinePayStep] = useState(false);
   const [onlinePayType, setOnlinePayType] = useState('upi');
@@ -732,6 +733,36 @@ export default function StaffDashboard() {
         }
       }
     });
+  };
+
+  // Shift all orders for a table/room to a new destination
+  const shiftOrders = async (orders, toType, toNum) => {
+    try {
+      await Promise.all(orders.map(order =>
+        axios.patch(`${API}/api/orders/${order._id}/shift`, {
+          orderType: toType,
+          tableNumber: toType === 'dine-in' ? toNum : undefined,
+          roomNumber: toType === 'room' ? toNum : undefined,
+        })
+      ));
+      // Update local state immediately for instant feedback
+      setOrders(prev => prev.map(o => {
+        if (!orders.find(x => x._id === o._id)) return o;
+        return {
+          ...o,
+          orderType: toType,
+          tableNumber: toType === 'dine-in' ? toNum : null,
+          roomNumber: toType === 'room' ? toNum : null,
+        };
+      }));
+      const label = toType === 'dine-in'
+        ? `Table ${toNum}`
+        : (restaurant?.features?.roomNames?.[toNum] || `Room ${toNum}`);
+      showToast(`Shifted to ${label}`);
+      setShiftModal(null);
+    } catch (err) {
+      showToast('Shift failed: ' + (err?.response?.data?.error || err?.message), 'error');
+    }
   };
 
   // Shared print helper — works in Electron (silent) and browser (popup)
@@ -1440,7 +1471,8 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => printKOTBatch(tableOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
+                            <button onClick={() => setShiftModal({ orders: tableOrders, type: 'table', current: parseInt(tableNum) })} className="flex-1 py-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 flex items-center justify-center gap-1">⇄ Shift</button>
+                            <button onClick={() => printKOTBatch(tableOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill(tableOrders, tableNum, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
                             <button onClick={() => cancelOrders(tableOrders, `Table ${tableNum}`)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
                             <button onClick={() => clearTable(tableOrders, parseInt(tableNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
@@ -1492,7 +1524,8 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => { openRoom(parseInt(roomNum)); setActiveView('tables'); }} className="flex-1 py-2.5 text-xs font-semibold text-green-600 hover:bg-green-50 flex items-center justify-center gap-1"><Plus size={14} /> Add</button>
+                            <button onClick={() => setShiftModal({ orders: roomOrders, type: 'room', current: parseInt(roomNum) })} className="flex-1 py-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 flex items-center justify-center gap-1">⇄ Shift</button>
+                            <button onClick={() => { openRoom(parseInt(roomNum)); setActiveView('tables'); }} className="flex-1 py-2.5 text-xs font-semibold text-green-600 hover:bg-green-50 border-l border-gray-100 flex items-center justify-center gap-1"><Plus size={14} /> Add</button>
                             <button onClick={() => printKOTBatch(roomOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
                             <button onClick={() => printBill(roomOrders, label, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
                             <button onClick={() => cancelOrders(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
@@ -2335,6 +2368,77 @@ export default function StaffDashboard() {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Shift Table / Room Modal */}
+        {shiftModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900 text-base">
+                  Shift {shiftModal.type === 'table' ? 'Table' : 'Room'} {shiftModal.current} to...
+                </h3>
+                <button onClick={() => setShiftModal(null)} className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"><X size={14} /></button>
+              </div>
+
+              {shiftModal.type === 'table' && (
+                <>
+                  <p className="text-xs text-gray-400 mb-3">Select destination table</p>
+                  <div className="grid grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+                    {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1)
+                      .filter(n => n !== shiftModal.current)
+                      .map(n => {
+                        const occupied = runningTables.some(([t]) => parseInt(t) === n);
+                        return (
+                          <button key={n} onClick={() => shiftOrders(shiftModal.orders, 'dine-in', n)}
+                            className={`aspect-square rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-0.5 border-2 transition-colors
+                              ${occupied
+                                ? 'border-orange-300 bg-orange-50 text-orange-600'
+                                : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-700'
+                              }`}>
+                            {n}
+                            {occupied && <span className="text-[9px] font-normal">busy</span>}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  {(restaurant?.tables || 0) <= 1 && (
+                    <p className="text-sm text-gray-400 text-center py-4">No other tables available</p>
+                  )}
+                </>
+              )}
+
+              {shiftModal.type === 'room' && (
+                <>
+                  <p className="text-xs text-gray-400 mb-3">Select destination room</p>
+                  <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                    {Array.from({ length: restaurant?.rooms || 0 }, (_, i) => i + 1)
+                      .filter(n => n !== shiftModal.current)
+                      .map(n => {
+                        const label = restaurant?.features?.roomNames?.[n] || `Room ${n}`;
+                        const occupied = runningRooms.some(([r]) => parseInt(r) === n);
+                        return (
+                          <button key={n} onClick={() => shiftOrders(shiftModal.orders, 'room', n)}
+                            className={`py-3 px-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 border-2 transition-colors
+                              ${occupied
+                                ? 'border-orange-300 bg-orange-50 text-orange-600'
+                                : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-700'
+                              }`}>
+                            🛏 {label}
+                            {occupied && <span className="text-[9px] font-normal">busy</span>}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  {(restaurant?.rooms || 0) <= 1 && (
+                    <p className="text-sm text-gray-400 text-center py-4">No other rooms available</p>
+                  )}
+                </>
+              )}
+
+              <button onClick={() => setShiftModal(null)} className="w-full mt-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500 font-medium">Cancel</button>
             </div>
           </div>
         )}
