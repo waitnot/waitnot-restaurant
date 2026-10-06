@@ -820,12 +820,15 @@ export default function StaffDashboard() {
   const printViaIframe = (html, type = 'kitchen', orderData = null) => {
     // On mobile (Capacitor) — route through smartPrint which uses BT ESC/POS
     if (_isCapacitor) {
-      // Dedup manual prints: build key from order/orders id
+      // Dedup: build a stable key from order id — but only block for 8s (BT print takes ~2s)
+      // This prevents double-tap; 8s is short enough to allow intentional reprints
       const orderId = orderData?.order?._id || orderData?.orders?.[0]?._id;
       if (orderId) {
-        const key = `${type}-${orderId}`;
-        if (alreadyPrinted(key)) { console.log('Skip dup manual print:', key); return; }
-        markPrintedRef(key);
+        const key = `manual-${type}-${orderId}`;
+        if (alreadyPrinted(key)) return;
+        // Short 8s window — just enough to block accidental double-tap
+        printedRecently.current.add(key);
+        setTimeout(() => printedRecently.current.delete(key), 8000);
       }
       smartPrint(html, type, orderData);
       return;
@@ -898,10 +901,12 @@ export default function StaffDashboard() {
     printViaIframe(html, 'kitchen', { order: merged, restaurantName: restaurant?.name });
   };
 
-  const printBill = async (tableOrders, tableLabel, total) => {
+  const printBill = async (tableOrders, tableLabel, total, skipFetch = false) => {
     let ordersToUse = tableOrders;
     const hasItems = tableOrders.some(o => o.items && o.items.length > 0);
-    if (!hasItems && tableOrders.length > 0) {
+    // Only fetch if items are missing AND we haven't already cleared the table
+    // (after merge-and-complete the orders are gone from active, so don't refetch)
+    if (!hasItems && !skipFetch && tableOrders.length > 0) {
       try {
         const { data } = await axios.get(`${API}/api/orders/restaurant/${staff.restaurant_id}?status=active`);
         const ids = new Set(tableOrders.map(o => o._id));
@@ -977,7 +982,7 @@ export default function StaffDashboard() {
               : 'Delivery';
             // We don't have the merged order _id yet, so block socket bill for all orders in this batch
             tableOrders.forEach(o => markPrintedRef(`bill-${o._id}`));
-            printBill(tableOrders, label, tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0));
+            printBill(tableOrders, label, tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0), true);
           }
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
