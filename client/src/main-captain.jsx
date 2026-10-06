@@ -6,7 +6,7 @@ import './index.css';
 
 // Force production API for APK - must be set before any imports that use axios
 import axios from 'axios';
-axios.defaults.baseURL = 'https://waitnot-restaurant.onrender.com';
+axios.defaults.baseURL = 'https://waitnot-restaurant1.onrender.com';
 
 import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
@@ -19,7 +19,7 @@ const CURRENT_VERSION_CODE = 1;
 
 async function checkForUpdate() {
   try {
-    const res = await fetch('https://waitnot-restaurant.onrender.com/api/app-version');
+    const res = await fetch('https://waitnot-restaurant1.onrender.com/api/app-version');
     if (!res.ok) return;
     const data = await res.json();
 
@@ -45,7 +45,7 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
   document.getElementById('update-dialog')?.remove();
 
   // Use provided downloadUrl, otherwise fall back to the app-version page
-  const updateUrl = downloadUrl || 'https://waitnot-restaurant.onrender.com/updates-apk';
+  const updateUrl = downloadUrl || 'https://waitnot-restaurant1.onrender.com/updates-apk';
 
   const overlay = document.createElement('div');
   overlay.id = 'update-dialog';
