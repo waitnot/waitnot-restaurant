@@ -300,20 +300,35 @@ export default function StaffDashboard() {
     });
 
     // ── Print server: QR orders + staff orders — auto-print KOT/Bill ──────
+    // Guard: track recently printed order IDs to prevent duplicate prints
+    // from multiple socket events (e.g. new-order + print-kot both firing)
+    const recentlyPrinted = new Set();
+    const markPrinted = (key) => {
+      recentlyPrinted.add(key);
+      setTimeout(() => recentlyPrinted.delete(key), 30000); // expire after 30s
+    };
+    // Only the one device that has a printer configured should auto-print.
+    // Other devices in the same room also receive socket events — they must skip.
+    const isPrintServer = () => {
+      const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
+      return !!(settings.btKitchenPrinter || settings.btBillPrinter || settings.wifiPrinterIp);
+    };
+
     newSocket.on('print-kot', ({ order }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintKitchenBill) return;
       if (!_isCapacitor) return;
       if (!settings.btKitchenPrinter && !settings.wifiPrinterIp) return;
 
+      // Deduplicate: skip if already printed this order's KOT recently
+      const printKey = `kot-${order._id}`;
+      if (recentlyPrinted.has(printKey)) return;
+      markPrinted(printKey);
+
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
 
-      // Use printKOT directly — it already handles ESC/POS + BT routing
-      const fakeOrder = {
-        ...order,
-        items: order.items || [],
-      };
+      const fakeOrder = { ...order, items: order.items || [] };
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
         smartPrint('', 'kitchen', { order: fakeOrder, restaurantName })
           .then(r => console.log('Auto-KOT:', r?.method))
@@ -326,6 +341,11 @@ export default function StaffDashboard() {
       if (!settings.autoPrintFinalBill) return;
       if (!_isCapacitor) return;
       if (!settings.btBillPrinter && !settings.wifiPrinterIp) return;
+
+      // Deduplicate: skip if already printed this bill recently
+      const printKey = `bill-${order?._id}`;
+      if (recentlyPrinted.has(printKey)) return;
+      markPrinted(printKey);
 
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
