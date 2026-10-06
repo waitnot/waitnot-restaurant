@@ -844,13 +844,31 @@ app.whenReady().then(async () => {
 
   // Register 'waitnot://' protocol — serves renderer/ as the root.
   // Uses app.getAppPath() so it works both in dev and inside a packed .asar
+  // mimeType is set explicitly with charset=utf-8 so emoji in JS bundles render correctly.
   const appRoot = app.getAppPath();
+  const _mimeMap = {
+    '.js'   : 'application/javascript; charset=utf-8',
+    '.mjs'  : 'application/javascript; charset=utf-8',
+    '.css'  : 'text/css; charset=utf-8',
+    '.html' : 'text/html; charset=utf-8',
+    '.json' : 'application/json; charset=utf-8',
+    '.svg'  : 'image/svg+xml',
+    '.png'  : 'image/png',
+    '.jpg'  : 'image/jpeg',
+    '.ico'  : 'image/x-icon',
+    '.woff2': 'font/woff2',
+    '.woff' : 'font/woff',
+    '.ttf'  : 'font/ttf',
+    '.wav'  : 'audio/wav',
+    '.webmanifest': 'application/manifest+json',
+  };
   protocol.registerFileProtocol('waitnot', (request, callback) => {
     try {
-      const url = new URL(request.url);
-      // url.pathname: /assets/xxx.js  OR  /fonts/xxx.woff2  OR  /index.html etc.
+      const url      = new URL(request.url);
       const filePath = path.join(appRoot, 'renderer', url.pathname);
-      callback({ path: filePath });
+      const ext      = path.extname(filePath).toLowerCase();
+      const mimeType = _mimeMap[ext] || null;
+      callback(mimeType ? { path: filePath, mimeType } : { path: filePath });
     } catch (e) {
       callback({ error: -6 });
     }
