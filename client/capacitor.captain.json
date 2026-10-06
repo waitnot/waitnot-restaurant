@@ -5,7 +5,7 @@
   "bundledWebRuntime": false,
   "server": {
     "allowNavigation": [
-      "waitnot-restaurant.onrender.com"
+      "waitnot-restaurant-2.onrender.com"
     ],
     "hostname": "localhost",
     "iosScheme": "capacitor"
