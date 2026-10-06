@@ -1045,7 +1045,20 @@ export default function StaffDashboard() {
             <p className="font-bold text-gray-900 text-base leading-tight">{restaurant.name}</p>
             <p className="text-xs text-gray-500">{staff.name} · {staff.waiter_number || staff.role}</p>
           </div>
-          <button onClick={async () => { localStorage.removeItem('staffToken'); localStorage.removeItem('staffData'); await secureRemove('staffToken'); await secureRemove('staffData'); navigate('/staff-login'); }} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg">
+          <button onClick={async () => {
+            // Clear localStorage and SecureStorage
+            localStorage.removeItem('staffToken');
+            localStorage.removeItem('staffData');
+            await secureRemove('staffToken');
+            await secureRemove('staffData');
+            // Clear axios auth header so next user starts fresh
+            delete axios.defaults.headers.common['Authorization'];
+            delete axios.defaults.headers['Authorization'];
+            // Clear any cached restaurant data to prevent bleed between accounts
+            Object.keys(localStorage).filter(k => k.startsWith('restaurant_cache_')).forEach(k => localStorage.removeItem(k));
+            sessionStorage.clear();
+            navigate('/staff-login');
+          }} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg">
             <LogOut size={18} />
           </button>
         </div>
