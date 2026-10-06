@@ -174,8 +174,8 @@ export default function StaffDashboard() {
       attempts++;
       try {
         const [resRes, ordersRes] = await Promise.all([
-          axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 15000 }),
-          axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 15000 })
+          axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 25000 }),
+          axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 25000 })
         ]);
         if (stopped) return;
         setRestaurant(resRes.data);
@@ -197,6 +197,9 @@ export default function StaffDashboard() {
         }
       }
     };
+
+    // Fire a health ping immediately — gets Render waking up before the real requests
+    fetch(`${API}/health`).catch(() => {});
 
     // If no cache, start loading spinner immediately
     if (!cached) setLoading(true);
