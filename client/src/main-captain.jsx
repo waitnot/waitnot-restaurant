@@ -6,38 +6,46 @@ import './index.css';
 
 // Force production API for APK - must be set before any imports that use axios
 import axios from 'axios';
-axios.defaults.baseURL = 'https://waitnot-restaurant1.onrender.com';
+axios.defaults.baseURL = 'https://waitnot-restaurant.onrender.com';
 
 import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
 
 // ─── Auto-Update ────────────────────────────────────────────────────────────
-// Bump this number every time you build and release a new APK
+// Bump this number every time you build and release a new APK.
+// When server versionCode > CURRENT_VERSION_CODE → update prompt shows.
+// When they are equal → no prompt (no update available).
 const CURRENT_VERSION_CODE = 1;
 
 async function checkForUpdate() {
   try {
-    const res = await fetch('https://waitnot-restaurant1.onrender.com/api/app-version');
+    const res = await fetch('https://waitnot-restaurant.onrender.com/api/app-version');
     if (!res.ok) return;
     const data = await res.json();
 
-    // Check if user already dismissed this version recently (within 24h)
-    const dismissed = localStorage.getItem('app_version_dismissed');
-    if (dismissed && !data.forceUpdate) {
-      const hoursSince = (Date.now() - parseInt(dismissed)) / 3600000;
-      if (hoursSince < 24) return;
+    // No update available — server version matches or is older than this build
+    if (!data.versionCode || data.versionCode <= CURRENT_VERSION_CODE) return;
+
+    // Skip if user already dismissed this version within 24h (unless forceUpdate)
+    if (!data.forceUpdate) {
+      const dismissed = localStorage.getItem('app_version_dismissed');
+      if (dismissed) {
+        const hoursSince = (Date.now() - parseInt(dismissed)) / 3600000;
+        if (hoursSince < 24) return;
+      }
     }
 
-    if (data.versionCode > CURRENT_VERSION_CODE) {
-      showUpdateDialog(data);
-    }
+    showUpdateDialog(data);
   } catch (_) {
     // Silently fail — no internet or server down
   }
 }
 
-function showUpdateDialog({ version, releaseNotes, forceUpdate }) {
+function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
   document.getElementById('update-dialog')?.remove();
+
+  // Use provided downloadUrl, otherwise fall back to the app-version page
+  const updateUrl = downloadUrl || 'https://waitnot-restaurant.onrender.com/updates-apk';
 
   const overlay = document.createElement('div');
   overlay.id = 'update-dialog';
@@ -56,7 +64,7 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate }) {
       </div>
       ${releaseNotes ? `<p style="font-size:13px;color:#555;background:#f5f5f5;padding:10px 12px;border-radius:8px;margin:12px 0;">${releaseNotes}</p>` : ''}
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;">
-        <button onclick="document.getElementById('update-dialog').remove();window.location.href='https://waitnot-restaurant1.onrender.com/updates-apk'"
+        <button onclick="document.getElementById('update-dialog').remove();window.open('${updateUrl}','_system')"
           style="display:block;width:100%;text-align:center;background:#EF4444;color:#fff;padding:14px;border-radius:10px;font-weight:600;font-size:16px;border:none;cursor:pointer;">
           ⬇ Update Now
         </button>
@@ -82,7 +90,7 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate }) {
 setTimeout(checkForUpdate, 3000);
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Error boundary — shows error details instead of blank screen
+// Error boundary to show errors instead of blank screen
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e) { return { error: e }; }
