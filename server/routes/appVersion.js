@@ -19,7 +19,7 @@ const APP_VERSION = {
   versionCode: 2,          // bumped → older APKs (versionCode 1) will see update prompt
   releaseNotes: 'Fix: triple/double print bug fixed. Paper width (58mm/80mm) now respected.',
   forceUpdate: false,
-  downloadUrl: '',         // will be filled after APK is built and uploaded
+  downloadUrl: 'https://waitnot-restaurant1.onrender.com/downloads/waitnot-captain.apk',
 };
 
 router.get('/', (req, res) => {
