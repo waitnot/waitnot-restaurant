@@ -1222,6 +1222,48 @@ export default function StaffDashboard() {
                     )}
                   </div>
 
+                  {/* Charges bar — visible on all screen sizes */}
+                  <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center shrink-0">
+                    {/* Packaging — takeaway */}
+                    {orderContext.orderType === 'takeaway' && (
+                      <div className="flex items-center gap-1">
+                        <label className="text-xs text-gray-500 shrink-0">Pkg ₹</label>
+                        <input type="number" min="0" inputMode="numeric"
+                          value={orderContext.packagingCharge || ''}
+                          onChange={e => setOrderContext(prev => ({ ...prev, packagingCharge: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
+                      </div>
+                    )}
+                    {/* Delivery — delivery */}
+                    {orderContext.orderType === 'delivery' && (
+                      <div className="flex items-center gap-1">
+                        <label className="text-xs text-gray-500 shrink-0">Del ₹</label>
+                        <input type="number" min="0" inputMode="numeric"
+                          value={orderContext.deliveryCharge || ''}
+                          onChange={e => setOrderContext(prev => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
+                      </div>
+                    )}
+                    {/* Extra charge — all order types */}
+                    <div className="flex items-center gap-1 flex-1 min-w-[160px]">
+                      <input type="text"
+                        value={extraCharge.label}
+                        onChange={e => setExtraCharge(prev => ({ ...prev, label: e.target.value }))}
+                        placeholder="Extra charge label"
+                        className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
+                      <input type="number" min="0" inputMode="numeric"
+                        value={extraCharge.amount || ''}
+                        onChange={e => setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                        placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-14 focus:outline-none" />
+                    </div>
+                    {/* Live total including charges */}
+                    {(orderContext.packagingCharge > 0 || orderContext.deliveryCharge > 0 || extraCharge.amount > 0) && (
+                      <span className="text-xs font-bold text-gray-700 shrink-0">
+                        +₹{(orderContext.packagingCharge || 0) + (orderContext.deliveryCharge || 0) + (extraCharge.amount || 0)}
+                      </span>
+                    )}
+                  </div>
+
                   {/* Search */}
                   <div className="px-3 py-2 shrink-0 bg-white border-b border-gray-100">
                     <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
@@ -1511,7 +1553,14 @@ export default function StaffDashboard() {
               {/* Mobile bottom bar */}
               {orderCart.length > 0 && (
                 <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
-                  <span className="flex-1 font-bold text-sm">₹{cartTotal}</span>
+                  <div className="flex-1">
+                    <span className="font-bold text-sm">₹{cartTotal}</span>
+                    {(orderContext.packagingCharge > 0 || orderContext.deliveryCharge > 0 || extraCharge.amount > 0) && (
+                      <span className="text-xs text-gray-400 ml-1">
+                        (incl. ₹{(orderContext.packagingCharge||0)+(orderContext.deliveryCharge||0)+(extraCharge.amount||0)} charges)
+                      </span>
+                    )}
+                  </div>
                   <button onClick={placeOrder} disabled={orderPlacing} className="bg-red-500 text-white px-5 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
                     {orderPlacing ? '...' : 'Place Order'}
                   </button>
