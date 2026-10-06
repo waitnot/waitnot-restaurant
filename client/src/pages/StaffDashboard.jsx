@@ -82,6 +82,15 @@ export default function StaffDashboard() {
     try { return JSON.parse(localStorage.getItem('staff_favourites') || '[]'); } catch { return []; }
   });
 
+  // Global print dedup — prevents double prints from socket events + manual triggers
+  // or from multiple devices in the same restaurant receiving the same socket event
+  const printedRecently = useRef(new Set());
+  const markPrintedRef = (key) => {
+    printedRecently.current.add(key);
+    setTimeout(() => printedRecently.current.delete(key), 20000);
+  };
+  const alreadyPrinted = (key) => printedRecently.current.has(key);
+
   // Modals
   const [confirmModal, setConfirmModal] = useState(null);
   const [shiftModal, setShiftModal] = useState(null); // { orders, type: 'table'|'room', current: num }
@@ -300,34 +309,17 @@ export default function StaffDashboard() {
     });
 
     // ── Print server: QR orders + staff orders — auto-print KOT/Bill ──────
-    // Guard: track recently printed order IDs to prevent duplicate prints
-    // from multiple socket events (e.g. new-order + print-kot both firing)
-    const recentlyPrinted = new Set();
-    const markPrinted = (key) => {
-      recentlyPrinted.add(key);
-      setTimeout(() => recentlyPrinted.delete(key), 30000); // expire after 30s
-    };
-    // Only the one device that has a printer configured should auto-print.
-    // Other devices in the same room also receive socket events — they must skip.
-    const isPrintServer = () => {
-      const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
-      return !!(settings.btKitchenPrinter || settings.btBillPrinter || settings.wifiPrinterIp);
-    };
-
     newSocket.on('print-kot', ({ order }) => {
       const settings = JSON.parse(localStorage.getItem(`printer_settings_${s.restaurant_id}`) || '{}');
       if (!settings.autoPrintKitchenBill) return;
       if (!_isCapacitor) return;
       if (!settings.btKitchenPrinter && !settings.wifiPrinterIp) return;
-
-      // Deduplicate: skip if already printed this order's KOT recently
+      // Shared ref dedup: blocks duplicate events from reconnect or multi-device
       const printKey = `kot-${order._id}`;
-      if (recentlyPrinted.has(printKey)) return;
-      markPrinted(printKey);
-
+      if (alreadyPrinted(printKey)) return;
+      markPrintedRef(printKey);
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
-
       const fakeOrder = { ...order, items: order.items || [] };
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
         smartPrint('', 'kitchen', { order: fakeOrder, restaurantName })
@@ -341,12 +333,10 @@ export default function StaffDashboard() {
       if (!settings.autoPrintFinalBill) return;
       if (!_isCapacitor) return;
       if (!settings.btBillPrinter && !settings.wifiPrinterIp) return;
-
-      // Deduplicate: skip if already printed this bill recently
+      // Shared ref dedup
       const printKey = `bill-${order?._id}`;
-      if (recentlyPrinted.has(printKey)) return;
-      markPrinted(printKey);
-
+      if (alreadyPrinted(printKey)) return;
+      markPrintedRef(printKey);
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
       const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
@@ -830,6 +820,13 @@ export default function StaffDashboard() {
   const printViaIframe = (html, type = 'kitchen', orderData = null) => {
     // On mobile (Capacitor) — route through smartPrint which uses BT ESC/POS
     if (_isCapacitor) {
+      // Dedup manual prints: build key from order/orders id
+      const orderId = orderData?.order?._id || orderData?.orders?.[0]?._id;
+      if (orderId) {
+        const key = `${type}-${orderId}`;
+        if (alreadyPrinted(key)) { console.log('Skip dup manual print:', key); return; }
+        markPrintedRef(key);
+      }
       smartPrint(html, type, orderData);
       return;
     }
@@ -969,16 +966,8 @@ export default function StaffDashboard() {
 
           setSelectedTable(null);
           showToast('Table cleared — saved as combined bill');
-          // Auto-print Bill if enabled
-          const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
-          if (savedSettings.autoPrintFinalBill) {
-            const label = firstOrder?.orderType === 'room'
-              ? (restaurant?.features?.roomNames?.[firstOrder.roomNumber] || `Room ${firstOrder.roomNumber}`)
-              : firstOrder?.orderType === 'dine-in' ? `Table ${firstOrder.tableNumber}`
-              : firstOrder?.orderType === 'takeaway' ? 'Takeaway'
-              : 'Delivery';
-            printBill(tableOrders, label, tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0));
-          }
+          // Auto-print Bill is handled by the server's print-bill socket event.
+          // Do NOT call printBill() here — that would double-print alongside the socket trigger.
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
           console.error('❌ Error clearing table:', err);
