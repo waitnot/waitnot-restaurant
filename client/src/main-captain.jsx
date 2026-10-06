@@ -21,21 +21,24 @@ import StaffDashboard from './pages/StaffDashboard';
 // When they are equal → no prompt (no update available).
 const CURRENT_VERSION_CODE = 2;
 
+let _updateDialogVisible = false; // prevent stacking multiple dialogs
+
 async function checkForUpdate() {
+  if (_updateDialogVisible) return; // already showing
   try {
-    const res = await fetch('https://waitnot-restaurant1.onrender.com/api/app-version');
+    const res = await fetch('https://waitnot-restaurant1.onrender.com/api/app-version', { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
 
-    // No update available — server version matches or is older than this build
+    // No update available
     if (!data.versionCode || data.versionCode <= CURRENT_VERSION_CODE) return;
 
-    // Skip if user already dismissed this version within 24h (unless forceUpdate)
+    // Skip if dismissed within 6h (unless forceUpdate)
     if (!data.forceUpdate) {
       const dismissed = localStorage.getItem('app_version_dismissed');
       if (dismissed) {
         const hoursSince = (Date.now() - parseInt(dismissed)) / 3600000;
-        if (hoursSince < 24) return;
+        if (hoursSince < 6) return;
       }
     }
 
@@ -46,9 +49,10 @@ async function checkForUpdate() {
 }
 
 function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
+  if (_updateDialogVisible) return;
+  _updateDialogVisible = true;
   document.getElementById('update-dialog')?.remove();
 
-  // Use provided downloadUrl, otherwise fall back to the app-version page
   const updateUrl = downloadUrl || 'https://waitnot-restaurant1.onrender.com/updates-apk';
 
   const overlay = document.createElement('div');
@@ -60,38 +64,82 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
   `;
 
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px;max-width:340px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="background:#fff;border-radius:20px;padding:28px;max-width:340px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
       <div style="text-align:center;margin-bottom:16px;">
-        <div style="font-size:40px;margin-bottom:8px;">🚀</div>
-        <h2 style="margin:0;font-size:20px;font-weight:700;color:#111;">Update Available</h2>
-        <p style="margin:6px 0 0;color:#666;font-size:14px;">Version ${version} is ready</p>
+        <div style="font-size:48px;margin-bottom:8px;">🚀</div>
+        <h2 style="margin:0;font-size:22px;font-weight:800;color:#111;">Update Available</h2>
+        <p style="margin:6px 0 0;color:#666;font-size:14px;font-weight:600;">Version ${version} is ready</p>
       </div>
-      ${releaseNotes ? `<p style="font-size:13px;color:#555;background:#f5f5f5;padding:10px 12px;border-radius:8px;margin:12px 0;">${releaseNotes}</p>` : ''}
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;">
-        <button onclick="document.getElementById('update-dialog').remove();window.open('${updateUrl}','_system')"
-          style="display:block;width:100%;text-align:center;background:#EF4444;color:#fff;padding:14px;border-radius:10px;font-weight:600;font-size:16px;border:none;cursor:pointer;">
+      ${releaseNotes ? `<div style="font-size:13px;color:#555;background:#f5f5f5;padding:12px 14px;border-radius:10px;margin:14px 0;line-height:1.6;">${releaseNotes}</div>` : ''}
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px;">
+        <button id="update-now-btn"
+          style="display:block;width:100%;text-align:center;background:#EF4444;color:#fff;padding:15px;border-radius:12px;font-weight:700;font-size:17px;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(239,68,68,0.4);">
           ⬇ Update Now
         </button>
         ${!forceUpdate ? `
         <button id="update-later"
-          style="background:none;border:1px solid #ddd;padding:12px;border-radius:10px;font-size:14px;color:#666;cursor:pointer;width:100%;">
-          Remind me later
+          style="background:none;border:1.5px solid #e5e7eb;padding:12px;border-radius:12px;font-size:14px;color:#6b7280;cursor:pointer;width:100%;font-weight:500;">
+          Remind me in 6 hours
         </button>` : ''}
       </div>
-      ${forceUpdate ? `<p style="text-align:center;font-size:12px;color:#EF4444;margin-top:10px;font-weight:600;">⚠ This update is required to continue</p>` : ''}
+      ${forceUpdate ? `<p style="text-align:center;font-size:12px;color:#EF4444;margin-top:12px;font-weight:700;">⚠ This update is required to continue</p>` : ''}
     </div>
   `;
 
   document.body.appendChild(overlay);
+
+  document.getElementById('update-now-btn')?.addEventListener('click', () => {
+    overlay.remove();
+    _updateDialogVisible = false;
+    window.open(updateUrl, '_system');
+  });
+
   document.getElementById('update-later')?.addEventListener('click', () => {
     localStorage.setItem('app_version_dismissed', Date.now());
     overlay.remove();
+    _updateDialogVisible = false;
   });
-  if (forceUpdate) overlay.addEventListener('click', e => e.stopPropagation());
+
+  // Block backdrop dismiss for forceUpdate
+  if (!forceUpdate) {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        localStorage.setItem('app_version_dismissed', Date.now());
+        overlay.remove();
+        _updateDialogVisible = false;
+      }
+    });
+  } else {
+    overlay.addEventListener('click', e => e.stopPropagation());
+  }
 }
 
-// Check after 3s so the app renders first
-setTimeout(checkForUpdate, 3000);
+// ── Check on startup (after 2s so app renders first)
+setTimeout(checkForUpdate, 2000);
+
+// ── Check every 30 minutes while app is open
+setInterval(checkForUpdate, 30 * 60 * 1000);
+
+// ── Check every time app comes back to foreground (user switches back)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkForUpdate();
+});
+
+// ── Capacitor appStateChange (most reliable for Android)
+if (window.Capacitor?.isNativePlatform?.()) {
+  import('@capacitor/core').then(({ App }) => {
+    App?.addListener?.('appStateChange', ({ isActive }) => {
+      if (isActive) checkForUpdate();
+    });
+  }).catch(() => {
+    // Fallback: listen via Capacitor bridge directly
+    try {
+      window.Capacitor.Plugins.App?.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) checkForUpdate();
+      });
+    } catch (_) {}
+  });
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Error boundary to show errors instead of blank screen
