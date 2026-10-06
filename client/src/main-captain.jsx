@@ -88,10 +88,22 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
 
   document.body.appendChild(overlay);
 
+  const openUrl = (url) => {
+    try {
+      if (window.Capacitor?.Plugins?.Browser) {
+        window.Capacitor.Plugins.Browser.open({ url });
+      } else {
+        window.open(url, '_system');
+      }
+    } catch (_) {
+      window.open(url, '_blank');
+    }
+  };
+
   document.getElementById('update-now-btn')?.addEventListener('click', () => {
     overlay.remove();
     _updateDialogVisible = false;
-    window.open(updateUrl, '_system');
+    openUrl(updateUrl);
   });
 
   document.getElementById('update-later')?.addEventListener('click', () => {
