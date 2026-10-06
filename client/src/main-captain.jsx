@@ -8,6 +8,10 @@ import './index.css';
 import axios from 'axios';
 axios.defaults.baseURL = 'https://waitnot-restaurant1.onrender.com';
 
+// Wake server immediately on app launch — Render free tier sleeps after inactivity.
+// Fire-and-forget: doesn't block rendering, just gets the server warming up ASAP.
+fetch('https://waitnot-restaurant1.onrender.com/health').catch(() => {});
+
 import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
 
