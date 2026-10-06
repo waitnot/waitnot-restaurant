@@ -91,6 +91,29 @@ export default function StaffDashboard() {
   };
   const alreadyPrinted = (key) => printedRecently.current.has(key);
 
+  // Charge store — persists extra/packaging/delivery charges per slot so bill prints correctly
+  // even after cart is cleared or user navigates away
+  const chargeStore = useRef({}); // key: 'dine-in-3' | 'room-2' | 'takeaway' | 'delivery'
+  const getSlotKey = (ctx = orderContext) => {
+    if (ctx.orderType === 'dine-in') return `dine-in-${ctx.tableNumber}`;
+    if (ctx.orderType === 'room') return `room-${ctx.roomNumber}`;
+    return ctx.orderType;
+  };
+  const saveCharges = () => {
+    const key = getSlotKey();
+    chargeStore.current[key] = {
+      packagingCharge: orderContext.packagingCharge || 0,
+      deliveryCharge: orderContext.deliveryCharge || 0,
+      extraChargeAmount: extraCharge.amount || 0,
+      extraChargeLabel: extraCharge.label || '',
+    };
+  };
+  const getCharges = (orderType, tableNumber, roomNumber) => {
+    const ctx = { orderType, tableNumber, roomNumber };
+    const key = getSlotKey(ctx);
+    return chargeStore.current[key] || { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' };
+  };
+
   // Modals
   const [confirmModal, setConfirmModal] = useState(null);
   const [shiftModal, setShiftModal] = useState(null); // { orders, type: 'table'|'room', current: num }
@@ -679,6 +702,7 @@ export default function StaffDashboard() {
       });
 
       const newOrder = response.data;
+      saveCharges(); // persist charges for this slot before clearing cart
       setOrderCart([]);
       showToast('Order placed!');
       // Add to local state immediately for instant feedback
@@ -925,11 +949,14 @@ export default function StaffDashboard() {
     }));
     const mergedItems = Object.values(allItems);
     const firstOrder = ordersToUse[0] || {};
-    // Calculate charges — prefer values from orderContext (current session), fall back to order data
-    const pkgCharge = (orderContext.packagingCharge || firstOrder.packagingCharge || 0);
-    const dlvCharge = (orderContext.deliveryCharge || firstOrder.deliveryCharge || 0);
-    const exCharge  = (extraCharge.amount || 0);
-    const exLabel   = (extraCharge.label || '');
+
+    // Get charges from store (persisted on placeOrder) OR from current orderContext/extraCharge state
+    const stored = getCharges(firstOrder.orderType, firstOrder.tableNumber, firstOrder.roomNumber);
+    const pkgCharge = orderContext.packagingCharge || stored.packagingCharge || 0;
+    const dlvCharge = orderContext.deliveryCharge  || stored.deliveryCharge  || 0;
+    const exCharge  = extraCharge.amount > 0 ? extraCharge.amount : stored.extraChargeAmount || 0;
+    const exLabel   = extraCharge.label   || stored.extraChargeLabel || '';
+
     const html = buildBillHTML({
       restaurantName: restaurant?.name,
       slotLabel: tableLabel,
@@ -1230,7 +1257,7 @@ export default function StaffDashboard() {
                         <label className="text-xs text-gray-500 shrink-0">Pkg ₹</label>
                         <input type="number" min="0" inputMode="numeric"
                           value={orderContext.packagingCharge || ''}
-                          onChange={e => setOrderContext(prev => ({ ...prev, packagingCharge: parseFloat(e.target.value) || 0 }))}
+                          onChange={e => { setOrderContext(prev => ({ ...prev, packagingCharge: parseFloat(e.target.value) || 0 })); setTimeout(saveCharges, 0); }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
                     )}
@@ -1240,7 +1267,7 @@ export default function StaffDashboard() {
                         <label className="text-xs text-gray-500 shrink-0">Del ₹</label>
                         <input type="number" min="0" inputMode="numeric"
                           value={orderContext.deliveryCharge || ''}
-                          onChange={e => setOrderContext(prev => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 }))}
+                          onChange={e => { setOrderContext(prev => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 })); setTimeout(saveCharges, 0); }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
                     )}
@@ -1248,12 +1275,12 @@ export default function StaffDashboard() {
                     <div className="flex items-center gap-1 flex-1 min-w-[160px]">
                       <input type="text"
                         value={extraCharge.label}
-                        onChange={e => setExtraCharge(prev => ({ ...prev, label: e.target.value }))}
+                        onChange={e => { setExtraCharge(prev => ({ ...prev, label: e.target.value })); setTimeout(saveCharges, 0); }}
                         placeholder="Extra charge label"
                         className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
                       <input type="number" min="0" inputMode="numeric"
                         value={extraCharge.amount || ''}
-                        onChange={e => setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                        onChange={e => { setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 })); setTimeout(saveCharges, 0); }}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-14 focus:outline-none" />
                     </div>
                     {/* Live total including charges */}
