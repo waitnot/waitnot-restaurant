@@ -1231,29 +1231,50 @@ ipcMain.handle('offline:getCachedStaff', (event, { email, password }) => {
 });
 
 // ─── Table Shift IPC ──────────────────────────────────────────────────────────
-// Called from renderer when staff drags/taps a table to move orders.
-// Online path  → POST /api/orders/shift-table (handles merge if target occupied)
-// Offline path → update tableNumber in local SQLite and re-queue upload
+// Called from renderer when staff taps the shift button on a table tile.
+// Uses PUT /api/orders/:id (always live) to update tableNumber on each order.
+// If target table is occupied, the move still happens — items stay separate
+// but appear under the new table number (server handles merge via socket events).
 ipcMain.handle('order:shiftTable', async (event, { orderId, fromTable, toTable, restaurantId, staffName }) => {
-  // Get current auth token from renderer
   const tk = await safeExecJS(`localStorage.getItem('staffToken')`);
 
   if (tk) {
-    // ── Online: delegate to server (handles free vs occupied merge) ────────────
-    const result = await nodePost('/api/orders/shift-table', {
-      orderId, fromTable, toTable, restaurantId,
-      staffName: staffName || 'Staff',
-    }, tk);
+    // ── Online: PUT /api/orders/:id — update tableNumber directly ──────────────
+    const result = await new Promise((resolve) => {
+      const data = JSON.stringify({ tableNumber: toTable });
+      const req  = require('https').request({
+        hostname: remoteConfig.getApiHost(),
+        path    : `/api/orders/${orderId}`,
+        method  : 'PUT',
+        headers : {
+          'Content-Type'  : 'application/json',
+          'Content-Length': Buffer.byteLength(data),
+          Accept          : 'application/json',
+          Authorization   : `Bearer ${tk}`,
+        },
+        rejectUnauthorized: false,
+      }, (res) => {
+        let b = '';
+        res.on('data', c => { b += c; });
+        res.on('end',  () => {
+          try { resolve({ status: res.statusCode, body: JSON.parse(b) }); }
+          catch { resolve({ status: res.statusCode, body: b }); }
+        });
+      });
+      req.on('error', (e) => resolve({ status: 0, error: e.message }));
+      req.setTimeout(10000, () => { req.destroy(); resolve({ status: 0, error: 'timeout' }); });
+      req.write(data);
+      req.end();
+    });
 
     if (result.status >= 200 && result.status < 300) {
-      console.log(`[shift] ✅ Order ${orderId.substring(0,8)} shifted T${fromTable}→T${toTable} merged=${result.body?.merged}`);
-      // Trigger immediate poll so UI refreshes
+      console.log(`[shift] ✅ Order ${orderId.substring(0,8)} T${fromTable}→T${toTable}`);
       setTimeout(() => doPoll().catch(() => {}), 300);
-      return { success: true, merged: result.body?.merged, order: result.body?.order };
+      return { success: true, merged: false, order: result.body };
     }
 
     const errMsg = result.body?.error || `HTTP ${result.status}`;
-    console.warn(`[shift] Server rejected shift: ${errMsg}`);
+    console.warn(`[shift] Server rejected: ${errMsg}`);
     return { success: false, error: errMsg };
   }
 
@@ -1268,7 +1289,7 @@ ipcMain.handle('order:shiftTable', async (event, { orderId, fromTable, toTable, 
     ).run(toTable, new Date().toISOString(), orderId);
     db.close();
     if (rows.changes === 0) return { success: false, error: 'Order not found or already completed' };
-    console.log(`[shift] ✅ Offline order ${orderId.substring(0,8)} shifted T${fromTable}→T${toTable}`);
+    console.log(`[shift] ✅ Offline order ${orderId.substring(0,8)} T${fromTable}→T${toTable}`);
     setTimeout(() => doPoll().catch(() => {}), 300);
     return { success: true, merged: false, offline: true };
   } catch (e) {
