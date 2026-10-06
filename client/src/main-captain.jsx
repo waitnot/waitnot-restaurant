@@ -19,7 +19,7 @@ import StaffDashboard from './pages/StaffDashboard';
 // Bump this number every time you build and release a new APK.
 // When server versionCode > CURRENT_VERSION_CODE → update prompt shows.
 // When they are equal → no prompt (no update available).
-const CURRENT_VERSION_CODE = 1;
+const CURRENT_VERSION_CODE = 2;
 
 async function checkForUpdate() {
   try {
