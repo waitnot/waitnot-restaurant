@@ -15,9 +15,9 @@ const router = express.Router();
 // To hide the update prompt (no update available):
 //   Set versionCode equal to the current APK's CURRENT_VERSION_CODE
 const APP_VERSION = {
-  version: '1.0.3',
-  versionCode: 3,          // bumped → older APKs (versionCode 1) will see update prompt
-  releaseNotes: 'Extra charges (packaging/delivery/custom) now visible on mobile order screen.',
+  version: '1.0.4',
+  versionCode: 4,          // bumped → older APKs (versionCode 1) will see update prompt
+  releaseNotes: 'Extra charges now persist correctly on bill. Update download fixed.',
   forceUpdate: false,
   downloadUrl: 'https://waitnot-restaurant1.onrender.com/downloads/waitnot-captain.apk',
 };
