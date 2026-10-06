@@ -1,4 +1,4 @@
-﻿/**
+/**
  * escpos-builder.js ΓÇö WaitNot Desktop ESC/POS Byte Builder
  *
  * Exact port of the phone's buildKOTBytes / buildBillBytes from
@@ -228,6 +228,8 @@ function buildBillBytes({
   items,
   packagingCharge,
   deliveryCharge,
+  extraCharge,    // free-form extra charge amount (e.g. service charge)
+  extraLabel,     // label for the extra charge (e.g. "Service Charge")
   paymentMethod,
   paperWidth,   // '58mm' | '80mm' — defaults to 58mm
 }) {
@@ -244,7 +246,7 @@ function buildBillBytes({
 
   // Totals ΓÇö computed here, NOT taken from a passed-in total field
   const sub  = bi.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
-  const ext  = (parseFloat(packagingCharge) || 0) + (parseFloat(deliveryCharge) || 0);
+  const ext  = (parseFloat(packagingCharge) || 0) + (parseFloat(deliveryCharge) || 0) + (parseFloat(extraCharge) || 0);
   const total = sub + ext;
 
   // Receipt title
@@ -295,6 +297,7 @@ function buildBillBytes({
     sep(W, '='),
     packagingCharge > 0 ? lrLine('PACKAGING:', 'Rs.' + Number(packagingCharge).toFixed(0), W) : [],
     deliveryCharge  > 0 ? lrLine('DELIVERY:',  'Rs.' + Number(deliveryCharge).toFixed(0),  W) : [],
+    (extraCharge > 0)   ? lrLine((extraLabel || 'EXTRA') + ':', 'Rs.' + Number(extraCharge).toFixed(0), W) : [],
 
     // ΓöÇΓöÇ Total (double size) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     // TOTAL in double-width: effective width = W/2 = 16 chars

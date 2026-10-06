@@ -1641,8 +1641,33 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
     const totalMatch = html.match(/TOTAL<\/td>\s*<td[^>]*>[^\d]*(\d[\d.]*)/);
     const total = totalMatch ? parseFloat(totalMatch[1]) : 0;
 
+    // Extract charges from the HTML charge rows
+    // Template renders: <td class="b">PACKAGING</td><td ...>₹X.XX</td>
+    function extractCharge(label) {
+      const re = new RegExp('>' + label + '<\\/td>\\s*<td[^>]*>[^₹₹]*[₹₹]([\\d.]+)<');
+      const m  = html.match(re);
+      return m ? parseFloat(m[1]) || 0 : 0;
+    }
+    const packagingCharge = extractCharge('PACKAGING');
+    const deliveryCharge  = extractCharge('DELIVERY');
+    // Extra charge: any charge row that isn't PACKAGING/DELIVERY/TOTAL/SUBTOTAL
+    let extraCharge = 0;
+    let extraLabel  = '';
+    const extraMatch = html.match(/>([A-Z][A-Z\s]+)<\/td>\s*<td[^>]*>[^₹₹]*[₹₹]([\d.]+)</g);
+    if (extraMatch) {
+      for (const row of extraMatch) {
+        const m2 = row.match(/>([A-Z][A-Z\s]+)<\/td>\s*<td[^>]*>[^₹₹]*[₹₹]([\d.]+)</);
+        if (m2 && !['PACKAGING','DELIVERY','TOTAL','SUBTOTAL','ITEM','AMT'].includes(m2[1].trim())) {
+          extraCharge = parseFloat(m2[2]) || 0;
+          extraLabel  = m2[1].trim();
+          break;
+        }
+      }
+    }
+
     return { restaurantName, slotLabel, orderId, customerName, orderType,
-             isKOT, items, total, paymentMethod, date, time };
+             isKOT, items, total, paymentMethod, date, time,
+             packagingCharge, deliveryCharge, extraCharge, extraLabel };
   }
 
   // ── Step 2: Try ESC/POS raw print first (fastest, most reliable) ─────────
@@ -1690,6 +1715,10 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
           price        : i.price || 0,
           complimentary: !!i.complimentary,
         })),
+        packagingCharge: data.packagingCharge || 0,
+        deliveryCharge : data.deliveryCharge  || 0,
+        extraCharge    : data.extraCharge     || 0,
+        extraLabel     : data.extraLabel      || '',
         paperWidth,
       }));
     }
