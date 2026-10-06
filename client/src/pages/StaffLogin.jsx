@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import axios from '../config/axios.js';
-import { secureSet } from '../utils/secureStorage.js';
+import { secureSet, secureRemove } from '../utils/secureStorage.js';
 
 const PRODUCTION_URL = 'https://waitnot-restaurant1.onrender.com';
 
@@ -13,8 +13,18 @@ export default function StaffLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [serverWaking, setServerWaking] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
+
+    // Always clear any stale credentials when landing on login page.
+    // This ensures a fresh login even if SecureStorage had leftover data.
+    localStorage.removeItem('staffToken');
+    localStorage.removeItem('staffData');
+    delete axios.defaults.headers.common['Authorization'];
+    delete axios.defaults.headers['Authorization'];
+    secureRemove('staffToken').catch(() => {});
+    secureRemove('staffData').catch(() => {});
 
     const fetchWithTimeout = (url, ms) => {
       const ctrl = new AbortController();
