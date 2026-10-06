@@ -966,8 +966,19 @@ export default function StaffDashboard() {
 
           setSelectedTable(null);
           showToast('Table cleared — saved as combined bill');
-          // Auto-print Bill is handled by the server's print-bill socket event.
-          // Do NOT call printBill() here — that would double-print alongside the socket trigger.
+          // Auto-print bill — mark in dedup ref FIRST so the print-bill socket event
+          // that arrives right after won't fire a second print on the same device.
+          const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
+          if (savedSettings.autoPrintFinalBill && _isCapacitor) {
+            const label = firstOrder?.orderType === 'room'
+              ? (restaurant?.features?.roomNames?.[firstOrder.roomNumber] || `Room ${firstOrder.roomNumber}`)
+              : firstOrder?.orderType === 'dine-in' ? `Table ${firstOrder.tableNumber}`
+              : firstOrder?.orderType === 'takeaway' ? 'Takeaway'
+              : 'Delivery';
+            // We don't have the merged order _id yet, so block socket bill for all orders in this batch
+            tableOrders.forEach(o => markPrintedRef(`bill-${o._id}`));
+            printBill(tableOrders, label, tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0));
+          }
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
           console.error('❌ Error clearing table:', err);
