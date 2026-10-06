@@ -77,6 +77,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Network events
   notifyReconnected: () => ipcRenderer.invoke('network:reconnected'),
 
+  // Table shift
+  shiftTable: (orderId, fromTable, toTable, restaurantId, staffName) =>
+    ipcRenderer.invoke('order:shiftTable', { orderId, fromTable, toTable, restaurantId, staffName }),
+
   // Remote config
   config: {
     getApiUrl : ()  => ipcRenderer.invoke('config:getApiUrl'),

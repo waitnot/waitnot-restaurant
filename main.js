@@ -443,6 +443,31 @@ const printedKotIds  = new Set();
 const printedBillIds = new Set();
 let   lastOrdersBody = '';
 
+// Node HTTPS POST with timeout — no renderer/CORS involved
+function nodePost(path, body, token) {
+  return new Promise((resolve) => {
+    const data = JSON.stringify(body);
+    const req  = require('https').request({
+      hostname: remoteConfig.getApiHost(),
+      path, method: 'POST',
+      headers: Object.assign({
+        'Content-Type'  : 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+        Accept          : 'application/json',
+      }, token ? { Authorization: `Bearer ${token}` } : {}),
+      rejectUnauthorized: false,
+    }, (res) => {
+      let b = '';
+      res.on('data', c => { b += c; });
+      res.on('end',  () => { try { resolve({ status: res.statusCode, body: JSON.parse(b) }); } catch { resolve({ status: res.statusCode, body: b }); } });
+    });
+    req.on('error', (e) => resolve({ status: 0, error: e.message }));
+    req.setTimeout(10000, () => { req.destroy(); resolve({ status: 0, error: 'timeout' }); });
+    req.write(data);
+    req.end();
+  });
+}
+
 // Node HTTPS GET with timeout — no renderer/CORS involved
 function nodeGet(path, token) {
   return new Promise((resolve) => {
@@ -1200,6 +1225,52 @@ ipcMain.handle('offline:getCachedStaff', (event, { email, password }) => {
     // For stronger security, store a PBKDF2 hash and verify password client-side
     console.log(`[offline] Offline login: ${cached.staffData?.name}`);
     return { success: true, staff: cached.staffData, token: cached.token };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ─── Table Shift IPC ──────────────────────────────────────────────────────────
+// Called from renderer when staff drags/taps a table to move orders.
+// Online path  → POST /api/orders/shift-table (handles merge if target occupied)
+// Offline path → update tableNumber in local SQLite and re-queue upload
+ipcMain.handle('order:shiftTable', async (event, { orderId, fromTable, toTable, restaurantId, staffName }) => {
+  // Get current auth token from renderer
+  const tk = await safeExecJS(`localStorage.getItem('staffToken')`);
+
+  if (tk) {
+    // ── Online: delegate to server (handles free vs occupied merge) ────────────
+    const result = await nodePost('/api/orders/shift-table', {
+      orderId, fromTable, toTable, restaurantId,
+      staffName: staffName || 'Staff',
+    }, tk);
+
+    if (result.status >= 200 && result.status < 300) {
+      console.log(`[shift] ✅ Order ${orderId.substring(0,8)} shifted T${fromTable}→T${toTable} merged=${result.body?.merged}`);
+      // Trigger immediate poll so UI refreshes
+      setTimeout(() => doPoll().catch(() => {}), 300);
+      return { success: true, merged: result.body?.merged, order: result.body?.order };
+    }
+
+    const errMsg = result.body?.error || `HTTP ${result.status}`;
+    console.warn(`[shift] Server rejected shift: ${errMsg}`);
+    return { success: false, error: errMsg };
+  }
+
+  // ── Offline: update tableNumber in SQLite ──────────────────────────────────
+  if (!offlineDb.isReady()) return { success: false, error: 'Offline and DB not ready' };
+  try {
+    const Database = require('./node_modules/better-sqlite3');
+    const dbPath   = require('path').join(require('electron').app.getPath('userData'), 'waitnot-offline.db');
+    const db       = new Database(dbPath);
+    const rows     = db.prepare(
+      `UPDATE offline_orders SET table_number=?, updated_at=? WHERE id=? AND status NOT IN ('DONE','COMPLETED_OFFLINE')`
+    ).run(toTable, new Date().toISOString(), orderId);
+    db.close();
+    if (rows.changes === 0) return { success: false, error: 'Order not found or already completed' };
+    console.log(`[shift] ✅ Offline order ${orderId.substring(0,8)} shifted T${fromTable}→T${toTable}`);
+    setTimeout(() => doPoll().catch(() => {}), 300);
+    return { success: true, merged: false, offline: true };
   } catch (e) {
     return { success: false, error: e.message };
   }
