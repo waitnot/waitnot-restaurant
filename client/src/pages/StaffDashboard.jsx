@@ -162,22 +162,20 @@ export default function StaffDashboard() {
     if (cached) {
       setRestaurant(JSON.parse(cached));
       setLoading(false); // show UI right away with cached data, orders load in background
-    } else {
-      // No cache — show UI after 2s max so user isn't stuck on spinner
-      setTimeout(() => setLoading(false), 2000);
     }
 
     let stopped = false;
     let pollTimer = null;
     let attempts = 0;
-    const MAX_ATTEMPTS = 3;
+    // Keep retrying for up to ~90s to handle Render.com cold start (~30-60s)
+    const MAX_ATTEMPTS = 20;
 
     const loadData = async () => {
       attempts++;
       try {
         const [resRes, ordersRes] = await Promise.all([
-          axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 10000 }),
-          axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 10000 })
+          axios.get(`${API}/api/restaurants/${s.restaurant_id}`, { timeout: 15000 }),
+          axios.get(`${API}/api/orders/restaurant/${s.restaurant_id}?status=active`, { timeout: 15000 })
         ]);
         if (stopped) return;
         setRestaurant(resRes.data);
@@ -188,12 +186,20 @@ export default function StaffDashboard() {
         if (stopped) return;
         console.warn(`Load attempt ${attempts} failed:`, err?.message);
         if (attempts < MAX_ATTEMPTS) {
-          pollTimer = setTimeout(loadData, 3000);
+          // Backoff: 3s for first 5 attempts, then 5s — gives server time to wake
+          const delay = attempts <= 5 ? 3000 : 5000;
+          pollTimer = setTimeout(loadData, delay);
+          // After first failure, if no cache show spinner (not error screen)
+          if (!cached) setLoading(true);
         } else {
-          setLoading(false);
+          // All retries exhausted — only show error if no cached data to fall back on
+          if (!cached) setLoading(false);
         }
       }
     };
+
+    // If no cache, start loading spinner immediately
+    if (!cached) setLoading(true);
 
     loadData();
 
@@ -964,7 +970,7 @@ export default function StaffDashboard() {
     if (!loading && staff && !restaurant) {
       return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-          <div className="text-center">
+          <div className="text-center px-6">
             <p className="text-gray-600 font-medium mb-2">Could not load restaurant data</p>
             <p className="text-gray-400 text-sm mb-4">Check your connection and try again</p>
             <button onClick={() => window.location.reload()} className="bg-red-500 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-red-600">
@@ -979,6 +985,7 @@ export default function StaffDashboard() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mx-auto mb-3"></div>
           <p className="text-gray-500 text-sm">Loading...</p>
+          <p className="text-gray-400 text-xs mt-1">Server may be waking up, please wait...</p>
         </div>
       </div>
     );
