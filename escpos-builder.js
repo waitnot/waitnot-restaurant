@@ -128,16 +128,17 @@ function buildKOTBytes({
   deliveryAddress,
   specialInstructions,
   items,
+  paperWidth,   // '58mm' | '80mm' — defaults to 58mm
 }) {
   const now = new Date();
-  const W   = 32;   // characters per line for 58 mm paper
+  const W   = (paperWidth === '80mm') ? 48 : 32;   // 80mm=48 chars, 58mm=32 chars
 
   return bytes(
     // ΓöÇΓöÇ Header ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     B.INIT,
     B.CENTER,
     B.DOUBLE_ON, B.BOLD_ON,
-    line((restaurantName || 'RESTAURANT').toUpperCase().substring(0, 16)),
+    line((restaurantName || 'RESTAURANT').toUpperCase().substring(0, W === 48 ? 24 : 16)),
     B.DOUBLE_OFF,
     line('KITCHEN ORDER TICKET'),
     orderType ? line(orderType.toUpperCase()) : [],
@@ -161,8 +162,7 @@ function buildKOTBytes({
     ...(items || []).map(i =>
       bytes(
         B.BOLD_ON,
-        // Name truncated to 24 chars; quantity right-aligned e.g. "x2"
-        lrLine(String(i.name).substring(0, 24), 'x' + (i.quantity || 1), W),
+        lrLine(String(i.name).substring(0, W - 8), 'x' + (i.quantity || 1), W),
         B.BOLD_OFF,
       )
     ),
@@ -229,9 +229,10 @@ function buildBillBytes({
   packagingCharge,
   deliveryCharge,
   paymentMethod,
+  paperWidth,   // '58mm' | '80mm' — defaults to 58mm
 }) {
   const now = new Date();
-  const W   = 32;
+  const W   = (paperWidth === '80mm') ? 48 : 32;
 
   // Normalise items
   const bi = (items || []).map(i => ({
@@ -257,7 +258,7 @@ function buildBillBytes({
     B.INIT,
     B.CENTER,
     B.DOUBLE_ON, B.BOLD_ON,
-    line((restaurantName || 'RESTAURANT').toUpperCase().substring(0, 16)),
+    line((restaurantName || 'RESTAURANT').toUpperCase().substring(0, W === 48 ? 24 : 16)),
     B.DOUBLE_OFF,
     line(rt),
     B.BOLD_OFF,
@@ -278,17 +279,16 @@ function buildBillBytes({
     bytes(B.BOLD_ON, lrLine('ITEM', 'AMT', W), B.BOLD_OFF),
     sep(W, '-'),
     ...bi.map(i => {
-        // Wrap long names: if name + qty fits on one line with the amount, keep it together.
-        // Otherwise print name on its own line then qty + amount on the next.
-        const nameStr = i.name.substring(0, W - 4);
+        const maxName = W - 8;   // leave room for " xN  Rs.999"
+        const nameStr = i.name.substring(0, maxName);
         const amtStr  = i.complimentary ? 'COMP' : 'Rs.' + (i.price * i.quantity).toFixed(0);
         const qtyStr  = ' x' + i.quantity;
         const oneLine = nameStr + qtyStr;
         if (oneLine.length + 1 + amtStr.length <= W) {
           return lrLine(oneLine, amtStr, W);
         }
-        // Name too long — first line: name (max 20 chars), second line: qty + amount
-        return bytes(line(i.name.substring(0, 20)), lrLine(qtyStr.trim(), amtStr, W));
+        // Name too long — first line: name, second line: qty + amount
+        return bytes(line(i.name.substring(0, maxName)), lrLine(qtyStr.trim(), amtStr, W));
       }),
 
     // ΓöÇΓöÇ Charges ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ

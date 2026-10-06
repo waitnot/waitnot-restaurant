@@ -527,7 +527,7 @@ function pushOrdersToUI(orders) {
 }
 
 function startOrderPolling() {
-  console.log('🔄 Order polling started (3s interval)');
+  console.log('🔄 Order polling started (1.5s interval)');
   let running = false;
 
   setInterval(async () => {
@@ -536,10 +536,10 @@ function startOrderPolling() {
     try { await doPoll(); }
     catch(e) { console.error('Poll error:', e.message); }
     finally  { running = false; }
-  }, 3000);
+  }, 1500);
 }
 
-async function doPoll() {
+async function doPoll(force = false) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   // Get session credentials from renderer (with timeout — never hangs)
@@ -577,7 +577,9 @@ async function doPoll() {
   const activeOrders = await nodeGet(`/api/orders/restaurant/${rid}?status=active`, tk);
   if (!Array.isArray(activeOrders)) return;
 
-  const body    = JSON.stringify(activeOrders);
+  const body = JSON.stringify(activeOrders);
+  // Skip UI push if nothing changed — UNLESS force=true (after shift/reconnect)
+  if (!force && body === lastOrdersBody) return;
   lastOrdersBody = body;
 
   // Sync UI — only when on staff-dashboard page
@@ -659,6 +661,7 @@ async function doPoll() {
           customerName  : order.customerName || '',
           deliveryAddress: order.deliveryAddress || null,
           items         : (order.items||[]).map(i => ({ name: i.name, quantity: i.quantity || i.qty || 1 })),
+          paperWidth    : store.get('paperWidth', '80mm'),
         }));
         return rawPrintWindows(printer, _kotBuf);
       })()
@@ -700,6 +703,7 @@ async function doPoll() {
             price        : parseFloat(i.price) || 0,
             complimentary: !!i.complimentary,
           })),
+          paperWidth    : store.get('paperWidth', '80mm'),
         }));
         return rawPrintWindows(printer, _billBuf);
       })()
@@ -790,7 +794,7 @@ function startConnectivityWatchdog() {
         if (offlineDb.isReady()) offlineDb.resetFailedBackoff();
         uploadEngine.triggerUpload().catch(() => {});
         syncEngine.triggerSync().catch(() => {});
-        setTimeout(() => doPoll().catch(() => {}), 1000);
+        setTimeout(() => doPoll(true).catch(() => {}), 1000);
       }
       _wasOnline = isOnline;
     });
@@ -1269,7 +1273,7 @@ ipcMain.handle('order:shiftTable', async (event, { orderId, fromTable, toTable, 
 
     if (result.status >= 200 && result.status < 300) {
       console.log(`[shift] ✅ Order ${orderId.substring(0,8)} T${fromTable}→T${toTable}`);
-      setTimeout(() => doPoll().catch(() => {}), 300);
+      setTimeout(() => doPoll(true).catch(() => {}), 300);
       return { success: true, merged: false, order: result.body };
     }
 
@@ -1290,7 +1294,7 @@ ipcMain.handle('order:shiftTable', async (event, { orderId, fromTable, toTable, 
     db.close();
     if (rows.changes === 0) return { success: false, error: 'Order not found or already completed' };
     console.log(`[shift] ✅ Offline order ${orderId.substring(0,8)} T${fromTable}→T${toTable}`);
-    setTimeout(() => doPoll().catch(() => {}), 300);
+    setTimeout(() => doPoll(true).catch(() => {}), 300);
     return { success: true, merged: false, offline: true };
   } catch (e) {
     return { success: false, error: e.message };
@@ -1346,7 +1350,7 @@ ipcMain.handle('network:reconnected', async () => {
     // Re-sync menu/restaurant data
     syncEngine.triggerSync().catch(() => {});
     // Fetch fresh orders and push to UI right now — don't wait for 3s poll tick
-    setTimeout(() => doPoll().catch(() => {}), 800);
+    setTimeout(() => doPoll(true).catch(() => {}), 800);
   } catch {}
   return { ok: true };
 });
@@ -1653,6 +1657,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
         orderType     : (data.orderType || 'dine-in').toLowerCase(),
         customerName  : data.customerName,
         items         : data.items.map(i => ({ name: i.name, quantity: i.quantity || 1 })),
+        paperWidth,
       }));
     } else {
       buf = Buffer.from(buildBillBytes({
@@ -1667,6 +1672,7 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
           price        : i.price || 0,
           complimentary: !!i.complimentary,
         })),
+        paperWidth,
       }));
     }
 
