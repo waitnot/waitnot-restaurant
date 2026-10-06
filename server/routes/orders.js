@@ -192,6 +192,38 @@ router.patch('/:id/items', async (req, res) => {
   }
 });
 
+// Shift order to a different table or room
+router.patch('/:id/shift', async (req, res) => {
+  try {
+    const { orderType, tableNumber, roomNumber } = req.body;
+    if (!orderType) return res.status(400).json({ error: 'orderType is required' });
+
+    const updateData = { orderType };
+    if (orderType === 'dine-in') {
+      if (!tableNumber) return res.status(400).json({ error: 'tableNumber is required for dine-in' });
+      updateData.tableNumber = tableNumber;
+      updateData.roomNumber = null;
+    } else if (orderType === 'room') {
+      if (!roomNumber) return res.status(400).json({ error: 'roomNumber is required for room' });
+      updateData.roomNumber = roomNumber;
+      updateData.tableNumber = null;
+    }
+
+    const order = await orderDB.update(req.params.id, updateData);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`restaurant-${order.restaurantId}`).emit('order-updated', order);
+      io.to('admin-room').emit('order-updated', order);
+    }
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Update complete order (for staff order editing)
 router.put('/:id', async (req, res) => {
   try {
