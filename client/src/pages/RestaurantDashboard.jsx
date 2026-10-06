@@ -34,7 +34,7 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
 
   return (
     <div className="flex gap-6 min-h-[400px]">
-      {/* Floor Plan — always visible, fixed width */}
+      {/* Floor Plan â€” always visible, fixed width */}
       <div className="w-full sm:w-80 shrink-0">
         <div className="bg-white rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between mb-4">
@@ -64,7 +64,7 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
                 >
                   <span className={`text-base font-bold leading-none ${isSelected ? 'text-white' : isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
                   {isOccupied && !isSelected && (
-                    <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span>
+                    <span className="text-xs font-medium text-red-600 leading-none">â‚¹{tTotal}</span>
                   )}
                   {!isOccupied && (
                     <span className={`text-xs leading-none ${isSelected ? 'text-white/70' : 'text-green-500'}`}>Free</span>
@@ -80,7 +80,7 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
         </div>
       </div>
 
-      {/* Table Detail — shows when table is selected */}
+      {/* Table Detail â€” shows when table is selected */}
       <div className="flex-1 min-w-0">
         {!selectedFloorTable ? (
           <div className="h-full flex items-center justify-center text-gray-400">
@@ -96,12 +96,12 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
               <div>
-                <h3 className="text-xl font-bold text-gray-900">{isStaffOrder ? 'Staff · ' : ''}Table {selectedFloorTable}</h3>
-                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
+                <h3 className="text-xl font-bold text-gray-900">{isStaffOrder ? 'Staff Â· ' : ''}Table {selectedFloorTable}</h3>
+                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) Â· ${firstOrder?.customerName || ''}` : 'No orders'}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-gray-400">Total</p>
-                <p className="text-3xl font-bold text-primary">₹{selectedTotal}</p>
+                <p className="text-3xl font-bold text-primary">â‚¹{selectedTotal}</p>
               </div>
             </div>
 
@@ -114,15 +114,15 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
                     <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
                       <div>
                         <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                        <span className="text-xs text-gray-400 ml-2">Ã— {item.quantity}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
+                      <span className="text-sm font-semibold text-gray-700">â‚¹{item.total}</span>
                     </div>
                   ))}
                 </div>
                 <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
                   <span className="font-bold text-gray-800">Total</span>
-                  <span className="text-xl font-bold text-primary">₹{selectedTotal}</span>
+                  <span className="text-xl font-bold text-primary">â‚¹{selectedTotal}</span>
                 </div>
               </div>
             ) : (
@@ -199,14 +199,14 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
   if (roomCount === 0) {
     return (
       <div className="text-center py-16 bg-white rounded-xl shadow-sm">
-        <div className="text-5xl mb-3">🏨</div>
+        <div className="text-5xl mb-3">ðŸ¨</div>
         <p className="text-gray-700 font-semibold mb-1">No rooms assigned yet</p>
         <p className="text-sm text-gray-400 mb-6">Add rooms from the QR Codes tab to get started.</p>
         <button
           onClick={onGoToQR}
           className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-semibold"
         >
-          🏨 Assign Rooms (QR Codes tab)
+          ðŸ¨ Assign Rooms (QR Codes tab)
         </button>
       </div>
     );
@@ -243,7 +243,7 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
                   }`}
                 >
                   <span className={`text-xs font-bold leading-none text-center px-0.5 ${isSelected ? 'text-white' : isOccupied ? 'text-purple-700' : 'text-green-700'}`}>{getRoomLabel(n)}</span>
-                  {isOccupied && !isSelected && <span className="text-xs font-medium text-purple-600 leading-none">₹{rTotal}</span>}
+                  {isOccupied && !isSelected && <span className="text-xs font-medium text-purple-600 leading-none">â‚¹{rTotal}</span>}
                   {!isOccupied && <span className={`text-xs leading-none ${isSelected ? 'text-white/70' : 'text-green-500'}`}>Free</span>}
                   {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse"></span>}
                 </button>
@@ -261,7 +261,7 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
         {!selectedRoom ? (
           <div className="h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
-              <div className="text-5xl mb-3 opacity-30">🏨</div>
+              <div className="text-5xl mb-3 opacity-30">ðŸ¨</div>
               <p className="text-sm">Select a room to view details</p>
             </div>
           </div>
@@ -270,11 +270,11 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
             <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-purple-50 to-white border-b border-gray-100">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">{getRoomLabel(selectedRoom)}</h3>
-                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
+                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) Â· ${firstOrder?.customerName || ''}` : 'No orders'}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-gray-400">Total</p>
-                <p className="text-3xl font-bold text-purple-600">₹{selectedTotal}</p>
+                <p className="text-3xl font-bold text-purple-600">â‚¹{selectedTotal}</p>
               </div>
             </div>
 
@@ -286,15 +286,15 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
                     <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
                       <div>
                         <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                        <span className="text-xs text-gray-400 ml-2">Ã— {item.quantity}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
+                      <span className="text-sm font-semibold text-gray-700">â‚¹{item.total}</span>
                     </div>
                   ))}
                 </div>
                 <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
                   <span className="font-bold text-gray-800">Total</span>
-                  <span className="text-xl font-bold text-purple-600">₹{selectedTotal}</span>
+                  <span className="text-xl font-bold text-purple-600">â‚¹{selectedTotal}</span>
                 </div>
               </div>
             ) : (
@@ -371,7 +371,7 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
           </svg>
         </button>
 
-        {/* Category name + count — clicking also toggles expand */}
+        {/* Category name + count â€” clicking also toggles expand */}
         <button onClick={() => setOpen(o => !o)} className="flex-1 flex items-center gap-2 text-left min-w-0">
           <span className={`text-sm font-semibold truncate ${hidden || menuOff ? 'text-red-500' : 'text-gray-800'}`}>{cat}</span>
           <span className="text-xs text-gray-400 shrink-0">{visibleCount}/{catItems.length} visible</span>
@@ -402,7 +402,7 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
         </div>
       )}
 
-      {/* Items list — shown when expanded */}
+      {/* Items list â€” shown when expanded */}
       {open && (
         <div className="border-t border-gray-100 divide-y divide-gray-50 bg-gray-50">
           {catItems.length === 0 && <p className="text-xs text-gray-400 px-4 py-3">No items</p>}
@@ -411,7 +411,7 @@ function CategoryAccordion({ cat, hidden, menuOff, catMessages, catItems, visibl
               <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium truncate ${!item.available ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</p>
-                <p className="text-xs text-gray-400">₹{item.price}</p>
+                <p className="text-xs text-gray-400">â‚¹{item.price}</p>
               </div>
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${item.available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                 {item.available ? 'Visible' : 'Hidden'}
@@ -434,8 +434,8 @@ export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
 
-  // Smart print helper: uses Electron ESC/POS → silent HTML → QZ Tray → browser fallback
-  // Print via iframe — works even when browser/Electron blocks popups
+  // Smart print helper: uses Electron ESC/POS â†’ silent HTML â†’ QZ Tray â†’ browser fallback
+  // Print via iframe â€” works even when browser/Electron blocks popups
   const printViaIframeRD = (html) => {
     if (window.electronAPI?.silentPrint) {
       const restaurantId = localStorage.getItem('restaurantId');
@@ -518,7 +518,7 @@ export default function RestaurantDashboard() {
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [importingMenu, setImportingMenu] = useState(false);
 
-  // ── New feature state ──
+  // â”€â”€ New feature state â”€â”€
   const [storeOnline, setStoreOnline] = useState(true); // will sync from restaurant.features below
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSearch, setDrawerSearch] = useState('');
@@ -608,7 +608,7 @@ export default function RestaurantDashboard() {
     // Connect to appropriate server WebSocket based on environment
     const socketUrl = getWebSocketUrl();
     
-    console.log('🔌 WebSocket Configuration:', getEnvironmentInfo());
+    console.log('ðŸ”Œ WebSocket Configuration:', getEnvironmentInfo());
     
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
@@ -703,7 +703,7 @@ export default function RestaurantDashboard() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [activeTab]);
 
-  // Load completed orders when history tab opens (lazy — only once per session)
+  // Load completed orders when history tab opens (lazy â€” only once per session)
   useEffect(() => {
     if (activeTab !== 'history') return;
     if (completedOrdersLoaded) return;
@@ -757,7 +757,7 @@ export default function RestaurantDashboard() {
     setStoreOnline(next);
     const updated = { ...restaurant?.features, qrOrderingEnabled: next };
     await saveMenuVisibility(updated);
-    showToast(next ? '✅ Store is now Online' : '⚠️ Store is now Offline', next ? 'success' : 'error');
+    showToast(next ? 'âœ… Store is now Online' : 'âš ï¸ Store is now Offline', next ? 'success' : 'error');
   };
 
   const saveOccasionalHour = async (updated) => {
@@ -879,7 +879,7 @@ export default function RestaurantDashboard() {
     if (success) {
       showToast('Test sound played successfully');
     } else {
-      showToast('Failed to play test sound — check browser settings', 'error');
+      showToast('Failed to play test sound â€” check browser settings', 'error');
     }
     
     // Track test sound
@@ -981,8 +981,8 @@ export default function RestaurantDashboard() {
       }
       await fetchRestaurant(restaurantId);
       const msg = skipped > 0
-        ? `✅ Imported ${pending.length} items. Skipped ${skipped} already existing items.`
-        : `✅ Imported ${pending.length} menu items successfully!`;
+        ? `âœ… Imported ${pending.length} items. Skipped ${skipped} already existing items.`
+        : `âœ… Imported ${pending.length} menu items successfully!`;
       alert(msg);
     } catch (err) {
       console.error('Import error:', err);
@@ -1031,7 +1031,7 @@ export default function RestaurantDashboard() {
         } catch (error) {
           console.error('Error deleting menu item:', error);
           if (error.response?.data?.type === 'constraint_violation') {
-            showToast('Item marked unavailable — exists in order history', 'error');
+            showToast('Item marked unavailable â€” exists in order history', 'error');
           } else {
             showToast('Failed to delete menu item', 'error');
           }
@@ -1053,7 +1053,7 @@ export default function RestaurantDashboard() {
       
       // Check file size (max 2MB for images)
       if (file.size > 2 * 1024 * 1024) {
-        showToast('Image too large — max 2MB', 'error');
+        showToast('Image too large â€” max 2MB', 'error');
         return;
       }
       
@@ -1115,7 +1115,7 @@ export default function RestaurantDashboard() {
 
   // Save a custom name for a room (stored in features.roomNames)
   const saveMenuVisibility = async (updatedFeatures) => {
-    // Optimistic update — change UI instantly, save in background
+    // Optimistic update â€” change UI instantly, save in background
     setRestaurant(prev => ({ ...prev, features: updatedFeatures }));
     try {
       const token = localStorage.getItem('restaurantToken');
@@ -1357,9 +1357,9 @@ export default function RestaurantDashboard() {
           localStorage.removeItem(sessionKey);
           const restaurantId = localStorage.getItem('restaurantId');
           await fetchOrders(restaurantId);
-          showToast(`Table ${tableNumber} cleared — saved as combined bill`);
+          showToast(`Table ${tableNumber} cleared â€” saved as combined bill`);
         } catch (error) {
-          console.error('❌ Error clearing table:', error);
+          console.error('âŒ Error clearing table:', error);
           showToast(`Failed to clear table: ${error.response?.data?.error || error.message}`, 'error');
         }
       }
@@ -1385,7 +1385,7 @@ export default function RestaurantDashboard() {
     const orderTypeText = order.orderType === 'takeaway' ? 'Takeaway' : 'Order';
 
     setConfirmModal({
-      message: `Clear ${orderTypeText} for ${order.customerName} (₹${order.totalAmount})? This will save it to order history and mark it as completed.`,
+      message: `Clear ${orderTypeText} for ${order.customerName} (â‚¹${order.totalAmount})? This will save it to order history and mark it as completed.`,
       onConfirm: async () => {
         setConfirmModal(null);
         try {
@@ -1394,7 +1394,7 @@ export default function RestaurantDashboard() {
           const restaurantId = localStorage.getItem('restaurantId');
           await fetchOrders(restaurantId);
         } catch (error) {
-          console.error('❌ Error clearing individual order:', error);
+          console.error('âŒ Error clearing individual order:', error);
           showToast(`Failed to clear order: ${error.response?.data?.error || error.message}`, 'error');
         }
       }
@@ -1629,17 +1629,17 @@ export default function RestaurantDashboard() {
         const restaurantId = localStorage.getItem('restaurantId');
 
         if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.deliveryAddress) {
-          setSuccessMessage('⚠️ Please enter delivery address before saving delivery orders.');
+          setSuccessMessage('âš ï¸ Please enter delivery address before saving delivery orders.');
           setTimeout(() => setSuccessMessage(''), 3000);
           return;
         }
         if (receptionistOrder.orderType === 'delivery' && !receptionistOrder.customerName) {
-          setSuccessMessage('⚠️ Please enter customer name for delivery orders.');
+          setSuccessMessage('âš ï¸ Please enter customer name for delivery orders.');
           setTimeout(() => setSuccessMessage(''), 3000);
           return;
         }
         if (receptionistOrder.orderType === 'dine-in' && !receptionistOrder.tableNumber) {
-          setSuccessMessage('⚠️ Please select a table number before saving dine-in orders.');
+          setSuccessMessage('âš ï¸ Please select a table number before saving dine-in orders.');
           setTimeout(() => setSuccessMessage(''), 3000);
           return;
         }
@@ -1682,7 +1682,7 @@ export default function RestaurantDashboard() {
           totalAmount
         });
 
-        setSuccessMessage(`✅ Order #${createdOrder.orderNumber ? String(createdOrder.orderNumber).padStart(3,'0') : createdOrder._id?.slice(-6).toUpperCase()} saved! Total: ₹${totalAmount}`);
+        setSuccessMessage(`âœ… Order #${createdOrder.orderNumber ? String(createdOrder.orderNumber).padStart(3,'0') : createdOrder._id?.slice(-6).toUpperCase()} saved! Total: â‚¹${totalAmount}`);
         setTimeout(() => setSuccessMessage(''), 5000);
 
         setReceptionistOrder({
@@ -1698,8 +1698,8 @@ export default function RestaurantDashboard() {
         setStaffSelectedTable(null);
         fetchOrders(restaurantId);
       } catch (error) {
-        console.error('❌ Error saving Staff order:', error);
-        setSuccessMessage(`❌ Failed to save order: ${error.response?.data?.error || error.message}`);
+        console.error('âŒ Error saving Staff order:', error);
+        setSuccessMessage(`âŒ Failed to save order: ${error.response?.data?.error || error.message}`);
         setTimeout(() => setSuccessMessage(''), 5000);
         return;
       }
@@ -1714,7 +1714,7 @@ export default function RestaurantDashboard() {
     setStaffSearchQuery('');
   };
 
-  // Cancel an active order — also clears the table session
+  // Cancel an active order â€” also clears the table session
   const cancelOrder = async (order) => {
     setConfirmModal({
       message: `Cancel order #${order.orderNumber ? String(order.orderNumber).padStart(3,'0') : order._id?.slice(-6)}? This cannot be undone.`,
@@ -1862,11 +1862,11 @@ export default function RestaurantDashboard() {
         specialInstructions: editingOrder.specialInstructions
       };
 
-      console.log('🔄 Updating order...', { orderId: editingOrder._id, updatedOrderData });
+      console.log('ðŸ”„ Updating order...', { orderId: editingOrder._id, updatedOrderData });
 
       const response = await axios.put(`/api/orders/${editingOrder._id}`, updatedOrderData);
       
-      console.log('✅ Order updated successfully:', response.data);
+      console.log('âœ… Order updated successfully:', response.data);
       
       // Refresh orders
       const restaurantId = localStorage.getItem('restaurantId');
@@ -1884,7 +1884,7 @@ export default function RestaurantDashboard() {
       closeEditOrderModal();
       
     } catch (error) {
-      console.error('❌ Error updating order:', error);
+      console.error('âŒ Error updating order:', error);
       showToast(`Failed to update order: ${error.response?.data?.error || error.message}`, 'error');
     }
   };
@@ -1932,8 +1932,8 @@ export default function RestaurantDashboard() {
       {/* Success Message Banner */}
       {successMessage && (
         <div className={`fixed top-0 left-0 right-0 z-50 ${
-          successMessage.startsWith('✅') ? 'bg-green-500' : 
-          successMessage.startsWith('⚠️') ? 'bg-yellow-500' : 
+          successMessage.startsWith('âœ…') ? 'bg-green-500' : 
+          successMessage.startsWith('âš ï¸') ? 'bg-yellow-500' : 
           'bg-red-500'
         } text-white px-4 py-3 shadow-lg`}>
           <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -1942,7 +1942,7 @@ export default function RestaurantDashboard() {
               onClick={() => setSuccessMessage('')}
               className="text-white hover:text-gray-200 font-bold text-xl"
             >
-              ×
+              Ã—
             </button>
           </div>
         </div>
@@ -1961,7 +1961,7 @@ export default function RestaurantDashboard() {
           {/* Top search */}
           <div className="hidden sm:flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-1.5 w-48 lg:w-64">
             <Search size={14} className="text-gray-400 shrink-0" />
-            <input value={topSearch} onChange={e => setTopSearch(e.target.value)} placeholder="Search orders…"
+            <input value={topSearch} onChange={e => setTopSearch(e.target.value)} placeholder="Search ordersâ€¦"
               className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
             {topSearch && <button onClick={() => setTopSearch('')}><X size={13} className="text-gray-400" /></button>}
           </div>
@@ -1989,7 +1989,7 @@ export default function RestaurantDashboard() {
         {/* Offline banner */}
         {!storeOnline && (
           <div className="max-w-7xl mx-auto mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2 flex items-center justify-between">
-            <span className="text-sm text-red-700 font-medium">⚠️ Store is Offline — customers cannot place new orders</span>
+            <span className="text-sm text-red-700 font-medium">âš ï¸ Store is Offline â€” customers cannot place new orders</span>
             <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-red-600 underline flex items-center gap-1"><Clock size={12} /> Setup occasional timings</button>
           </div>
         )}
@@ -2013,7 +2013,7 @@ export default function RestaurantDashboard() {
             <div className="px-4 py-3 border-b border-gray-100">
               <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
                 <Search size={14} className="text-gray-400 shrink-0" />
-                <input value={drawerSearch} onChange={e => setDrawerSearch(e.target.value)} placeholder="Search menu…"
+                <input value={drawerSearch} onChange={e => setDrawerSearch(e.target.value)} placeholder="Search menuâ€¦"
                   autoFocus className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
                 {drawerSearch && <button onClick={() => setDrawerSearch('')}><X size={13} className="text-gray-400" /></button>}
               </div>
@@ -2071,7 +2071,7 @@ export default function RestaurantDashboard() {
                 <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{h.label}</p>
-                    <p className="text-xs text-gray-400">{h.date} · {h.openTime} – {h.closeTime}</p>
+                    <p className="text-xs text-gray-400">{h.date} Â· {h.openTime} â€“ {h.closeTime}</p>
                   </div>
                   <button onClick={() => { const updated = occasionalHours.filter((_, idx) => idx !== i); saveOccasionalHour(updated); }}
                     className="p-1.5 text-red-400 hover:text-red-600"><X size={15} /></button>
@@ -2253,7 +2253,7 @@ export default function RestaurantDashboard() {
               }`}
             >
               <span className="hidden sm:inline">Feedback</span>
-              <span className="sm:hidden">💬</span>
+              <span className="sm:hidden">ðŸ’¬</span>
               {feedback.length > 0 && (
                 <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
                   activeTab === 'feedback' 
@@ -2297,7 +2297,7 @@ export default function RestaurantDashboard() {
             </div>
             {activeDeliveryOrders.filter(o => orderWorkflowTab === 'all' || o.status === orderWorkflowTab).length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl text-center">
-                <span className="text-5xl mb-4">🛵</span>
+                <span className="text-5xl mb-4">ðŸ›µ</span>
                 <p className="text-gray-500 font-semibold text-base">No {orderWorkflowTab === 'all' ? 'active' : orderWorkflowTab} orders</p>
                 <p className="text-xs text-gray-400 mt-1">Orders will appear here when placed</p>
               </div>
@@ -2310,7 +2310,7 @@ export default function RestaurantDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-gray-800">
-                          {order.orderType === 'takeaway' ? '🥡' : '🛵'} {order.customerName || 'Guest'}
+                          {order.orderType === 'takeaway' ? 'ðŸ¥¡' : 'ðŸ›µ'} {order.customerName || 'Guest'}
                         </span>
                         {order.waiterNumber && <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{order.waiterNumber}</span>}
                         <span className="text-xs text-gray-400">#{order.orderNumber ? String(order.orderNumber).padStart(3,'0') : order._id?.slice(-4)}</span>
@@ -2318,15 +2318,15 @@ export default function RestaurantDashboard() {
                       {order.deliveryAddress && <p className="text-xs text-gray-400 truncate">{order.deliveryAddress}</p>}
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${statusColors[order.status]}`}>{order.status}</span>
-                    <span className="text-sm font-bold text-primary shrink-0">₹{order.totalAmount}</span>
+                    <span className="text-sm font-bold text-primary shrink-0">â‚¹{order.totalAmount}</span>
                   </div>
-                  {/* Items — collapsed by default */}
+                  {/* Items â€” collapsed by default */}
                   <div className="px-4 py-2 text-xs text-gray-600 flex flex-wrap gap-2">
                     {order.items.map((item, i) => (
-                      <span key={i} className="bg-gray-50 px-2 py-0.5 rounded">{item.name} ×{item.quantity}</span>
+                      <span key={i} className="bg-gray-50 px-2 py-0.5 rounded">{item.name} Ã—{item.quantity}</span>
                     ))}
                   </div>
-                  {/* Action buttons — compact single row */}
+                  {/* Action buttons â€” compact single row */}
                   <div className="px-3 pb-2.5 flex gap-1.5 flex-wrap">
                     {order.source === 'staff' ? (
                       <>
@@ -2340,7 +2340,7 @@ export default function RestaurantDashboard() {
                       </>
                     ) : (
                       <>
-                        <button onClick={() => smartPrint(printIndividualReceiptHTML(order), 'bill')} className="bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-800">⚡</button>
+                        <button onClick={() => smartPrint(printIndividualReceiptHTML(order), 'bill')} className="bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-800">âš¡</button>
                         <button onClick={() => printIndividualReceipt(order)} className="bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-600">Print</button>
                         <button onClick={() => openEditOrderModal(order)} className="bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-600">Edit</button>
                         {order.status !== 'completed' && order.status !== 'cancelled' && (
@@ -2506,7 +2506,7 @@ export default function RestaurantDashboard() {
                         />
                       </div>
                       <p className="text-xs text-gray-500 mt-1 text-center">
-                        {Math.round((importProgress.current / importProgress.total) * 100)}% — {importProgress.current} of {importProgress.total} items
+                        {Math.round((importProgress.current / importProgress.total) * 100)}% â€” {importProgress.current} of {importProgress.total} items
                       </p>
                     </div>
                   )}
@@ -2576,7 +2576,7 @@ export default function RestaurantDashboard() {
                   item.category?.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
                   item.description?.toLowerCase().includes(menuSearchQuery.toLowerCase())
                 ).length} items found for "{menuSearchQuery}"
-                <span className="ml-2 text-gray-400">• Press Escape to clear</span>
+                <span className="ml-2 text-gray-400">â€¢ Press Escape to clear</span>
               </div>
             )}
 
@@ -2617,7 +2617,7 @@ export default function RestaurantDashboard() {
                             setOrderedCategories(cats);
                           }}
                           className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-600 text-xs leading-none"
-                        >▲</button>
+                        >â–²</button>
                         <button
                           disabled={catIndex === orderedCategories.length - 1}
                           onClick={() => {
@@ -2626,7 +2626,7 @@ export default function RestaurantDashboard() {
                             setOrderedCategories(cats);
                           }}
                           className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-600 text-xs leading-none"
-                        >▼</button>
+                        >â–¼</button>
                       </div>
                     </div>
 
@@ -2670,7 +2670,7 @@ export default function RestaurantDashboard() {
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-gray-800 text-sm truncate">{item.name}</p>
-                              <p className="text-xs text-gray-500">₹{item.price} · {item.isVeg ? 'Veg' : 'Non-Veg'}</p>
+                              <p className="text-xs text-gray-500">â‚¹{item.price} Â· {item.isVeg ? 'Veg' : 'Non-Veg'}</p>
                             </div>
                             {/* Item arrow buttons */}
                             <div className="flex flex-col gap-0.5 shrink-0">
@@ -2683,7 +2683,7 @@ export default function RestaurantDashboard() {
                                   setOrderedMenu(menu);
                                 }}
                                 className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-600 text-xs leading-none"
-                              >▲</button>
+                              >â–²</button>
                               <button
                                 disabled={itemIndex === categoryItems.length - 1}
                                 onClick={() => {
@@ -2693,7 +2693,7 @@ export default function RestaurantDashboard() {
                                   setOrderedMenu(menu);
                                 }}
                                 className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-600 text-xs leading-none"
-                              >▼</button>
+                              >â–¼</button>
                             </div>
                           </div>
                         );
@@ -2755,7 +2755,7 @@ export default function RestaurantDashboard() {
                                 </div>
                                 <p className={`text-sm mb-2 ${!item.available ? 'text-gray-400' : 'text-gray-600'}`}>{item.description}</p>
                                 <div className="flex justify-between items-center">
-                                  <span className={`text-lg font-bold ${!item.available ? 'text-gray-400 line-through' : 'text-primary'}`}>₹{item.price}</span>
+                                  <span className={`text-lg font-bold ${!item.available ? 'text-gray-400 line-through' : 'text-primary'}`}>â‚¹{item.price}</span>
                                   <div>
                                     {item.isVeg ? (
                                       <span className={`text-sm ${!item.available ? 'text-gray-400' : 'text-green-600'}`}>Veg</span>
@@ -2833,7 +2833,10 @@ export default function RestaurantDashboard() {
                             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                           >
                             <option value="">Select a category</option>
-                            {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => (
+                            {[...new Set([
+                              ...(restaurant?.menu || []).map(i => i.category).filter(Boolean),
+                              ...(newMenuItem.category && newMenuItem.category !== '__new__' ? [newMenuItem.category] : [])
+                            ])].map(cat => (
                               <option key={cat} value={cat}>{cat}</option>
                             ))}
                             <option value="__new__">+ Add new category</option>
@@ -2940,7 +2943,7 @@ export default function RestaurantDashboard() {
                             <label htmlFor="image-upload" className="cursor-pointer">
                               {imageFile ? (
                                 <div>
-                                  <p className="text-green-600 font-semibold mb-1">✓ {imageFile.name}</p>
+                                  <p className="text-green-600 font-semibold mb-1">âœ“ {imageFile.name}</p>
                                   <p className="text-xs text-gray-500">
                                     {(imageFile.size / (1024 * 1024)).toFixed(2)} MB
                                   </p>
@@ -3041,10 +3044,10 @@ export default function RestaurantDashboard() {
           <div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
               <p className="text-sm text-blue-800 mb-2">
-                <strong>📱 Scan to Order:</strong> Customers can scan these QR codes to order directly from their table without waiting for a waiter.
+                <strong>ðŸ“± Scan to Order:</strong> Customers can scan these QR codes to order directly from their table without waiting for a waiter.
               </p>
               <p className="text-xs text-blue-700">
-                💡 Print these QR codes and place them on each table. You can right-click and save each QR code image.
+                ðŸ’¡ Print these QR codes and place them on each table. You can right-click and save each QR code image.
               </p>
             </div>
 
@@ -3063,7 +3066,7 @@ export default function RestaurantDashboard() {
                   className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 text-sm"
                   title="Debug Info"
                 >
-                  🐛 Debug
+                  ðŸ› Debug
                 </button>
                 <FeatureGuard feature="tableManagement">
                   <button
@@ -3129,7 +3132,7 @@ export default function RestaurantDashboard() {
                           onClick={() => downloadQRCode(tableNum, qrUrl)}
                           className="text-sm bg-primary text-white px-4 py-2 rounded-lg hover:bg-red-600 w-full"
                         >
-                          📥 Download QR
+                          ðŸ“¥ Download QR
                         </button>
                       </FeatureGuard>
                     </div>
@@ -3138,14 +3141,14 @@ export default function RestaurantDashboard() {
               </div>
             )}
 
-            {/* ── Assign Rooms Section ── */}
+            {/* â”€â”€ Assign Rooms Section â”€â”€ */}
             <div className="mt-10">
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
                 <p className="text-sm text-purple-800 mb-1">
-                  <strong>🏨 Room QR Codes:</strong> Assign QR codes to hotel/guest rooms so customers can order directly from their room.
+                  <strong>ðŸ¨ Room QR Codes:</strong> Assign QR codes to hotel/guest rooms so customers can order directly from their room.
                 </p>
                 <p className="text-xs text-purple-700">
-                  💡 Print these QR codes and place them in each room. Scanning opens the same menu with a Room order type.
+                  ðŸ’¡ Print these QR codes and place them in each room. Scanning opens the same menu with a Room order type.
                 </p>
               </div>
 
@@ -3166,7 +3169,7 @@ export default function RestaurantDashboard() {
 
               {(!restaurant.rooms || restaurant.rooms === 0) ? (
                 <div className="text-center py-12 bg-white rounded-lg shadow-md">
-                  <div className="text-4xl mb-3">🏨</div>
+                  <div className="text-4xl mb-3">ðŸ¨</div>
                   <p className="text-gray-500 mb-4">No rooms added yet</p>
                   <button
                     onClick={addRoom}
@@ -3203,7 +3206,7 @@ export default function RestaurantDashboard() {
                           />
                         </div>
 
-                        {/* Room name — inline edit */}
+                        {/* Room name â€” inline edit */}
                         {isEditingThis ? (
                           <div className="flex items-center gap-1 mb-1 justify-center">
                             <input
@@ -3220,15 +3223,15 @@ export default function RestaurantDashboard() {
                             <button
                               onClick={() => saveRoomName(roomNum, editingRoomName.name)}
                               className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700"
-                            >✓</button>
+                            >âœ“</button>
                             <button
                               onClick={() => setEditingRoomName(null)}
                               className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded hover:bg-gray-300"
-                            >✕</button>
+                            >âœ•</button>
                           </div>
                         ) : (
                           <div className="flex items-center justify-center gap-1 mb-1 group">
-                            <span className="text-purple-500">🏨</span>
+                            <span className="text-purple-500">ðŸ¨</span>
                             <p className="font-bold text-gray-800 text-lg">{roomName}</p>
                             <button
                               onClick={() => setEditingRoomName({ roomNum, name: roomName })}
@@ -3254,7 +3257,7 @@ export default function RestaurantDashboard() {
                             onClick={() => downloadRoomQRCode(roomNum, qrUrl)}
                             className="text-sm bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 w-full"
                           >
-                            📥 Download QR
+                            ðŸ“¥ Download QR
                           </button>
                         </FeatureGuard>
                       </div>
@@ -3264,11 +3267,11 @@ export default function RestaurantDashboard() {
               )}
             </div>
 
-            {/* ── Takeaway & Delivery QR ── */}
+            {/* â”€â”€ Takeaway & Delivery QR â”€â”€ */}
             <div className="mt-10">
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-orange-800">
-                  <strong>🥡 Takeaway & 🛵 Delivery QR Codes:</strong> Customers can scan these to place takeaway or delivery orders directly from their phone.
+                  <strong>ðŸ¥¡ Takeaway & ðŸ›µ Delivery QR Codes:</strong> Customers can scan these to place takeaway or delivery orders directly from their phone.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -3277,7 +3280,7 @@ export default function RestaurantDashboard() {
                   const twUrl = `https://waitnot-restaurant1.onrender.com/qr-takeaway/${restaurant._id}`;
                   return (
                     <div className="bg-white rounded-lg shadow-md p-6 text-center border-t-4 border-orange-400">
-                      <div className="text-3xl mb-2">🥡</div>
+                      <div className="text-3xl mb-2">ðŸ¥¡</div>
                       <h3 className="font-bold text-gray-800 text-lg mb-3">Takeaway Order</h3>
                       <div id="qr-takeaway" className="bg-white p-3 rounded-lg mb-3 inline-block border-2 border-orange-200">
                         <img
@@ -3310,7 +3313,7 @@ export default function RestaurantDashboard() {
                             qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(twUrl)}&margin=20`;
                           }}
                           className="text-sm bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 w-full"
-                        >📥 Download QR</button>
+                        >ðŸ“¥ Download QR</button>
                       </FeatureGuard>
                     </div>
                   );
@@ -3321,7 +3324,7 @@ export default function RestaurantDashboard() {
                   const delUrl = `https://waitnot-restaurant1.onrender.com/qr-delivery/${restaurant._id}`;
                   return (
                     <div className="bg-white rounded-lg shadow-md p-6 text-center border-t-4 border-blue-400">
-                      <div className="text-3xl mb-2">🛵</div>
+                      <div className="text-3xl mb-2">ðŸ›µ</div>
                       <h3 className="font-bold text-gray-800 text-lg mb-3">Delivery Order</h3>
                       <div id="qr-delivery" className="bg-white p-3 rounded-lg mb-3 inline-block border-2 border-blue-200">
                         <img
@@ -3354,7 +3357,7 @@ export default function RestaurantDashboard() {
                             qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(delUrl)}&margin=20`;
                           }}
                           className="text-sm bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 w-full"
-                        >📥 Download QR</button>
+                        >ðŸ“¥ Download QR</button>
                       </FeatureGuard>
                     </div>
                   );
@@ -3447,7 +3450,7 @@ export default function RestaurantDashboard() {
                     });
                     const itemList = Object.entries(combinedItems);
                     const label = isDineIn
-                      ? `${first.source === 'staff' ? 'Staff · ' : ''}Table ${first.tableNumber}`
+                      ? `${first.source === 'staff' ? 'Staff Â· ' : ''}Table ${first.tableNumber}`
                       : isRoom
                       ? `Room ${first.roomNumber}`
                       : first.orderType === 'takeaway' ? 'Takeaway'
@@ -3486,19 +3489,19 @@ export default function RestaurantDashboard() {
                         </div>
                         {/* Customer */}
                         <div className="col-span-2">
-                          <p className="text-gray-700 truncate">{first.customerName || '—'}</p>
+                          <p className="text-gray-700 truncate">{first.customerName || 'â€”'}</p>
                           {first.customerPhone && <p className="text-xs text-gray-400">{first.customerPhone}</p>}
                         </div>
                         {/* Items */}
                         <div className="col-span-3 space-y-0.5">
                           {itemList.slice(0, 3).map(([name, d]) => (
-                            <p key={name} className="text-gray-600 text-xs truncate">{name} ×{d.qty}</p>
+                            <p key={name} className="text-gray-600 text-xs truncate">{name} Ã—{d.qty}</p>
                           ))}
                           {itemList.length > 3 && <p className="text-xs text-gray-400">+{itemList.length - 3} more</p>}
                         </div>
                         {/* Amount */}
                         <div className="col-span-2 text-right">
-                          <p className="font-bold text-primary">₹{total}</p>
+                          <p className="font-bold text-primary">â‚¹{total}</p>
                         </div>
                         {/* Pay status */}
                         <div className="col-span-1 text-center">
@@ -3529,7 +3532,7 @@ export default function RestaurantDashboard() {
         {activeTab === 'feedback' && (
           <div className="space-y-3 sm:space-y-4">
             <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800">💬 Customer Feedback</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800">ðŸ’¬ Customer Feedback</h2>
               <p className="text-gray-600 text-xs sm:text-sm">
                 View and respond to customer feedback and reviews
               </p>
@@ -3543,7 +3546,7 @@ export default function RestaurantDashboard() {
                   </div>
                   <div className="bg-yellow-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-bold text-yellow-600">
-                      {feedbackStats.averageRating ? feedbackStats.averageRating.toFixed(1) : '0.0'}⭐
+                      {feedbackStats.averageRating ? feedbackStats.averageRating.toFixed(1) : '0.0'}â­
                     </div>
                     <div className="text-xs text-yellow-600">Average Rating</div>
                   </div>
@@ -3576,7 +3579,7 @@ export default function RestaurantDashboard() {
                               i < item.rating ? 'text-yellow-400' : 'text-gray-300'
                             }`}
                           >
-                            ⭐
+                            â­
                           </span>
                         ))}
                       </div>
@@ -3588,8 +3591,8 @@ export default function RestaurantDashboard() {
                     {!item.isAnonymous && (
                       <div className="text-sm text-gray-600 mb-2">
                         {item.customerPhone && `${item.customerPhone}`}
-                        {item.customerEmail && ` | 📧 ${item.customerEmail}`}
-                        {item.tableNumber && ` | 🪑 Table ${item.tableNumber}`}
+                        {item.customerEmail && ` | ðŸ“§ ${item.customerEmail}`}
+                        {item.tableNumber && ` | ðŸª‘ Table ${item.tableNumber}`}
                       </div>
                     )}
                     
@@ -3685,7 +3688,7 @@ export default function RestaurantDashboard() {
             
             {feedback.length === 0 && (
               <div className="text-center py-12 text-gray-500">
-                <div className="text-4xl mb-4">💬</div>
+                <div className="text-4xl mb-4">ðŸ’¬</div>
                 <div>No customer feedback yet</div>
                 <div className="text-sm mt-2">Customer feedback will appear here when submitted</div>
               </div>
@@ -3707,7 +3710,7 @@ export default function RestaurantDashboard() {
         {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
           <div style={{display:'flex', flexDirection:'column', flex:1, overflow:'hidden'}}>
             {staffView === 'tables' ? (
-              /* ── TABLE GRID VIEW ── */
+              /* â”€â”€ TABLE GRID VIEW â”€â”€ */
               <div style={{flex:1, overflowY:'auto', overflowX:'hidden'}} className="px-4 sm:px-6 py-4 bg-gray-50">
                 <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Select Table</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-4">
@@ -3722,7 +3725,7 @@ export default function RestaurantDashboard() {
                         className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-red-50 border-red-300 hover:border-red-500' : 'bg-green-50 border-green-300 hover:border-green-500'}`}
                       >
                         <span className={`text-lg font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
-                        {isOccupied ? <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span> : <span className="text-xs text-green-500 leading-none">Free</span>}
+                        {isOccupied ? <span className="text-xs font-medium text-red-600 leading-none">â‚¹{tTotal}</span> : <span className="text-xs text-green-500 leading-none">Free</span>}
                         {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
                       </button>
                     );
@@ -3732,7 +3735,7 @@ export default function RestaurantDashboard() {
                   )}
                 </div>
 
-                {/* Rooms — if configured */}
+                {/* Rooms â€” if configured */}
                 {(restaurant?.rooms || 0) > 0 && (
                   <>
                     <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-4">Rooms</h2>
@@ -3748,9 +3751,9 @@ export default function RestaurantDashboard() {
                             onClick={() => { setStaffSelectedTable(n); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'room', tableNumber: '', roomNumber: String(n) })); }}
                             className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-orange-50 border-orange-300 hover:border-orange-500' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}
                           >
-                            <span className="text-base leading-none">🛏</span>
+                            <span className="text-base leading-none">ðŸ›</span>
                             <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{roomLabel}</span>
-                            {isOccupied ? <span className="text-xs font-medium text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs text-blue-400 leading-none">Free</span>}
+                            {isOccupied ? <span className="text-xs font-medium text-orange-600 leading-none">â‚¹{rTotal}</span> : <span className="text-xs text-blue-400 leading-none">Free</span>}
                             {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>}
                           </button>
                         );
@@ -3759,30 +3762,30 @@ export default function RestaurantDashboard() {
                   </>
                 )}
 
-                {/* Takeaway & Delivery — same grid, full names */}
+                {/* Takeaway & Delivery â€” same grid, full names */}
                 <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Quick Order</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
                   <button
                     onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
                     className="rounded-xl py-3 px-1 border-2 border-orange-300 hover:border-orange-500 bg-orange-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95"
                   >
-                    <span className="text-base leading-none">🥡</span>
+                    <span className="text-base leading-none">ðŸ¥¡</span>
                     <span className="text-xs font-bold text-orange-600 leading-none text-center">TW</span>
                   </button>
                   <button
                     onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '' })); }}
                     className="rounded-xl py-3 px-1 border-2 border-blue-300 hover:border-blue-500 bg-blue-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95"
                   >
-                    <span className="text-base leading-none">🛵</span>
+                    <span className="text-base leading-none">ðŸ›µ</span>
                     <span className="text-xs font-bold text-blue-600 leading-none text-center">DEL</span>
                   </button>
                 </div>
               </div>
             ) : (
-              /* ── ORDER INTERFACE — 3-column POS layout ── */
+              /* â”€â”€ ORDER INTERFACE â€” 3-column POS layout â”€â”€ */
               <div style={{display:'flex', width:'100%', height:'100%', overflow:'hidden'}}>
 
-                {/* COL 1: Category — fixed width, list scrolls */}
+                {/* COL 1: Category â€” fixed width, list scrolls */}
                 <div style={{width:'112px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderRight:'1px solid #f3f4f6'}}>
                   <div style={{overflowY:'auto', overflowX:'hidden', flex:1}}>
                     {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category) || [])]].map(cat => (
@@ -3794,21 +3797,21 @@ export default function RestaurantDashboard() {
                   </div>
                 </div>
 
-                {/* COL 2: Menu — flex grows, grid scrolls */}
+                {/* COL 2: Menu â€” flex grows, grid scrolls */}
                 <div style={{flex:1, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#f9fafb'}}>
                   <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center" style={{flexShrink:0}}>
                     {staffSelectedTable && receptionistOrder.orderType === 'room' ? (
-                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
-                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🛏 {restaurant?.features?.roomNames?.[staffSelectedTable] || ('Room ' + staffSelectedTable)}</span></>
+                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '' })); }} className="text-xs text-primary font-semibold">â† Back</button>
+                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">ðŸ› {restaurant?.features?.roomNames?.[staffSelectedTable] || ('Room ' + staffSelectedTable)}</span></>
                     ) : staffSelectedTable ? (
-                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }} className="text-xs text-primary font-semibold">← Table {staffSelectedTable}</button>
-                      <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">Dine-In · T{staffSelectedTable}</span></>
+                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }} className="text-xs text-primary font-semibold">â† Table {staffSelectedTable}</button>
+                      <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">Dine-In Â· T{staffSelectedTable}</span></>
                     ) : receptionistOrder.orderType === 'takeaway' ? (
-                      <><button onClick={() => setStaffView('tables')} className="text-xs text-primary font-semibold">← Back</button>
-                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🥡 Takeaway</span></>
+                      <><button onClick={() => setStaffView('tables')} className="text-xs text-primary font-semibold">â† Back</button>
+                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">ðŸ¥¡ Takeaway</span></>
                     ) : receptionistOrder.orderType === 'delivery' ? (
-                      <><button onClick={() => setStaffView('tables')} className="text-xs text-primary font-semibold">← Back</button>
-                      <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>
+                      <><button onClick={() => setStaffView('tables')} className="text-xs text-primary font-semibold">â† Back</button>
+                      <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">ðŸ›µ Delivery</span>
                       <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Delivery address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[120px]" /></>
                     ) : (
                       <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -3846,7 +3849,7 @@ export default function RestaurantDashboard() {
                               <div className="pt-4 pb-1 px-0.5 min-h-[3.5rem]"><p className="text-xs font-semibold text-gray-800 leading-tight">{item.name}</p></div>
                               {inOrder ? (
                                 <div className="flex items-center justify-between mt-1 gap-1">
-                                  <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700">−</button>
+                                  <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700">âˆ’</button>
                                   <span className="text-sm font-bold text-primary">{inOrder.quantity}</span>
                                   <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, 1); }} className="w-7 h-7 rounded bg-primary text-white flex items-center justify-center text-sm font-bold">+</button>
                                 </div>
@@ -3860,7 +3863,7 @@ export default function RestaurantDashboard() {
                   </div>
                 </div>
 
-                {/* COL 3: Order Summary — fixed, overflow hidden, never scrolls as a whole */}
+                {/* COL 3: Order Summary â€” fixed, overflow hidden, never scrolls as a whole */}
                 <div style={{width:'280px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderLeft:'1px solid #f3f4f6'}}>
                   {/* Fixed header */}
                   <div className="px-3 py-2 border-b border-gray-100" style={{flexShrink:0}}>
@@ -3869,7 +3872,7 @@ export default function RestaurantDashboard() {
                         <h3 className="font-semibold text-gray-900 text-sm">
                           {receptionistOrder.orderType === 'dine-in' && receptionistOrder.tableNumber ? `Table ${receptionistOrder.tableNumber}`
                             : receptionistOrder.orderType === 'room' && receptionistOrder.roomNumber ? (restaurant?.features?.roomNames?.[receptionistOrder.roomNumber] || 'Room ' + receptionistOrder.roomNumber)
-                            : receptionistOrder.orderType === 'takeaway' ? '🥡 Takeaway' : '🛵 Delivery'}
+                            : receptionistOrder.orderType === 'takeaway' ? 'ðŸ¥¡ Takeaway' : 'ðŸ›µ Delivery'}
                         </h3>
                         <p className="text-xs text-gray-400">{receptionistOrder.customerName || 'Guest'}</p>
                       </div>
@@ -3886,36 +3889,36 @@ export default function RestaurantDashboard() {
                       <div key={idx} className={"flex items-center gap-2 py-1.5 border-b border-gray-50 " + (item.complimentary ? 'opacity-70' : '')}>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
-                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">₹{item.price}</p>}
+                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">â‚¹{item.price}</p>}
                         </div>
                         <button onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
-                          className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 " + (item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400')}>✓</button>
+                          className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 " + (item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400')}>âœ“</button>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
+                          <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">âˆ’</button>
                           <span className="w-4 text-center text-xs font-bold">{item.quantity}</span>
                           <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
                         </div>
                         <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
-                          {item.complimentary ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span> : '₹' + (item.price * item.quantity)}
+                          {item.complimentary ? <span className="line-through text-gray-300">â‚¹{item.price * item.quantity}</span> : 'â‚¹' + (item.price * item.quantity)}
                         </p>
                       </div>
                     ))}
                   </div>
-                  {/* Fixed bottom actions — always visible */}
+                  {/* Fixed bottom actions â€” always visible */}
                   <div style={{flexShrink:0, borderTop:'1px solid #f3f4f6', background:'#fff'}}>
                     <div className="px-3 py-1.5 space-y-1">
                       <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder(prev => ({...prev, specialInstructions: e.target.value}))}
                         placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary" />
                       {receptionistOrder.orderType === 'takeaway' && (
                         <div className="flex items-center gap-2">
-                          <label className="text-xs text-gray-500 shrink-0">Packaging ₹</label>
+                          <label className="text-xs text-gray-500 shrink-0">Packaging â‚¹</label>
                           <input type="number" min="0" value={receptionistOrder.packagingCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, packagingCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
                         </div>
                       )}
                       {receptionistOrder.orderType === 'delivery' && (
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
+                            <label className="text-xs text-gray-500 shrink-0">Delivery â‚¹</label>
                             <input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none w-20" />
                           </div>
                           <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))} placeholder="Customer name *" className={"w-full text-xs border rounded px-2 py-1 focus:outline-none " + (!receptionistOrder.customerName ? 'border-red-300 bg-red-50' : 'border-gray-200')} />
@@ -3928,8 +3931,8 @@ export default function RestaurantDashboard() {
                         const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
                         const extra = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0;
                         return <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
-                          <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items{extra > 0 ? ' + ₹'+extra : ''}</span>
-                          <span className="text-base font-bold text-gray-900">₹{subtotal+extra}</span>
+                          <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items{extra > 0 ? ' + â‚¹'+extra : ''}</span>
+                          <span className="text-base font-bold text-gray-900">â‚¹{subtotal+extra}</span>
                         </div>;
                       })()}
                       <div className="grid grid-cols-3 gap-1.5">
@@ -3946,7 +3949,7 @@ export default function RestaurantDashboard() {
                   const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s,i) => s+i.price*i.quantity, 0);
                   const extra = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0;
                   return <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
-                    <span className="flex-1 font-bold text-sm">₹{subtotal+extra}</span>
+                    <span className="flex-1 font-bold text-sm">â‚¹{subtotal+extra}</span>
                     <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
                     <button onClick={printStaffBillOnly} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
                     <button onClick={clearReceptionistOrder} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Save</button>
@@ -3963,7 +3966,7 @@ export default function RestaurantDashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-800">🔔 Notification Settings</h2>
+              <h2 className="text-xl font-bold text-gray-800">ðŸ”” Notification Settings</h2>
               <button
                 onClick={() => setShowNotificationSettings(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -4014,8 +4017,8 @@ export default function RestaurantDashboard() {
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                   />
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>🔇 Quiet</span>
-                    <span>🔊 Loud</span>
+                    <span>ðŸ”‡ Quiet</span>
+                    <span>ðŸ”Š Loud</span>
                   </div>
                 </div>
               )}
@@ -4027,7 +4030,7 @@ export default function RestaurantDashboard() {
                     onClick={testNotificationSound}
                     className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2 px-4 rounded-lg hover:from-blue-600 hover:to-indigo-600 font-semibold flex items-center justify-center gap-2"
                   >
-                    🔊 Test Notification Sound
+                    ðŸ”Š Test Notification Sound
                   </button>
                   <p className="text-xs text-gray-500 mt-2 text-center">
                     Click to test the notification sound
@@ -4037,12 +4040,12 @@ export default function RestaurantDashboard() {
 
               {/* Info Section */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-blue-800 mb-2">ℹ️ How it works</h3>
+                <h3 className="font-semibold text-blue-800 mb-2">â„¹ï¸ How it works</h3>
                 <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Sound plays automatically when new orders arrive</li>
-                  <li>• Works for both dine-in and delivery orders</li>
-                  <li>• Browser must allow audio playback</li>
-                  <li>• Settings are saved for this restaurant</li>
+                  <li>â€¢ Sound plays automatically when new orders arrive</li>
+                  <li>â€¢ Works for both dine-in and delivery orders</li>
+                  <li>â€¢ Browser must allow audio playback</li>
+                  <li>â€¢ Settings are saved for this restaurant</li>
                 </ul>
               </div>
             </div>
@@ -4160,7 +4163,7 @@ export default function RestaurantDashboard() {
                         <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                           <div className="flex-1">
                             <div className="font-medium text-gray-800">{item.name}</div>
-                            <div className="text-sm text-gray-600">₹{item.price} each</div>
+                            <div className="text-sm text-gray-600">â‚¹{item.price} each</div>
                           </div>
                           <div className="flex items-center gap-2">
                             <button
@@ -4184,7 +4187,7 @@ export default function RestaurantDashboard() {
                             </button>
                           </div>
                           <div className="ml-4 font-medium text-gray-800">
-                            ₹{item.price * item.quantity}
+                            â‚¹{item.price * item.quantity}
                           </div>
                         </div>
                       ))}
@@ -4248,7 +4251,7 @@ export default function RestaurantDashboard() {
                           <div className="flex-1">
                             <div className="font-medium text-sm">{menuItem.name}</div>
                             <div className="text-xs text-gray-500">{menuItem.category}</div>
-                            <div className="text-xs text-gray-600">₹{menuItem.price}</div>
+                            <div className="text-xs text-gray-600">â‚¹{menuItem.price}</div>
                           </div>
                           <button
                             onClick={() => addItemToEditOrder(menuItem)}
@@ -4278,7 +4281,7 @@ export default function RestaurantDashboard() {
                   <div className="border-t pt-4">
                     <div className="flex justify-between items-center text-lg font-bold">
                       <span>Total:</span>
-                      <span>₹{editingOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
+                      <span>â‚¹{editingOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -4330,14 +4333,14 @@ export default function RestaurantDashboard() {
                     });
                     return Object.entries(allItems).map(([name, d]) => (
                       <div key={name} className="flex justify-between text-gray-600">
-                        <span>{name} × {d.quantity}</span>
-                        <span>₹{d.total}</span>
+                        <span>{name} Ã— {d.quantity}</span>
+                        <span>â‚¹{d.total}</span>
                       </div>
                     ));
                   })()}
                   <div className="border-t pt-2 flex justify-between font-bold text-gray-800 text-base">
                     <span>Total</span>
-                    <span className="text-primary">₹{clearTableModal.totalAmount}</span>
+                    <span className="text-primary">â‚¹{clearTableModal.totalAmount}</span>
                   </div>
                 </div>
 
@@ -4375,10 +4378,10 @@ export default function RestaurantDashboard() {
                   onClick={() => setOnlinePayStep(false)}
                   className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4"
                 >
-                  ← Back
+                  â† Back
                 </button>
                 <h2 className="text-xl font-bold text-gray-800 mb-1">Online Payment</h2>
-                <p className="text-gray-500 text-sm mb-5">Table {clearTableModal.tableNumber} · ₹{clearTableModal.totalAmount}</p>
+                <p className="text-gray-500 text-sm mb-5">Table {clearTableModal.tableNumber} Â· â‚¹{clearTableModal.totalAmount}</p>
 
                 {/* UPI / Net Banking toggle */}
                 <div className="flex gap-2 mb-5">
