@@ -3035,6 +3035,7 @@ export default function RestaurantDashboard() {
                 </div>
               </div>
             )}
+            </div>
           )} {/* end menuSubTab === 'items' */}
           </div>
         )}
