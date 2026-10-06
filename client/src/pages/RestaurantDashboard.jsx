@@ -2833,7 +2833,10 @@ export default function RestaurantDashboard() {
                             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                           >
                             <option value="">Select a category</option>
-                            {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => (
+                            {[...new Set([
+                              ...(restaurant?.menu || []).map(i => i.category).filter(Boolean),
+                              ...(menuForm.category && menuForm.category !== '__new__' ? [menuForm.category] : [])
+                            ])].map(cat => (
                               <option key={cat} value={cat}>{cat}</option>
                             ))}
                             <option value="__new__">+ Add new category</option>
@@ -3032,7 +3035,6 @@ export default function RestaurantDashboard() {
                 </div>
               </div>
             )}
-            </div>
           )} {/* end menuSubTab === 'items' */}
           </div>
         )}
