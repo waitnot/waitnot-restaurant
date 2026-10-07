@@ -50,7 +50,7 @@ async function electronPrintKOT(order, restaurantName) {
     paperWidth: s.paperWidth || '58mm',   // pass saved paper width
   }, p);
 }
-async function electronPrintBill(orders, tableLabel, total, restaurantName) {
+async function electronPrintBill(orders, tableLabel, total, restaurantName, extraData={}) {
   const s = getSavedSettings();
   const p = s.qzBillPrinter || s.cashCounterPrinterName || '';
   if (!p) return { success: false, error: 'No bill printer' };
@@ -60,10 +60,13 @@ async function electronPrintBill(orders, tableLabel, total, restaurantName) {
     else itemMap[i.name] = { name: i.name, qty: i.quantity, price: parseFloat(i.price) || 0 };
   }));
   const o0 = orders[0] || {};
-  const packagingCharge = parseFloat(o0.packagingCharge) || 0;
-  const deliveryCharge  = parseFloat(o0.deliveryCharge)  || 0;
+  // Read charges from extraData first (passed by printViaIframe), then fallback to o0
+  const packagingCharge = parseFloat(extraData.packagingCharge) || parseFloat(o0.packagingCharge) || 0;
+  const deliveryCharge  = parseFloat(extraData.deliveryCharge)  || parseFloat(o0.deliveryCharge)  || 0;
+  const extraCharge     = parseFloat(extraData.extraCharge)     || 0;
+  const extraChargeLabel = extraData.extraChargeLabel || '';
   const itemsTotal = Object.values(itemMap).reduce((s, i) => s + i.price * i.qty, 0);
-  const computedTotal = itemsTotal + packagingCharge + deliveryCharge;
+  const computedTotal = itemsTotal + packagingCharge + deliveryCharge + extraCharge;
   const finalTotal = total > 0 ? total : computedTotal;
   const now = new Date();
   return window.electronAPI.printBill({
@@ -73,13 +76,15 @@ async function electronPrintBill(orders, tableLabel, total, restaurantName) {
     total: finalTotal,
     packagingCharge,
     deliveryCharge,
+    extraCharge,
+    extraChargeLabel,
     paymentMethod: o0.paymentMethod || 'cash',
     customerName: o0.customerName || '',
     customerPhone: o0.customerPhone || '',
     time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     date: now.toLocaleDateString('en-IN'),
     footerText: 'Thank you! Visit Again',
-    paperWidth: s.paperWidth || '58mm',   // pass saved paper width
+    paperWidth: s.paperWidth || '58mm',
   }, p);
 }
 
@@ -115,10 +120,14 @@ function buildBillBytes({restaurantName,slotLabel,orderType,customerName,custome
   const now=new Date(); const W=paperWidth==='80mm'?42:32;
   const bi=(items||[]).map(i=>({...i,price:parseFloat(i.price)||0,quantity:parseInt(i.quantity)||1}));
   const sub=bi.filter(i=>!i.complimentary).reduce((s,i)=>s+i.price*i.quantity,0);
-  const ext=(parseFloat(packagingCharge)||0)+(parseFloat(deliveryCharge)||0)+(parseFloat(extraCharge)||0);
+  const pkg=parseFloat(packagingCharge)||0;
+  const dlv=parseFloat(deliveryCharge)||0;
+  const exAmt=parseFloat(extraCharge)||0;
+  const ext=pkg+dlv+exAmt;
   const total=sub+ext;
+  const showSub=ext>0;
   const rt=orderType==='delivery'?'DELIVERY RECEIPT':orderType==='takeaway'?'TAKEAWAY RECEIPT':orderType==='room'?'ROOM RECEIPT':'DINE-IN RECEIPT';
-  return bytes(B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,line((restaurantName||'RESTAURANT').toUpperCase().substring(0,16)),B.DOUBLE_OFF,line(rt),B.BOLD_OFF,sep(W,'='),B.LEFT,slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],lrLine('DATE:',now.toLocaleDateString('en-IN'),W),lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),customerName?lrLine('NAME:',customerName,W):[],customerPhone?lrLine('PHONE:',customerPhone,W):[],paymentMethod?bytes(B.BOLD_ON,lrLine('PAYMENT:',paymentMethod.toUpperCase(),W),B.BOLD_OFF):[],deliveryAddress?line('ADDR: '+deliveryAddress):[],sep(W,'='),bytes(B.BOLD_ON,lrLine('ITEM','AMT',W),B.BOLD_OFF),sep(W,'-'),...bi.map(i=>lrLine(i.name.substring(0,20)+' x'+i.quantity,(i.complimentary?'COMP':'Rs.'+(i.price*i.quantity).toFixed(0)),W)),sep(W,'='),packagingCharge>0?lrLine('PACKAGING:','Rs.'+Number(packagingCharge).toFixed(0),W):[],deliveryCharge>0?lrLine('DELIVERY:','Rs.'+Number(deliveryCharge).toFixed(0),W):[],extraCharge>0?lrLine((extraChargeLabel||'EXTRA').toUpperCase()+':','Rs.'+Number(extraCharge).toFixed(0),W):[],bytes(B.BOLD_ON,B.DOUBLE_ON,lrLine('TOTAL:','Rs.'+total.toFixed(0),W),B.DOUBLE_OFF,B.BOLD_OFF),sep(W,'='),B.CENTER,line('THANK YOU! VISIT AGAIN'),line('* * * * * * * *'),lf(1),B.CUT);
+  return bytes(B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,line((restaurantName||'RESTAURANT').toUpperCase().substring(0,16)),B.DOUBLE_OFF,line(rt),B.BOLD_OFF,sep(W,'='),B.LEFT,slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],lrLine('DATE:',now.toLocaleDateString('en-IN'),W),lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),customerName?lrLine('NAME:',customerName,W):[],customerPhone?lrLine('PHONE:',customerPhone,W):[],paymentMethod?bytes(B.BOLD_ON,lrLine('PAYMENT:',paymentMethod.toUpperCase(),W),B.BOLD_OFF):[],deliveryAddress?line('ADDR: '+deliveryAddress):[],sep(W,'='),bytes(B.BOLD_ON,lrLine('ITEM','AMT',W),B.BOLD_OFF),sep(W,'-'),...bi.map(i=>lrLine(i.name.substring(0,20)+' x'+i.quantity,(i.complimentary?'COMP':'Rs.'+(i.price*i.quantity).toFixed(0)),W)),sep(W,'='),showSub?lrLine('SUBTOTAL:','Rs.'+sub.toFixed(0),W):[],pkg>0?lrLine('PACKAGING:','Rs.'+pkg.toFixed(0),W):[],dlv>0?lrLine('DELIVERY:','Rs.'+dlv.toFixed(0),W):[],exAmt>0?lrLine((extraChargeLabel||'EXTRA').toUpperCase().substring(0,W-8)+':','Rs.'+exAmt.toFixed(0),W):[],bytes(B.BOLD_ON,B.DOUBLE_ON,lrLine('TOTAL:','Rs.'+total.toFixed(0),W),B.DOUBLE_OFF,B.BOLD_OFF),sep(W,'='),B.CENTER,line('THANK YOU! VISIT AGAIN'),line('* * * * * * * *'),lf(1),B.CUT);
 }
 
 // ─── EscPos plugin (Android) ──────────────────────────────────────────────────
@@ -312,7 +321,7 @@ export async function smartPrint(html, type='bill', orderData=null) {
   if (window.electronAPI?.printKOT && orderData) {
     let r;
     if (type==='kitchen'&&orderData.order) r=await electronPrintKOT(orderData.order,orderData.restaurantName);
-    else if (type==='bill'&&orderData.orders) r=await electronPrintBill(orderData.orders,orderData.tableLabel,orderData.total,orderData.restaurantName);
+    else if (type==='bill'&&orderData.orders) r=await electronPrintBill(orderData.orders,orderData.tableLabel,orderData.total,orderData.restaurantName,orderData);
     if (r?.success) return { method:'electron-escpos' };
   }
   if (window.electronAPI?.silentPrint) {
@@ -338,7 +347,13 @@ export async function smartPrint(html, type='bill', orderData=null) {
         const im = {};
         orderData.orders.forEach(o => o.items?.forEach(i => { if (im[i.name]) im[i.name].quantity += i.quantity; else im[i.name] = { name: i.name, quantity: i.quantity, price: i.price }; }));
         const o0 = orderData.orders[0] || {};
-        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: o0.orderType, customerName: o0.customerName, customerPhone: o0.customerPhone, deliveryAddress: o0.deliveryAddress, items: Object.values(im), packagingCharge: o0.packagingCharge, deliveryCharge: o0.deliveryCharge, extraCharge: orderData.extraCharge || 0, extraChargeLabel: orderData.extraChargeLabel || '', paymentMethod: o0.paymentMethod, paperWidth: s.paperWidth || '58mm' });
+        // packagingCharge/deliveryCharge come from orderData (passed by printBill/printViaIframe),
+        // not from o0 which is the DB order object that has no such columns.
+        const pkgCharge = parseFloat(orderData.packagingCharge) || parseFloat(o0.packagingCharge) || 0;
+        const dlvCharge = parseFloat(orderData.deliveryCharge)  || parseFloat(o0.deliveryCharge)  || 0;
+        const exCharge  = parseFloat(orderData.extraCharge)     || 0;
+        const exLabel   = orderData.extraChargeLabel || '';
+        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: o0.orderType, customerName: o0.customerName, customerPhone: o0.customerPhone, deliveryAddress: o0.deliveryAddress, items: Object.values(im), packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel, paymentMethod: o0.paymentMethod, paperWidth: s.paperWidth || '58mm' });
       }
     } catch (e) { console.warn('byte build error:', e); }
 
