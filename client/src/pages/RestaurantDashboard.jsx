@@ -36,12 +36,12 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
     <div className="flex gap-6 min-h-[400px]">
       {/* Floor Plan — always visible, fixed width */}
       <div className="w-full sm:w-80 shrink-0">
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white rounded-card border border-border shadow-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-800">Floor Plan</h2>
-            <div className="flex gap-3 text-xs text-gray-400">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-200 border border-green-400 inline-block"></span>Free</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-200 border border-red-400 inline-block"></span>Busy</span>
+            <h2 className="font-semibold text-text-primary text-sm">Floor Plan</h2>
+            <div className="flex gap-3 text-xs text-text-secondary">
+              <span className="flex items-center gap-1.5"><span className="status-dot bg-green-400"></span>Free</span>
+              <span className="flex items-center gap-1.5"><span className="status-dot bg-primary"></span>Busy</span>
             </div>
           </div>
           <div className="grid grid-cols-4 gap-2">
@@ -54,28 +54,33 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
                 <button
                   key={n}
                   onClick={() => setSelectedFloorTable(isSelected ? null : n)}
-                  className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all ${
+                  className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${
                     isSelected
-                      ? 'border-primary bg-primary shadow-lg scale-105'
+                      ? 'border-primary bg-primary shadow-card-md'
                       : isOccupied
-                      ? 'bg-red-50 border-red-300 hover:border-red-500'
-                      : 'bg-green-50 border-green-300 hover:border-green-500'
+                      ? 'bg-red-50/70 border-red-200 hover:border-red-400 hover:shadow-card'
+                      : 'bg-green-50/60 border-green-200 hover:border-green-400 hover:shadow-card'
                   }`}
                 >
-                  <span className={`text-base font-bold leading-none ${isSelected ? 'text-white' : isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
                   {isOccupied && !isSelected && (
-                    <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span>
+                    <span className="absolute top-1.5 right-1.5 status-dot bg-primary animate-pulse" />
+                  )}
+                  <span className={`text-lg font-bold leading-none ${isSelected ? 'text-white' : isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
+                  {isOccupied && !isSelected && (
+                    <span className="text-xs font-semibold text-red-600 leading-none">₹{tTotal}</span>
                   )}
                   {!isOccupied && (
-                    <span className={`text-xs leading-none ${isSelected ? 'text-white/70' : 'text-green-500'}`}>Free</span>
+                    <span className={`text-xs leading-none font-medium ${isSelected ? 'text-white/80' : 'text-green-500'}`}>Free</span>
                   )}
-                  {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
+                  {isSelected && isOccupied && (
+                    <span className="text-xs text-white/80 leading-none">₹{tTotal}</span>
+                  )}
                 </button>
               );
             })}
           </div>
           {activeDineInOrders.length === 0 && (
-            <p className="text-center text-gray-400 text-xs mt-4">No active orders</p>
+            <p className="text-center text-text-secondary text-xs mt-4">No active orders</p>
           )}
         </div>
       </div>
@@ -92,81 +97,81 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white rounded-card border border-border shadow-card overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div>
-                <h3 className="text-xl font-bold text-gray-900">{isStaffOrder ? 'Staff · ' : ''}Table {selectedFloorTable}</h3>
-                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
+                <h3 className="text-lg font-bold text-text-primary">{isStaffOrder ? 'Staff · ' : ''}Table {selectedFloorTable}</h3>
+                <p className="text-xs text-text-secondary mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s)${firstOrder?.customerName ? ' · ' + firstOrder.customerName : ''}` : 'No orders'}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-gray-400">Total</p>
-                <p className="text-3xl font-bold text-primary">₹{selectedTotal}</p>
+                <p className="text-xs text-text-secondary">Total</p>
+                <p className="text-2xl font-bold text-primary">₹{selectedTotal}</p>
               </div>
             </div>
 
             {/* Items */}
             {Object.values(combinedItems).length > 0 ? (
-              <div className="px-5 py-4 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
-                <div className="space-y-2">
+              <div className="px-5 py-4 border-b border-border">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Items</p>
+                <div className="space-y-1.5">
                   {Object.values(combinedItems).map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-canvas last:border-0">
                       <div>
-                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                        <span className="text-sm font-medium text-text-primary">{item.name}</span>
+                        <span className="text-xs text-text-secondary ml-2">× {item.quantity}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
+                      <span className="text-sm font-semibold text-text-primary">₹{item.total}</span>
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
-                  <span className="font-bold text-gray-800">Total</span>
+                <div className="flex justify-between items-center pt-3 mt-2 border-t border-border">
+                  <span className="font-semibold text-text-primary text-sm">Total</span>
                   <span className="text-xl font-bold text-primary">₹{selectedTotal}</span>
                 </div>
               </div>
             ) : (
-              <div className="px-5 py-6 border-b border-gray-100 text-center text-gray-400 text-sm">No orders for this table</div>
+              <div className="px-5 py-6 border-b border-border text-center text-text-secondary text-sm">No orders for this table</div>
             )}
 
             {/* Status badges */}
             {selectedOrders.length > 0 && (
-              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap">
+              <div className="px-5 py-3 border-b border-border flex gap-2 flex-wrap">
                 {selectedOrders.map(o => (
-                  <span key={o._id} className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                    o.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
+                  <span key={o._id} className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                    o.status === 'pending'   ? 'bg-amber-100 text-amber-700'
                     : o.status === 'preparing' ? 'bg-blue-100 text-blue-700'
-                    : o.status === 'ready' ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-500'
+                    : o.status === 'ready'     ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-text-secondary'
                   }`}>{o.status}</span>
                 ))}
               </div>
             )}
 
             {/* Action buttons */}
-            <div className="px-5 py-4 flex flex-wrap gap-3">
+            <div className="px-5 py-4 flex flex-wrap gap-2">
               <button
                 onClick={() => isStaffOrder ? printStaffKOT(firstOrder) : printKitchenOrder(selectedFloorTable, selectedOrders)}
-                className="px-5 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
+                className="no-select px-4 py-2 bg-amber-500 text-white rounded-btn text-sm font-semibold hover:bg-amber-600 active:opacity-80 transition-colors"
               >Print KOT</button>
               <button
                 onClick={() => isStaffOrder ? printStaffCustomerBill(firstOrder) : printReceipt(selectedFloorTable, selectedOrders, selectedTotal)}
-                className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
+                className="no-select px-4 py-2 bg-blue-500 text-white rounded-btn text-sm font-semibold hover:bg-blue-600 active:opacity-80 transition-colors"
               >Print Bill</button>
               <button
                 onClick={() => clearTableAndSaveToHistory(selectedFloorTable, selectedOrders, selectedTotal)}
-                className="px-5 py-2.5 bg-purple-500 text-white rounded-lg text-sm font-semibold hover:bg-purple-600 transition-colors"
+                className="no-select px-4 py-2 bg-primary text-white rounded-btn text-sm font-semibold hover:bg-primary-dark active:opacity-80 transition-colors"
               >Clear Table</button>
               {firstOrder && (firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
                 <button
                   onClick={() => openEditOrderModal(firstOrder)}
-                  className="px-5 py-2.5 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors"
+                  className="no-select px-4 py-2 bg-green-500 text-white rounded-btn text-sm font-semibold hover:bg-green-600 active:opacity-80 transition-colors"
                 >Edit Order</button>
               )}
               {firstOrder && firstOrder.status !== 'completed' && firstOrder.status !== 'cancelled' && (
                 <button
                   onClick={() => cancelOrder(firstOrder)}
-                  className="px-5 py-2.5 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors"
+                  className="no-select px-4 py-2 bg-gray-100 text-red-600 border border-red-200 rounded-btn text-sm font-semibold hover:bg-red-50 active:opacity-80 transition-colors"
                 >Cancel</button>
               )}
             </div>
@@ -216,12 +221,12 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
     <div className="flex gap-6 min-h-[400px]">
       {/* Room Grid */}
       <div className="w-full sm:w-80 shrink-0">
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white rounded-card border border-border shadow-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-800">Room Plan</h2>
-            <div className="flex gap-3 text-xs text-gray-400">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-200 border border-green-400 inline-block"></span>Free</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-200 border border-purple-400 inline-block"></span>Ordered</span>
+            <h2 className="font-semibold text-text-primary text-sm">Room Plan</h2>
+            <div className="flex gap-3 text-xs text-text-secondary">
+              <span className="flex items-center gap-1.5"><span className="status-dot bg-green-400"></span>Free</span>
+              <span className="flex items-center gap-1.5"><span className="status-dot bg-purple-500"></span>Ordered</span>
             </div>
           </div>
           <div className="grid grid-cols-4 gap-2">
@@ -234,24 +239,27 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
                 <button
                   key={n}
                   onClick={() => setSelectedRoom(isSelected ? null : n)}
-                  className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all ${
+                  className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${
                     isSelected
-                      ? 'border-purple-600 bg-purple-600 shadow-lg scale-105'
+                      ? 'border-purple-600 bg-purple-600 shadow-card-md'
                       : isOccupied
-                      ? 'bg-purple-50 border-purple-300 hover:border-purple-500'
-                      : 'bg-green-50 border-green-300 hover:border-green-500'
+                      ? 'bg-purple-50/70 border-purple-200 hover:border-purple-400 hover:shadow-card'
+                      : 'bg-green-50/60 border-green-200 hover:border-green-400 hover:shadow-card'
                   }`}
                 >
+                  {isOccupied && !isSelected && (
+                    <span className="absolute top-1.5 right-1.5 status-dot bg-purple-500 animate-pulse" />
+                  )}
                   <span className={`text-xs font-bold leading-none text-center px-0.5 ${isSelected ? 'text-white' : isOccupied ? 'text-purple-700' : 'text-green-700'}`}>{getRoomLabel(n)}</span>
-                  {isOccupied && !isSelected && <span className="text-xs font-medium text-purple-600 leading-none">₹{rTotal}</span>}
-                  {!isOccupied && <span className={`text-xs leading-none ${isSelected ? 'text-white/70' : 'text-green-500'}`}>Free</span>}
-                  {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse"></span>}
+                  {isOccupied && !isSelected && <span className="text-xs font-semibold text-purple-600 leading-none">₹{rTotal}</span>}
+                  {!isOccupied && <span className={`text-xs leading-none font-medium ${isSelected ? 'text-white/80' : 'text-green-500'}`}>Free</span>}
+                  {isSelected && isOccupied && <span className="text-xs text-white/80 leading-none">₹{rTotal}</span>}
                 </button>
               );
             })}
           </div>
           {activeRoomOrders.length === 0 && (
-            <p className="text-center text-gray-400 text-xs mt-4">No active room orders</p>
+            <p className="text-center text-text-secondary text-xs mt-4">No active room orders</p>
           )}
         </div>
       </div>
@@ -266,77 +274,77 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-purple-50 to-white border-b border-gray-100">
+          <div className="bg-white rounded-card border border-border shadow-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div>
-                <h3 className="text-xl font-bold text-gray-900">{getRoomLabel(selectedRoom)}</h3>
-                <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
+                <h3 className="text-lg font-bold text-text-primary">{getRoomLabel(selectedRoom)}</h3>
+                <p className="text-xs text-text-secondary mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s)${firstOrder?.customerName ? ' · ' + firstOrder.customerName : ''}` : 'No orders'}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-gray-400">Total</p>
-                <p className="text-3xl font-bold text-purple-600">₹{selectedTotal}</p>
+                <p className="text-xs text-text-secondary">Total</p>
+                <p className="text-2xl font-bold text-purple-600">₹{selectedTotal}</p>
               </div>
             </div>
 
             {Object.values(combinedItems).length > 0 ? (
-              <div className="px-5 py-4 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
-                <div className="space-y-2">
+              <div className="px-5 py-4 border-b border-border">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Items</p>
+                <div className="space-y-1.5">
                   {Object.values(combinedItems).map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-canvas last:border-0">
                       <div>
-                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                        <span className="text-sm font-medium text-text-primary">{item.name}</span>
+                        <span className="text-xs text-text-secondary ml-2">× {item.quantity}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
+                      <span className="text-sm font-semibold text-text-primary">₹{item.total}</span>
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
-                  <span className="font-bold text-gray-800">Total</span>
+                <div className="flex justify-between items-center pt-3 mt-2 border-t border-border">
+                  <span className="font-semibold text-text-primary text-sm">Total</span>
                   <span className="text-xl font-bold text-purple-600">₹{selectedTotal}</span>
                 </div>
               </div>
             ) : (
-              <div className="px-5 py-6 border-b border-gray-100 text-center text-gray-400 text-sm">No orders for this room</div>
+              <div className="px-5 py-6 border-b border-border text-center text-text-secondary text-sm">No orders for this room</div>
             )}
 
             {selectedOrders.length > 0 && (
-              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap">
+              <div className="px-5 py-3 border-b border-border flex gap-2 flex-wrap">
                 {selectedOrders.map(o => (
-                  <span key={o._id} className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                    o.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
+                  <span key={o._id} className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                    o.status === 'pending'    ? 'bg-amber-100 text-amber-700'
                     : o.status === 'preparing' ? 'bg-blue-100 text-blue-700'
-                    : o.status === 'ready' ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-500'
+                    : o.status === 'ready'     ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-text-secondary'
                   }`}>{o.status}</span>
                 ))}
               </div>
             )}
 
-            <div className="px-5 py-4 flex flex-wrap gap-3">
+            <div className="px-5 py-4 flex flex-wrap gap-2">
               <button
                 onClick={() => printKitchenOrder(selectedRoom, selectedOrders)}
-                className="px-5 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
+                className="no-select px-4 py-2 bg-amber-500 text-white rounded-btn text-sm font-semibold hover:bg-amber-600 active:opacity-80 transition-colors"
               >Print KOT</button>
               <button
                 onClick={() => printReceipt(selectedRoom, selectedOrders, selectedTotal)}
-                className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
+                className="no-select px-4 py-2 bg-blue-500 text-white rounded-btn text-sm font-semibold hover:bg-blue-600 active:opacity-80 transition-colors"
               >Print Bill</button>
               <button
                 onClick={() => clearRoomAndSaveToHistory(selectedRoom, selectedOrders, selectedTotal)}
-                className="px-5 py-2.5 bg-purple-500 text-white rounded-lg text-sm font-semibold hover:bg-purple-600 transition-colors"
+                className="no-select px-4 py-2 bg-purple-600 text-white rounded-btn text-sm font-semibold hover:bg-purple-700 active:opacity-80 transition-colors"
               >Clear {getRoomLabel(selectedRoom)}</button>
               {firstOrder && (firstOrder.status === 'completed' || firstOrder.status === 'pending') && (
                 <button
                   onClick={() => openEditOrderModal(firstOrder)}
-                  className="px-5 py-2.5 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors"
+                  className="no-select px-4 py-2 bg-green-500 text-white rounded-btn text-sm font-semibold hover:bg-green-600 active:opacity-80 transition-colors"
                 >Edit Order</button>
               )}
               {firstOrder && firstOrder.status !== 'completed' && firstOrder.status !== 'cancelled' && (
                 <button
                   onClick={() => cancelOrder(firstOrder)}
-                  className="px-5 py-2.5 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors"
+                  className="no-select px-4 py-2 bg-gray-100 text-red-600 border border-red-200 rounded-btn text-sm font-semibold hover:bg-red-50 active:opacity-80 transition-colors"
                 >Cancel</button>
               )}
             </div>
@@ -1928,74 +1936,96 @@ export default function RestaurantDashboard() {
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
   return (
-    <div className={activeTab === 'Staff' ? 'h-screen overflow-hidden bg-gray-50 flex flex-col' : 'min-h-screen bg-gray-50'}>
-      {/* Success Message Banner */}
+    <div className={activeTab === 'Staff' ? 'h-screen overflow-hidden bg-canvas flex flex-col' : 'min-h-screen bg-canvas'}>
+      {/* Success/Error Toast Banner */}
       {successMessage && (
         <div className={`fixed top-0 left-0 right-0 z-50 ${
-          successMessage.startsWith('✅') ? 'bg-green-500' : 
-          successMessage.startsWith('⚠️') ? 'bg-yellow-500' : 
-          'bg-red-500'
-        } text-white px-4 py-3 shadow-lg`}>
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <span className="font-medium">{successMessage}</span>
-            <button 
+          successMessage.startsWith('✅') ? 'bg-green-600' :
+          successMessage.startsWith('⚠️') ? 'bg-amber-500' :
+          'bg-red-600'
+        } text-white px-4 py-2.5 shadow-md`}>
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <span className="text-sm font-medium">{successMessage}</span>
+            <button
               onClick={() => setSuccessMessage('')}
-              className="text-white hover:text-gray-200 font-bold text-xl"
-            >
-              ×
-            </button>
+              className="no-select text-white/80 hover:text-white shrink-0 text-lg leading-none"
+            >×</button>
           </div>
         </div>
       )}
       
-      <nav className="bg-white shadow-md p-3 sm:p-4 shrink-0">
-        <div className="max-w-7xl mx-auto flex items-center gap-3">
+      <nav className="bg-white border-b border-gray-100 px-3 sm:px-5 py-0 shrink-0 shadow-card">
+        <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3 h-14 sm:h-16">
           {/* Hamburger */}
-          <button onClick={() => setDrawerOpen(true)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 shrink-0">
-            <Menu size={22} />
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="no-select p-2 rounded-btn hover:bg-gray-50 active:bg-gray-100 text-gray-500 shrink-0 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu size={20} />
           </button>
 
           {/* Restaurant name */}
-          <h1 className="text-base sm:text-lg font-bold text-primary truncate flex-1">{restaurant.name}</h1>
+          <h1 className="text-base sm:text-lg font-bold text-text-primary truncate flex-1 tracking-tight">{restaurant.name}</h1>
 
-          {/* Top search */}
-          <div className="hidden sm:flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-1.5 w-48 lg:w-64">
-            <Search size={14} className="text-gray-400 shrink-0" />
-            <input value={topSearch} onChange={e => setTopSearch(e.target.value)} placeholder="Search orders…"
-              className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
-            {topSearch && <button onClick={() => setTopSearch('')}><X size={13} className="text-gray-400" /></button>}
+          {/* Top search — hidden on mobile */}
+          <div className="hidden sm:flex items-center gap-2 bg-canvas border border-border rounded-input px-3 py-2 w-44 lg:w-60 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/40 transition-all">
+            <Search size={13} className="text-text-secondary shrink-0" />
+            <input
+              value={topSearch}
+              onChange={e => setTopSearch(e.target.value)}
+              placeholder="Search orders…"
+              className="bg-transparent text-sm flex-1 outline-none text-text-primary placeholder-gray-400"
+            />
+            {topSearch && (
+              <button onClick={() => setTopSearch('')} className="shrink-0">
+                <X size={12} className="text-gray-400 hover:text-gray-600" />
+              </button>
+            )}
           </div>
 
           {/* QR shortcut */}
-          <button onClick={() => setActiveTab('qr')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 shrink-0" title="QR Codes">
-            <QrCode size={20} />
+          <button
+            onClick={() => setActiveTab('qr')}
+            className="no-select p-2 rounded-btn hover:bg-gray-50 active:bg-gray-100 text-gray-500 shrink-0 transition-colors"
+            title="QR Codes"
+          >
+            <QrCode size={18} />
           </button>
 
-          {/* Online / Offline toggle */}
+          {/* Online / Offline status pill */}
           <button
             onClick={toggleStoreOnline}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${storeOnline ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}
+            className={`no-select flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-colors shrink-0 ${
+              storeOnline
+                ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+            }`}
           >
-            {storeOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
+            <span className={`status-dot ${storeOnline ? 'bg-green-500' : 'bg-red-400'}`} />
             <span className="hidden sm:inline">{storeOnline ? 'Online' : 'Offline'}</span>
           </button>
 
           {/* Logout */}
-          <button onClick={logout} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 shrink-0">
+          <button
+            onClick={logout}
+            className="no-select p-2 rounded-btn hover:bg-gray-50 active:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0 transition-colors"
+            title="Logout"
+          >
             <LogOut size={18} />
           </button>
         </div>
 
         {/* Offline banner */}
         {!storeOnline && (
-          <div className="max-w-7xl mx-auto mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto mb-2 bg-red-50 border border-red-200 rounded-card px-4 py-2 flex items-center justify-between">
             <span className="text-sm text-red-700 font-medium">⚠️ Store is Offline — customers cannot place new orders</span>
-            <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-red-600 underline flex items-center gap-1"><Clock size={12} /> Setup occasional timings</button>
+            <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-red-600 hover:text-red-700 underline flex items-center gap-1"><Clock size={12} /> Setup occasional timings</button>
           </div>
         )}
         {storeOnline && (
-          <div className="max-w-7xl mx-auto mt-1 flex justify-end">
-            <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-gray-400 hover:text-primary flex items-center gap-1"><Calendar size={11} /> Setup occasional timings</button>
+          <div className="max-w-7xl mx-auto pb-1 flex justify-end">
+            <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-gray-400 hover:text-primary flex items-center gap-1 transition-colors"><Calendar size={11} /> Setup occasional timings</button>
           </div>
         )}
       </nav>
@@ -2003,54 +2033,107 @@ export default function RestaurantDashboard() {
       {/* Side Drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
-          <div className="relative w-72 bg-white h-full shadow-2xl flex flex-col z-10">
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
-              <span className="font-bold text-gray-800 text-base">{restaurant.name}</span>
-              <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} /></button>
+          <div className="absolute inset-0 bg-black/40 fade-overlay" onClick={() => setDrawerOpen(false)} />
+          <div className="relative w-72 bg-white h-full shadow-drawer flex flex-col z-10 drawer-panel">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <p className="text-xs text-text-secondary font-medium">Restaurant</p>
+                <span className="font-bold text-text-primary text-base leading-tight">{restaurant.name}</span>
+              </div>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="no-select p-1.5 rounded-btn hover:bg-gray-50 text-gray-400 transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
+
             {/* Drawer search */}
-            <div className="px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
-                <Search size={14} className="text-gray-400 shrink-0" />
-                <input value={drawerSearch} onChange={e => setDrawerSearch(e.target.value)} placeholder="Search menu…"
-                  autoFocus className="bg-transparent text-sm flex-1 outline-none text-gray-700 placeholder-gray-400" />
-                {drawerSearch && <button onClick={() => setDrawerSearch('')}><X size={13} className="text-gray-400" /></button>}
+            <div className="px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2 bg-canvas border border-border rounded-input px-3 py-2 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/40 transition-all">
+                <Search size={13} className="text-text-secondary shrink-0" />
+                <input
+                  value={drawerSearch}
+                  onChange={e => setDrawerSearch(e.target.value)}
+                  placeholder="Search…"
+                  autoFocus
+                  className="bg-transparent text-sm flex-1 outline-none text-text-primary placeholder-gray-400"
+                />
+                {drawerSearch && (
+                  <button onClick={() => setDrawerSearch('')}>
+                    <X size={12} className="text-gray-400" />
+                  </button>
+                )}
               </div>
             </div>
+
             {/* Drawer nav links */}
             <div className="flex-1 overflow-y-auto py-2">
+              {/* MAIN section */}
+              {!drawerSearch && <p className="section-label">Main</p>}
               {[
-                { label: 'Profile', icon: User, action: () => { navigate('/restaurant-profile'); setDrawerOpen(false); } },
-                { label: 'Analytics', icon: BarChart3, action: () => { navigate('/analytics'); setDrawerOpen(false); } },
-                { label: 'Printer Settings', icon: Printer, action: () => { navigate('/printer-settings'); setDrawerOpen(false); } },
-                { label: 'Setup Occasional Timings', icon: Clock, action: () => { setShowOccasionalHours(true); setDrawerOpen(false); } },
-                { label: 'QR Codes', icon: QrCode, action: () => { setActiveTab('qr'); setDrawerOpen(false); } },
+                { label: 'Profile',    icon: User,     action: () => { navigate('/restaurant-profile'); setDrawerOpen(false); }, section: 'main' },
+                { label: 'Analytics', icon: BarChart3, action: () => { navigate('/analytics');          setDrawerOpen(false); }, section: 'main' },
               ].filter(item => !drawerSearch || item.label.toLowerCase().includes(drawerSearch.toLowerCase()))
                .map(item => (
-                <button key={item.label} onClick={item.action}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                  <item.icon size={18} className="text-gray-400 shrink-0" />
-                  {item.label}
-                  <ChevronRight size={14} className="text-gray-300 ml-auto" />
+                <button
+                  key={item.label}
+                  onClick={item.action}
+                  className="no-select w-full flex items-center gap-3 px-5 py-3 text-sm text-text-primary hover:bg-canvas active:bg-gray-100 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                    <item.icon size={15} className="text-text-secondary" />
+                  </div>
+                  <span className="flex-1 text-left font-medium">{item.label}</span>
+                  <ChevronRight size={14} className="text-gray-300" />
+                </button>
+              ))}
+
+              {/* OPERATIONS section */}
+              {!drawerSearch && <p className="section-label mt-2">Operations</p>}
+              {[
+                { label: 'Printer Settings',         icon: Printer, action: () => { navigate('/printer-settings');       setDrawerOpen(false); } },
+                { label: 'Setup Occasional Timings', icon: Clock,   action: () => { setShowOccasionalHours(true);        setDrawerOpen(false); } },
+                { label: 'QR Codes',                 icon: QrCode,  action: () => { setActiveTab('qr');                  setDrawerOpen(false); } },
+              ].filter(item => !drawerSearch || item.label.toLowerCase().includes(drawerSearch.toLowerCase()))
+               .map(item => (
+                <button
+                  key={item.label}
+                  onClick={item.action}
+                  className="no-select w-full flex items-center gap-3 px-5 py-3 text-sm text-text-primary hover:bg-canvas active:bg-gray-100 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                    <item.icon size={15} className="text-text-secondary" />
+                  </div>
+                  <span className="flex-1 text-left font-medium">{item.label}</span>
+                  <ChevronRight size={14} className="text-gray-300" />
                 </button>
               ))}
             </div>
-            {/* Store online toggle in drawer */}
-            <div className="border-t border-gray-100 px-4 py-4">
+
+            {/* Store Status + Logout */}
+            <div className="border-t border-border px-5 py-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">Store Status</p>
-                  <p className="text-xs text-gray-400">{storeOnline ? 'Accepting orders' : 'Not accepting orders'}</p>
+                  <p className="text-sm font-semibold text-text-primary">Store Status</p>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    {storeOnline ? 'Accepting orders' : 'Not accepting orders'}
+                  </p>
                 </div>
                 <button
                   onClick={toggleStoreOnline}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${storeOnline ? 'bg-green-500' : 'bg-red-400'}`}>
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${storeOnline ? 'left-6' : 'left-0.5'}`} />
+                  className={`no-select relative w-11 h-6 rounded-full transition-colors ${storeOnline ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${storeOnline ? 'left-5' : 'left-0.5'}`} />
                 </button>
               </div>
-              <button onClick={logout} className="mt-3 w-full flex items-center gap-2 text-sm text-gray-500 hover:text-red-600">
-                <LogOut size={16} /> Logout
+              <button
+                onClick={logout}
+                className="no-select w-full flex items-center gap-2.5 px-3 py-2.5 rounded-btn text-sm text-text-secondary hover:text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut size={16} />
+                <span className="font-medium">Logout</span>
               </button>
             </div>
           </div>
@@ -2111,13 +2194,16 @@ export default function RestaurantDashboard() {
       )}
 
       <div className={activeTab === 'Staff' ? 'flex-1 overflow-hidden flex flex-col' : 'max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4'}>
-        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 overflow-x-auto pb-2 hide-scrollbar shrink-0">
-          {/* Staff Ordering Tab - Moved to first position */}
+        {/* Tab Navigation */}
+        <div className="flex gap-1.5 mb-3 sm:mb-4 overflow-x-auto pb-1 hide-scrollbar shrink-0 bg-canvas rounded-card p-1 border border-border">
+          {/* Staff Ordering Tab */}
           <FeatureGuard feature="staffOrders">
             <button
               onClick={() => { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'Staff' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'Staff'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
               }`}
             >
               <span className="hidden sm:inline">Staff Order</span>
@@ -2128,128 +2214,124 @@ export default function RestaurantDashboard() {
           <FeatureGuard feature="deliveryOrders">
             <button
               onClick={() => setActiveTab('delivery')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'delivery' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'delivery'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
               }`}
             >
               <span className="hidden sm:inline">Delivery Orders</span>
               <span className="sm:hidden">Delivery</span>
               {activeDeliveryOrders.length > 0 && (
-                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                  activeTab === 'delivery' 
-                    ? 'bg-white text-primary' 
-                    : 'bg-primary text-white'
-                }`}>
+                <span className={`pos-badge ${activeTab === 'delivery' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
                   {activeDeliveryOrders.length}
                 </span>
               )}
             </button>
           </FeatureGuard>
+
           <FeatureGuard feature="orderManagement">
             <button
               onClick={() => setActiveTab('dine-in')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'dine-in' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'dine-in'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
               }`}
             >
               <span className="hidden sm:inline">Table Orders</span>
               <span className="sm:hidden">Tables</span>
               {activeDineInOrders.length > 0 && (
-                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                  activeTab === 'dine-in' 
-                    ? 'bg-white text-primary' 
-                    : 'bg-primary text-white'
-                }`}>
+                <span className={`pos-badge ${activeTab === 'dine-in' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
                   {activeDineInTableCount}
                 </span>
               )}
             </button>
           </FeatureGuard>
+
           <button
             onClick={() => setActiveTab('rooms')}
-            className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'rooms' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+            className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+              activeTab === 'rooms'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary hover:bg-white'
             }`}
           >
             <span className="hidden sm:inline">Room Orders</span>
             <span className="sm:hidden">Rooms</span>
             {activeRoomOrders.length > 0 && (
-              <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                activeTab === 'rooms'
-                  ? 'bg-white text-primary'
-                  : 'bg-primary text-white'
-              }`}>
+              <span className={`pos-badge ${activeTab === 'rooms' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
                 {activeRoomOrderCount}
               </span>
             )}
           </button>
+
           <FeatureGuard feature="menuManagement">
             <button
               onClick={() => setActiveTab('menu')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'menu' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'menu'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
               }`}
             >
               Menu
               {restaurant?.menu?.filter(item => item.available).length > 0 && (
-                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                  activeTab === 'menu' 
-                    ? 'bg-white text-primary' 
-                    : 'bg-primary text-white'
-                }`}>
+                <span className={`pos-badge ${activeTab === 'menu' ? 'bg-white/25 text-white' : 'bg-gray-200 text-text-secondary'}`}>
                   {restaurant.menu.filter(item => item.available).length}
                 </span>
               )}
               {restaurant?.features?.menuEnabled === false && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white">OFF</span>
+                <span className="pos-badge bg-red-500 text-white">OFF</span>
               )}
             </button>
           </FeatureGuard>
+
           <FeatureGuard feature="qrCodeGeneration">
             <button
               onClick={() => setActiveTab('qr')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'qr' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'qr'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
               }`}
             >
               <span className="hidden sm:inline">QR Codes</span>
               <span className="sm:hidden">QR</span>
               {(restaurant?.tables > 0 || restaurant?.rooms > 0) && (
-                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                  activeTab === 'qr' 
-                    ? 'bg-white text-primary' 
-                    : 'bg-primary text-white'
-                }`}>
+                <span className={`pos-badge ${activeTab === 'qr' ? 'bg-white/25 text-white' : 'bg-gray-200 text-text-secondary'}`}>
                   {(restaurant.tables || 0) + (restaurant.rooms || 0)}
                 </span>
               )}
             </button>
           </FeatureGuard>
+
           <FeatureGuard feature="orderHistory">
             <button
               onClick={() => setActiveTab('history')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'history' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'history'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
               }`}
             >
               <span className="hidden sm:inline">Order History</span>
               <span className="sm:hidden">History</span>
               {validOrders.filter(o => o.status === 'completed').length > 0 && (
-                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                  activeTab === 'history' 
-                    ? 'bg-white text-primary' 
-                    : 'bg-primary text-white'
-                }`}>
+                <span className={`pos-badge ${activeTab === 'history' ? 'bg-white/25 text-white' : 'bg-gray-200 text-text-secondary'}`}>
                   {validOrders.filter(o => o.status === 'completed').length}
                 </span>
               )}
             </button>
           </FeatureGuard>
+
           <FeatureGuard feature="customerFeedback">
             <button
               onClick={() => setActiveTab('feedback')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'feedback' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'feedback'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
               }`}
             >
               <span className="hidden sm:inline">Feedback</span>
@@ -2282,6 +2364,38 @@ export default function RestaurantDashboard() {
             onClick={() => setActiveTab('discounts')}
             className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
               activeTab === 'discounts' ? 'bg-primary text-white' : 'bg-white text-gray-700'
+            }`}
+          >
+            <span className="hidden sm:inline">Feedback</span>
+            <span className="sm:hidden">Feedback</span>
+            {feedback.length > 0 && (
+              <span className={`pos-badge ${activeTab === 'feedback' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
+                {feedback.length}
+              </span>
+            )}
+          </button>
+          </FeatureGuard>
+
+          <FeatureGuard feature="staffManagement">
+            <button
+              onClick={() => setActiveTab('staff-management')}
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+                activeTab === 'staff-management'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
+              }`}
+            >
+              <span className="hidden sm:inline">Staff</span>
+              <span className="sm:hidden">Staff</span>
+            </button>
+          </FeatureGuard>
+
+          <button
+            onClick={() => setActiveTab('discounts')}
+            className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
+              activeTab === 'discounts'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary hover:bg-white'
             }`}
           >
             <span className="hidden sm:inline">Discounts</span>
@@ -2833,10 +2947,7 @@ export default function RestaurantDashboard() {
                             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                           >
                             <option value="">Select a category</option>
-                            {[...new Set([
-                              ...(restaurant?.menu || []).map(i => i.category).filter(Boolean),
-                              ...(menuForm.category && menuForm.category !== '__new__' ? [menuForm.category] : [])
-                            ])].map(cat => (
+                            {[...new Set((restaurant?.menu || []).map(i => i.category).filter(Boolean))].map(cat => (
                               <option key={cat} value={cat}>{cat}</option>
                             ))}
                             <option value="__new__">+ Add new category</option>
