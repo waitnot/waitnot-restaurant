@@ -102,8 +102,8 @@ export default function StaffDashboard() {
   const saveCharges = (pkg, dlv, exAmt, exLbl) => {
     const key = getSlotKey();
     chargeStore.current[key] = {
-      packagingCharge:   pkg  !== undefined ? pkg  : (orderContext.packagingCharge || 0),
-      deliveryCharge:    dlv  !== undefined ? dlv  : (orderContext.deliveryCharge  || 0),
+      packagingCharge:   pkg   !== undefined ? pkg   : (orderContext.packagingCharge || 0),
+      deliveryCharge:    dlv   !== undefined ? dlv   : (orderContext.deliveryCharge  || 0),
       extraChargeAmount: exAmt !== undefined ? exAmt : (extraCharge.amount || 0),
       extraChargeLabel:  exLbl !== undefined ? exLbl : (extraCharge.label  || ''),
     };
@@ -704,6 +704,7 @@ export default function StaffDashboard() {
       const newOrder = response.data;
       saveCharges(); // persist charges for this slot before clearing cart
       setOrderCart([]);
+      setExtraCharge({ label: '', amount: 0 }); // clear extra charge label after placing
       showToast('Order placed!');
       // Add to local state immediately for instant feedback
       setOrders(prev => prev.find(x => x._id === newOrder._id) ? prev : [newOrder, ...prev]);
@@ -1269,7 +1270,7 @@ export default function StaffDashboard() {
                             const v = parseFloat(e.target.value) || 0;
                             setOrderContext(prev => ({ ...prev, packagingCharge: v }));
                             const key = getSlotKey();
-                            chargeStore.current[key] = { ...chargeStore.current[key], packagingCharge: v };
+                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), packagingCharge: v };
                           }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
@@ -1284,7 +1285,7 @@ export default function StaffDashboard() {
                             const v = parseFloat(e.target.value) || 0;
                             setOrderContext(prev => ({ ...prev, deliveryCharge: v }));
                             const key = getSlotKey();
-                            chargeStore.current[key] = { ...chargeStore.current[key], deliveryCharge: v };
+                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), deliveryCharge: v };
                           }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
@@ -1297,7 +1298,7 @@ export default function StaffDashboard() {
                           const v = e.target.value;
                           setExtraCharge(prev => ({ ...prev, label: v }));
                           const key = getSlotKey();
-                          chargeStore.current[key] = { ...chargeStore.current[key], extraChargeLabel: v };
+                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeLabel: v };
                         }}
                         placeholder="Extra charge label"
                         className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
@@ -1307,7 +1308,7 @@ export default function StaffDashboard() {
                           const v = parseFloat(e.target.value) || 0;
                           setExtraCharge(prev => ({ ...prev, amount: v }));
                           const key = getSlotKey();
-                          chargeStore.current[key] = { ...chargeStore.current[key], extraChargeAmount: v };
+                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeAmount: v };
                         }}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-14 focus:outline-none" />
                     </div>
@@ -1479,7 +1480,12 @@ export default function StaffDashboard() {
                       <div className="flex items-center gap-2 mb-2">
                         <label className="text-xs text-gray-500 shrink-0">Packaging ₹</label>
                         <input type="number" min="0" value={orderContext.packagingCharge || ''}
-                          onChange={e => setOrderContext(prev => ({ ...prev, packagingCharge: parseFloat(e.target.value) || 0 }))}
+                          onChange={e => {
+                            const v = parseFloat(e.target.value) || 0;
+                            setOrderContext(prev => ({ ...prev, packagingCharge: v }));
+                            const key = getSlotKey();
+                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), packagingCharge: v };
+                          }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                       </div>
                     )}
@@ -1488,17 +1494,32 @@ export default function StaffDashboard() {
                       <div className="flex items-center gap-2 mb-2">
                         <label className="text-xs text-gray-500 shrink-0">Delivery ₹</label>
                         <input type="number" min="0" value={orderContext.deliveryCharge || ''}
-                          onChange={e => setOrderContext(prev => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 }))}
+                          onChange={e => {
+                            const v = parseFloat(e.target.value) || 0;
+                            setOrderContext(prev => ({ ...prev, deliveryCharge: v }));
+                            const key = getSlotKey();
+                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), deliveryCharge: v };
+                          }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                       </div>
                     )}
                     {/* Extra charge — all order types */}
                     <div className="flex items-center gap-1.5 mb-2">
                       <input type="text" value={extraCharge.label}
-                        onChange={e => setExtraCharge(prev => ({ ...prev, label: e.target.value }))}
+                        onChange={e => {
+                          const v = e.target.value;
+                          setExtraCharge(prev => ({ ...prev, label: v }));
+                          const key = getSlotKey();
+                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeLabel: v };
+                        }}
                         placeholder="Extra charge label" className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
                       <input type="number" min="0" value={extraCharge.amount || ''}
-                        onChange={e => setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value) || 0;
+                          setExtraCharge(prev => ({ ...prev, amount: v }));
+                          const key = getSlotKey();
+                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeAmount: v };
+                        }}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                     </div>
                     {/* Breakdown */}
