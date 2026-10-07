@@ -363,26 +363,35 @@ export default function StaffDashboard() {
       markPrintedRef(printKey);
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
       const restaurantName = cached.name || 'Restaurant';
-      const label = order?.orderType === 'dine-in' ? `Table ${order.tableNumber}`
-        : order?.orderType === 'room' ? `Room ${order.roomNumber}`
-        : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
+      // Handle both camelCase and snake_case from merged order socket payload
+      const orderType   = order?.orderType   || order?.order_type   || 'dine-in';
+      const tableNumber = order?.tableNumber  || order?.table_number || '';
+      const roomNumber  = order?.roomNumber   || order?.room_number  || '';
+      const label = orderType === 'dine-in' ? `Table ${tableNumber}`
+        : orderType === 'room' ? `Room ${roomNumber}`
+        : orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
 
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
         // Get charges from store for this slot
         const slotOrders = orders || [order];
         const o0 = slotOrders[0] || order || {};
-        const chargeKey = o0.orderType === 'dine-in' ? `dine-in-${o0.tableNumber}`
-          : o0.orderType === 'room' ? `room-${o0.roomNumber}`
-          : (o0.orderType || 'delivery');
+        // Handle both camelCase (from socket) and snake_case (raw DB row)
+        const oType   = o0.orderType   || o0.order_type   || 'dine-in';
+        const oTable  = o0.tableNumber || o0.table_number || null;
+        const oRoom   = o0.roomNumber  || o0.room_number  || null;
+        const chargeKey = oType === 'dine-in' ? `dine-in-${oTable}`
+          : oType === 'room' ? `room-${oRoom}`
+          : oType; // 'takeaway' or 'delivery'
         const storedCharges = chargeStore.current[chargeKey] || {};
-        // Infer from totalAmount if store is empty
-        const itemsSum = slotOrders.reduce((s, o) => s + (o.items||[]).reduce((a, i) => a + (i.price*i.quantity), 0), 0);
-        const inferredExtra = (order?.totalAmount || 0) - itemsSum;
-        const pkgCharge = storedCharges.packagingCharge || (o0.orderType === 'takeaway' ? inferredExtra : 0);
-        const dlvCharge = storedCharges.deliveryCharge  || (o0.orderType === 'delivery' ? inferredExtra : 0);
+        // Infer from totalAmount vs items total when store is empty
+        const itemsSum = slotOrders.reduce((s, o) => s + ((o.items||[]).reduce((a, i) => a + ((parseFloat(i.price)||0) * (parseInt(i.quantity)||1)), 0)), 0);
+        const oTotal = parseFloat(o0.totalAmount || o0.total_amount) || 0;
+        const inferredExtra = oTotal > 0 && itemsSum > 0 ? Math.max(0, oTotal - itemsSum) : 0;
+        const pkgCharge = storedCharges.packagingCharge || (oType === 'takeaway' ? inferredExtra : 0);
+        const dlvCharge = storedCharges.deliveryCharge  || (oType === 'delivery' ? inferredExtra : 0);
         const exCharge  = storedCharges.extraChargeAmount || 0;
         const exLabel   = storedCharges.extraChargeLabel || '';
-        smartPrint('', 'bill', { orders: slotOrders, tableLabel: label, total: order?.totalAmount, restaurantName, packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel })
+        smartPrint('', 'bill', { orders: slotOrders, tableLabel: label, total: oTotal, restaurantName, packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel })
           .then(r => console.log('Auto-Bill:', r?.method))
           .catch(e => console.error('Auto-Bill error:', e));
       });
