@@ -1182,7 +1182,6 @@ export default function StaffDashboard() {
                       return (
                         <button key={n} onClick={() => openRoom(n)}
                           className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-orange-50 border-orange-300 hover:border-orange-500' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}>
-                          <span className="text-base leading-none">🛏</span>
                           <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{label}</span>
                           {isOccupied ? <span className="text-xs font-medium text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs text-blue-400 leading-none">Free</span>}
                           {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>}
@@ -1199,12 +1198,10 @@ export default function StaffDashboard() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <button onClick={openTakeaway}
                     className="rounded-xl py-4 px-3 border-2 border-orange-300 hover:border-orange-500 bg-orange-50 flex flex-col items-center gap-1 transition-all hover:scale-105 active:scale-95">
-                    <span className="text-2xl">🥡</span>
                     <span className="text-sm font-bold text-orange-600">Takeaway</span>
                   </button>
                   <button onClick={openDelivery}
                     className="rounded-xl py-4 px-3 border-2 border-blue-300 hover:border-blue-500 bg-blue-50 flex flex-col items-center gap-1 transition-all hover:scale-105 active:scale-95">
-                    <span className="text-2xl">🛵</span>
                     <span className="text-sm font-bold text-blue-600">Delivery</span>
                   </button>
                 </div>
@@ -1239,9 +1236,9 @@ export default function StaffDashboard() {
                   <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center shrink-0">
                     <button onClick={() => setSelectedTable(null)} className="text-xs text-red-500 font-semibold">← Back</button>
                     {orderContext.orderType === 'dine-in' && <span className="text-xs font-bold text-white bg-red-500 px-3 py-1 rounded-lg">Dine-In · T{orderContext.tableNumber}</span>}
-                    {orderContext.orderType === 'room' && <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🛏 {selectedTable?.label}</span>}
-                    {orderContext.orderType === 'takeaway' && <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🥡 Takeaway</span>}
-                    {orderContext.orderType === 'delivery' && <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 Delivery</span>}
+                    {orderContext.orderType === 'room' && <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">{selectedTable?.label}</span>}
+                    {orderContext.orderType === 'takeaway' && <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">Takeaway</span>}
+                    {orderContext.orderType === 'delivery' && <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">Delivery</span>}
                     <input type="text" value={orderContext.customerName}
                       onChange={e => setOrderContext(prev => ({ ...prev, customerName: e.target.value }))}
                       placeholder={orderContext.orderType === 'takeaway' ? 'Name' : 'Customer name'}
@@ -1716,7 +1713,7 @@ export default function StaffDashboard() {
                         <div key={roomNum} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">🛏</div>
+                              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">R</div>
                               <div>
                                 <p className="font-bold text-gray-900 text-sm">{label}</p>
                                 <p className="text-xs text-gray-400">{roomOrders.length} order(s)</p>
@@ -1764,7 +1761,7 @@ export default function StaffDashboard() {
                         <div key={order._id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                             <div className="flex items-center gap-2">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${isTakeaway ? 'bg-orange-400' : 'bg-blue-500'}`}>{isTakeaway ? '🥡' : '🛵'}</div>
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${isTakeaway ? 'bg-orange-400' : 'bg-blue-500'}`}>{isTakeaway ? 'TW' : 'DL'}</div>
                               <div>
                                 <p className="font-bold text-gray-900 text-sm">{isTakeaway ? 'Takeaway' : 'Delivery'}</p>
                                 <p className="text-xs text-gray-400">{order.customerName || 'Guest'}</p>
@@ -1838,20 +1835,22 @@ export default function StaffDashboard() {
                         try {
                           const res = await fetch(`${API}/api/app-version`, { cache: 'no-store' });
                           const data = await res.json();
-                          // CURRENT_VERSION_CODE of this APK build
-                          const MY_VERSION = 2;
+                          // CURRENT_VERSION_CODE of this APK build — must match main-captain.jsx
+                          const MY_VERSION = 5;
                           if (!data.versionCode || data.versionCode <= MY_VERSION) {
                             showToast('You are on the latest version ✓');
                           } else {
                             const url = data.downloadUrl || `${API}/updates-apk`;
                             setConfirmModal({
-                              message: `v${data.version} is available — tap Confirm to download the update now.\n\n${data.releaseNotes || ''}`,
-                              onConfirm: () => {
+                              message: `v${data.version} is available!\n${data.releaseNotes || 'New features and fixes.'}\n\nTap Download to open the download page.`,
+                              title: '🚀 Update Available',
+                              confirmLabel: '⬇ Download',
+                              onConfirm: async () => {
                                 setConfirmModal(null);
-                                // Try Capacitor Browser plugin first, fall back to window.open
+                                showToast('Opening download...', 'success');
                                 try {
                                   if (window.Capacitor?.Plugins?.Browser) {
-                                    window.Capacitor.Plugins.Browser.open({ url });
+                                    await window.Capacitor.Plugins.Browser.open({ url });
                                   } else {
                                     window.open(url, '_system');
                                   }
@@ -2716,11 +2715,22 @@ export default function StaffDashboard() {
         {confirmModal && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-6">
             <div className="bg-white rounded-2xl w-full max-w-sm p-6">
-              <h3 className="font-bold text-gray-900 text-lg mb-2">Confirm</h3>
-              <p className="text-gray-500 text-sm mb-6">{confirmModal.message}</p>
+              <h3 className="font-bold text-gray-900 text-lg mb-2">{confirmModal.title || 'Confirm'}</h3>
+              <p className="text-gray-500 text-sm mb-6" style={{ whiteSpace: 'pre-line' }}>{confirmModal.message}</p>
               <div className="flex gap-3">
                 <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 border border-gray-200 rounded-xl font-semibold text-gray-600">Cancel</button>
-                <button onClick={confirmModal.onConfirm} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600">Confirm</button>
+                <button
+                  onClick={async () => {
+                    if (confirmModal.confirming) return;
+                    setConfirmModal(prev => ({ ...prev, confirming: true }));
+                    await confirmModal.onConfirm();
+                  }}
+                  disabled={confirmModal.confirming}
+                  className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 disabled:opacity-60 flex items-center justify-center gap-2">
+                  {confirmModal.confirming ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Loading...</>
+                  ) : (confirmModal.confirmLabel || 'Confirm')}
+                </button>
               </div>
             </div>
           </div>
