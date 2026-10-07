@@ -77,6 +77,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Network events
   notifyReconnected: () => ipcRenderer.invoke('network:reconnected'),
 
+  // Prevent auto-print double-fire
+  print: {
+    markKotPrinted  : (id) => ipcRenderer.invoke('print:markKotPrinted',  id),
+    markBillPrinted : (id) => ipcRenderer.invoke('print:markBillPrinted', id),
+  },
+
   // Table shift
   shiftTable: (orderId, fromTable, toTable, restaurantId, staffName) =>
     ipcRenderer.invoke('order:shiftTable', { orderId, fromTable, toTable, restaurantId, staffName }),

@@ -703,6 +703,8 @@ async function doPoll(force = false) {
             price        : parseFloat(i.price) || 0,
             complimentary: !!i.complimentary,
           })),
+          packagingCharge: parseFloat(order.packagingCharge) || 0,
+          deliveryCharge : parseFloat(order.deliveryCharge)  || 0,
           paperWidth    : store.get('paperWidth', '80mm'),
         }));
         return rawPrintWindows(printer, _billBuf);
@@ -1319,6 +1321,16 @@ ipcMain.handle('order:shiftTable', async (event, { orderId, fromTable, toTable, 
   }
 });
 
+// ─── Mark order as already KOT/Bill printed (prevents auto-print double-fire) ─
+ipcMain.handle('print:markKotPrinted', (event, orderId) => {
+  if (orderId) { printedKotIds.add(orderId); knownOrderIds.add(orderId); }
+  return { ok: true };
+});
+ipcMain.handle('print:markBillPrinted', (event, orderId) => {
+  if (orderId) printedBillIds.add(orderId);
+  return { ok: true };
+});
+
 // ─── Remote config IPC ────────────────────────────────────────────────────────
 ipcMain.handle('config:getApiUrl', () => {
   return remoteConfig.getApiUrl();
@@ -1644,24 +1656,27 @@ ipcMain.handle('silent-print', async (event, { html, printerName }) => {
     // Extract charges from the HTML charge rows
     // Template renders: <td class="b">PACKAGING</td><td ...>₹X.XX</td>
     function extractCharge(label) {
-      const re = new RegExp('>' + label + '<\\/td>\\s*<td[^>]*>[^₹₹]*[₹₹]([\\d.]+)<');
+      // Match exact label (whole word) followed by ₹amount in next cell
+      const re = new RegExp('>[\\s]*' + label + '[\\s]*<\\/td>\\s*<td[^>]*>[^₹<]*₹([\\d.]+)');
       const m  = html.match(re);
       return m ? parseFloat(m[1]) || 0 : 0;
     }
     const packagingCharge = extractCharge('PACKAGING');
     const deliveryCharge  = extractCharge('DELIVERY');
-    // Extra charge: any charge row that isn't PACKAGING/DELIVERY/TOTAL/SUBTOTAL
+    // Extra charge: look for any non-standard charge row by its label
+    // Only match rows that are NOT items (items have 4 columns, charge rows have 2)
     let extraCharge = 0;
     let extraLabel  = '';
-    const extraMatch = html.match(/>([A-Z][A-Z\s]+)<\/td>\s*<td[^>]*>[^₹₹]*[₹₹]([\d.]+)</g);
-    if (extraMatch) {
-      for (const row of extraMatch) {
-        const m2 = row.match(/>([A-Z][A-Z\s]+)<\/td>\s*<td[^>]*>[^₹₹]*[₹₹]([\d.]+)</);
-        if (m2 && !['PACKAGING','DELIVERY','TOTAL','SUBTOTAL','ITEM','AMT'].includes(m2[1].trim())) {
-          extraCharge = parseFloat(m2[2]) || 0;
-          extraLabel  = m2[1].trim();
-          break;
-        }
+    // Match 2-column charge rows: label|amount (not item rows which have 4 columns)
+    const chargeRowRegex = /<tr>\s*<td[^>]*>([A-Z][A-Z\s]{1,20})<\/td>\s*<td[^>]*>[^<]*₹([\d.]+)/g;
+    const skipLabels = new Set(['PACKAGING','DELIVERY','TOTAL','SUBTOTAL','ITEM','AMT','COMPLIMENTARY']);
+    let chargeMatch;
+    while ((chargeMatch = chargeRowRegex.exec(html)) !== null) {
+      const lbl = chargeMatch[1].trim();
+      if (!skipLabels.has(lbl) && !lbl.includes('RECEIPT') && !lbl.includes('ORDER')) {
+        extraCharge = parseFloat(chargeMatch[2]) || 0;
+        extraLabel  = lbl;
+        break;
       }
     }
 
