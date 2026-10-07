@@ -368,7 +368,21 @@ export default function StaffDashboard() {
         : order?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
 
       import('../utils/qzPrint.js').then(({ smartPrint }) => {
-        smartPrint('', 'bill', { orders: orders||[order], tableLabel: label, total: order?.totalAmount, restaurantName })
+        // Get charges from store for this slot
+        const slotOrders = orders || [order];
+        const o0 = slotOrders[0] || order || {};
+        const chargeKey = o0.orderType === 'dine-in' ? `dine-in-${o0.tableNumber}`
+          : o0.orderType === 'room' ? `room-${o0.roomNumber}`
+          : (o0.orderType || 'delivery');
+        const storedCharges = chargeStore.current[chargeKey] || {};
+        // Infer from totalAmount if store is empty
+        const itemsSum = slotOrders.reduce((s, o) => s + (o.items||[]).reduce((a, i) => a + (i.price*i.quantity), 0), 0);
+        const inferredExtra = (order?.totalAmount || 0) - itemsSum;
+        const pkgCharge = storedCharges.packagingCharge || (o0.orderType === 'takeaway' ? inferredExtra : 0);
+        const dlvCharge = storedCharges.deliveryCharge  || (o0.orderType === 'delivery' ? inferredExtra : 0);
+        const exCharge  = storedCharges.extraChargeAmount || 0;
+        const exLabel   = storedCharges.extraChargeLabel || '';
+        smartPrint('', 'bill', { orders: slotOrders, tableLabel: label, total: order?.totalAmount, restaurantName, packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel })
           .then(r => console.log('Auto-Bill:', r?.method))
           .catch(e => console.error('Auto-Bill error:', e));
       });
@@ -981,7 +995,7 @@ export default function StaffDashboard() {
       extraCharge: exCharge,
       extraChargeLabel: exLabel,
     });
-    printViaIframe(html, 'bill', { orders: ordersToUse, tableLabel, total, restaurantName: restaurant?.name, extraCharge: exCharge, extraChargeLabel: exLabel });
+    printViaIframe(html, 'bill', { orders: ordersToUse, tableLabel, total, restaurantName: restaurant?.name, packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel });
   };
 
   const clearTable = (tableOrders, tableNumOrLabel) => {
