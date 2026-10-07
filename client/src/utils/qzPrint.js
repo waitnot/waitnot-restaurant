@@ -345,15 +345,21 @@ export async function smartPrint(html, type='bill', orderData=null) {
         byteArr = buildKOTBytes({ restaurantName: orderData.restaurantName, slotLabel: o.tableNumber ? 'TABLE '+o.tableNumber : o.roomNumber ? 'ROOM '+o.roomNumber : (o.orderType||'').toUpperCase(), orderId: o._id, orderType: o.orderType, customerName: o.customerName, deliveryAddress: o.deliveryAddress, specialInstructions: o.specialInstructions, items: o.items, paperWidth: s.paperWidth || '58mm' });
       } else if (type === 'bill' && orderData?.orders) {
         const im = {};
-        orderData.orders.forEach(o => o.items?.forEach(i => { if (im[i.name]) im[i.name].quantity += i.quantity; else im[i.name] = { name: i.name, quantity: i.quantity, price: i.price }; }));
+        orderData.orders.forEach(o => (o.items||[]).forEach(i => {
+          // Handle both camelCase and snake_case item fields
+          const name = i.name || i.menu_item_name || '';
+          const qty  = parseInt(i.quantity) || 1;
+          const prc  = parseFloat(i.price) || 0;
+          if (im[name]) im[name].quantity += qty;
+          else im[name] = { name, quantity: qty, price: prc };
+        }));
         const o0 = orderData.orders[0] || {};
-        // packagingCharge/deliveryCharge come from orderData (passed by printBill/printViaIframe),
-        // not from o0 which is the DB order object that has no such columns.
-        const pkgCharge = parseFloat(orderData.packagingCharge) || parseFloat(o0.packagingCharge) || 0;
-        const dlvCharge = parseFloat(orderData.deliveryCharge)  || parseFloat(o0.deliveryCharge)  || 0;
+        const oType = o0.orderType || o0.order_type || 'dine-in';
+        const pkgCharge = parseFloat(orderData.packagingCharge) || parseFloat(o0.packagingCharge) || parseFloat(o0.packaging_charge) || 0;
+        const dlvCharge = parseFloat(orderData.deliveryCharge)  || parseFloat(o0.deliveryCharge)  || parseFloat(o0.delivery_charge)  || 0;
         const exCharge  = parseFloat(orderData.extraCharge)     || 0;
         const exLabel   = orderData.extraChargeLabel || '';
-        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: o0.orderType, customerName: o0.customerName, customerPhone: o0.customerPhone, deliveryAddress: o0.deliveryAddress, items: Object.values(im), packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel, paymentMethod: o0.paymentMethod, paperWidth: s.paperWidth || '58mm' });
+        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: oType, customerName: o0.customerName || o0.customer_name, customerPhone: o0.customerPhone || o0.customer_phone, deliveryAddress: o0.deliveryAddress || o0.delivery_address, items: Object.values(im), packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel, paymentMethod: o0.paymentMethod || o0.payment_method, paperWidth: s.paperWidth || '58mm' });
       }
     } catch (e) { console.warn('byte build error:', e); }
 
