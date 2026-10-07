@@ -2194,213 +2194,97 @@ export default function RestaurantDashboard() {
       )}
 
       <div className={activeTab === 'Staff' ? 'flex-1 overflow-hidden flex flex-col' : 'max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4'}>
-        {/* Tab Navigation */}
-        <div className="flex gap-1.5 mb-3 sm:mb-4 overflow-x-auto pb-1 hide-scrollbar shrink-0 bg-canvas rounded-card p-1 border border-border">
-          {/* Staff Ordering Tab */}
-          <FeatureGuard feature="staffOrders">
+        {/* Tab Navigation — underline style, no scroll artifacts */}
+        <div className="relative mb-3 sm:mb-4 shrink-0 bg-white border-b border-border">
+          <div className="max-w-7xl flex overflow-x-auto hide-scrollbar">
+            <FeatureGuard feature="staffOrders">
+              <button
+                onClick={() => { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'Staff' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >
+                <span className="hidden sm:inline">Staff Order</span>
+                <span className="sm:hidden">Staff</span>
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="deliveryOrders">
+              <button
+                onClick={() => setActiveTab('delivery')}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'delivery' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >
+                <span className="hidden sm:inline">Delivery Orders</span>
+                <span className="sm:hidden">Delivery</span>
+                {activeDeliveryOrders.length > 0 && <span className={`pos-badge ml-1 ${activeTab === 'delivery' ? 'bg-primary text-white' : 'bg-gray-200 text-text-secondary'}`}>{activeDeliveryOrders.length}</span>}
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="orderManagement">
+              <button
+                onClick={() => setActiveTab('dine-in')}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'dine-in' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >
+                <span className="hidden sm:inline">Table Orders</span>
+                <span className="sm:hidden">Tables</span>
+                {activeDineInOrders.length > 0 && <span className={`pos-badge ml-1 ${activeTab === 'dine-in' ? 'bg-primary text-white' : 'bg-gray-200 text-text-secondary'}`}>{activeDineInTableCount}</span>}
+              </button>
+            </FeatureGuard>
             <button
-              onClick={() => { setActiveTab('Staff'); setStaffView('tables'); setStaffSelectedTable(null); }}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'Staff'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
+              onClick={() => setActiveTab('rooms')}
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'rooms' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
             >
-              <span className="hidden sm:inline">Staff Order</span>
-              <span className="sm:hidden">Staff</span>
+              <span className="hidden sm:inline">Room Orders</span>
+              <span className="sm:hidden">Rooms</span>
+              {activeRoomOrders.length > 0 && <span className={`pos-badge ml-1 ${activeTab === 'rooms' ? 'bg-primary text-white' : 'bg-gray-200 text-text-secondary'}`}>{activeRoomOrderCount}</span>}
             </button>
-          </FeatureGuard>
-
-          <FeatureGuard feature="deliveryOrders">
+            <FeatureGuard feature="menuManagement">
+              <button
+                onClick={() => setActiveTab('menu')}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'menu' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >
+                Menu
+                {restaurant?.menu?.filter(i => i.available).length > 0 && <span className={`pos-badge ml-1 ${activeTab === 'menu' ? 'bg-primary text-white' : 'bg-gray-200 text-text-secondary'}`}>{restaurant.menu.filter(i => i.available).length}</span>}
+                {restaurant?.features?.menuEnabled === false && <span className="pos-badge ml-1 bg-red-500 text-white">OFF</span>}
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="qrCodeGeneration">
+              <button
+                onClick={() => setActiveTab('qr')}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'qr' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >
+                <span className="hidden sm:inline">QR Codes</span>
+                <span className="sm:hidden">QR</span>
+                {(restaurant?.tables > 0 || restaurant?.rooms > 0) && <span className={`pos-badge ml-1 ${activeTab === 'qr' ? 'bg-primary text-white' : 'bg-gray-200 text-text-secondary'}`}>{(restaurant.tables||0)+(restaurant.rooms||0)}</span>}
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="orderHistory">
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >
+                <span className="hidden sm:inline">Order History</span>
+                <span className="sm:hidden">History</span>
+                {validOrders.filter(o => o.status === 'completed').length > 0 && <span className={`pos-badge ml-1 ${activeTab === 'history' ? 'bg-primary text-white' : 'bg-gray-200 text-text-secondary'}`}>{validOrders.filter(o => o.status === 'completed').length}</span>}
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="customerFeedback">
+              <button
+                onClick={() => setActiveTab('feedback')}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'feedback' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >
+                Feedback
+                {feedback.length > 0 && <span className={`pos-badge ml-1 ${activeTab === 'feedback' ? 'bg-primary text-white' : 'bg-gray-200 text-text-secondary'}`}>{feedback.length}</span>}
+              </button>
+            </FeatureGuard>
+            <FeatureGuard feature="staffManagement">
+              <button
+                onClick={() => setActiveTab('staff-management')}
+                className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'staff-management' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+              >Staff</button>
+            </FeatureGuard>
             <button
-              onClick={() => setActiveTab('delivery')}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'delivery'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
-            >
-              <span className="hidden sm:inline">Delivery Orders</span>
-              <span className="sm:hidden">Delivery</span>
-              {activeDeliveryOrders.length > 0 && (
-                <span className={`pos-badge ${activeTab === 'delivery' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
-                  {activeDeliveryOrders.length}
-                </span>
-              )}
-            </button>
-          </FeatureGuard>
-
-          <FeatureGuard feature="orderManagement">
-            <button
-              onClick={() => setActiveTab('dine-in')}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'dine-in'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
-            >
-              <span className="hidden sm:inline">Table Orders</span>
-              <span className="sm:hidden">Tables</span>
-              {activeDineInOrders.length > 0 && (
-                <span className={`pos-badge ${activeTab === 'dine-in' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
-                  {activeDineInTableCount}
-                </span>
-              )}
-            </button>
-          </FeatureGuard>
-
-          <button
-            onClick={() => setActiveTab('rooms')}
-            className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-              activeTab === 'rooms'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary hover:bg-white'
-            }`}
-          >
-            <span className="hidden sm:inline">Room Orders</span>
-            <span className="sm:hidden">Rooms</span>
-            {activeRoomOrders.length > 0 && (
-              <span className={`pos-badge ${activeTab === 'rooms' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
-                {activeRoomOrderCount}
-              </span>
-            )}
-          </button>
-
-          <FeatureGuard feature="menuManagement">
-            <button
-              onClick={() => setActiveTab('menu')}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'menu'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
-            >
-              Menu
-              {restaurant?.menu?.filter(item => item.available).length > 0 && (
-                <span className={`pos-badge ${activeTab === 'menu' ? 'bg-white/25 text-white' : 'bg-gray-200 text-text-secondary'}`}>
-                  {restaurant.menu.filter(item => item.available).length}
-                </span>
-              )}
-              {restaurant?.features?.menuEnabled === false && (
-                <span className="pos-badge bg-red-500 text-white">OFF</span>
-              )}
-            </button>
-          </FeatureGuard>
-
-          <FeatureGuard feature="qrCodeGeneration">
-            <button
-              onClick={() => setActiveTab('qr')}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'qr'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
-            >
-              <span className="hidden sm:inline">QR Codes</span>
-              <span className="sm:hidden">QR</span>
-              {(restaurant?.tables > 0 || restaurant?.rooms > 0) && (
-                <span className={`pos-badge ${activeTab === 'qr' ? 'bg-white/25 text-white' : 'bg-gray-200 text-text-secondary'}`}>
-                  {(restaurant.tables || 0) + (restaurant.rooms || 0)}
-                </span>
-              )}
-            </button>
-          </FeatureGuard>
-
-          <FeatureGuard feature="orderHistory">
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'history'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
-            >
-              <span className="hidden sm:inline">Order History</span>
-              <span className="sm:hidden">History</span>
-              {validOrders.filter(o => o.status === 'completed').length > 0 && (
-                <span className={`pos-badge ${activeTab === 'history' ? 'bg-white/25 text-white' : 'bg-gray-200 text-text-secondary'}`}>
-                  {validOrders.filter(o => o.status === 'completed').length}
-                </span>
-              )}
-            </button>
-          </FeatureGuard>
-
-          <FeatureGuard feature="customerFeedback">
-            <button
-              onClick={() => setActiveTab('feedback')}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'feedback'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
-            >
-              <span className="hidden sm:inline">Feedback</span>
-              <span className="sm:hidden">💬</span>
-              {feedback.length > 0 && (
-                <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                  activeTab === 'feedback' 
-                    ? 'bg-white text-primary' 
-                    : 'bg-primary text-white'
-                }`}>
-                  {feedback.length}
-                </span>
-              )}
-            </button>
-          </FeatureGuard>
-          
-          <FeatureGuard feature="staffManagement">
-            <button
-              onClick={() => setActiveTab('staff-management')}
-              className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'staff-management' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-              }`}
-            >
-              <span className="hidden sm:inline">Staff</span>
-              <span className="sm:hidden">Staff</span>
-            </button>
-          </FeatureGuard>
-          
-          <button
-            onClick={() => setActiveTab('discounts')}
-            className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'discounts' ? 'bg-primary text-white' : 'bg-white text-gray-700'
-            }`}
-          >
-            <span className="hidden sm:inline">Feedback</span>
-            <span className="sm:hidden">Feedback</span>
-            {feedback.length > 0 && (
-              <span className={`pos-badge ${activeTab === 'feedback' ? 'bg-white/25 text-white' : 'bg-primary text-white'}`}>
-                {feedback.length}
-              </span>
-            )}
-          </button>
-          </FeatureGuard>
-
-          <FeatureGuard feature="staffManagement">
-            <button
-              onClick={() => setActiveTab('staff-management')}
-              className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-                activeTab === 'staff-management'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white'
-              }`}
-            >
-              <span className="hidden sm:inline">Staff</span>
-              <span className="sm:hidden">Staff</span>
-            </button>
-          </FeatureGuard>
-
-          <button
-            onClick={() => setActiveTab('discounts')}
-            className={`no-select tab-btn relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-nav font-semibold whitespace-nowrap text-xs sm:text-sm transition-all ${
-              activeTab === 'discounts'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary hover:bg-white'
-            }`}
-          >
-            <span className="hidden sm:inline">Discounts</span>
-            <span className="sm:hidden">Discounts</span>
-          </button>
+              onClick={() => setActiveTab('discounts')}
+              className={`no-select tab-btn relative flex items-center gap-1.5 px-4 sm:px-5 py-3 font-semibold whitespace-nowrap text-xs sm:text-sm shrink-0 border-b-2 -mb-px transition-all ${activeTab === 'discounts' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300'}`}
+            >Discounts</button>
+          </div>
+        </div>
         </div>
 
         {/* Tab Content */}
