@@ -1877,9 +1877,10 @@ export default function StaffDashboard() {
                       onClick={async () => {
                         setCheckingUpdate(true);
                         try {
-                          const res = await fetch(`${API}/api/app-version`, { cache: 'no-store' });
+                          const res = await fetch(`${API}/api/app-version?installedVersion=5`, { cache: 'no-store' });
                           const data = await res.json();
-                          // CURRENT_VERSION_CODE of this APK build — must match main-captain.jsx
+                          // CURRENT_VERSION_CODE — keep in sync with main-captain.jsx CURRENT_VERSION_CODE
+                          // and server/routes/appVersion.js versionCode on every release.
                           const MY_VERSION = 5;
                           if (!data.versionCode || data.versionCode <= MY_VERSION) {
                             showToast('You are on the latest version ✓');
