@@ -94,8 +94,12 @@ export function buildBillHTML({ restaurantName, slotLabel, orderType, customerNa
   }));
   const subtotal = billItems.filter(i => !i.complimentary).reduce((s, i) => s + (i.price * i.quantity), 0);
   const compTotal = billItems.filter(i => i.complimentary).reduce((s, i) => s + (i.price * i.quantity), 0);
-  const extra = (parseFloat(packagingCharge) || 0) + (parseFloat(deliveryCharge) || 0) + (parseFloat(extraCharge) || 0);
+  const pkg   = parseFloat(packagingCharge) || 0;
+  const dlv   = parseFloat(deliveryCharge)  || 0;
+  const exAmt = parseFloat(extraCharge)     || 0;
+  const extra = pkg + dlv + exAmt;
   const grandTotal = subtotal + extra;
+  const showSubtotal = extra > 0; // only show subtotal row when there are extra charges
 
   const rows = billItems.map(i => `
     <tr>
@@ -137,9 +141,10 @@ export function buildBillHTML({ restaurantName, slotLabel, orderType, customerNa
   <hr class="sep">
   <table style="font-size:12px;margin-bottom:5px;">
     ${compTotal > 0 ? `<tr><td class="b">COMPLIMENTARY</td><td style="text-align:right;">−₹${compTotal.toFixed(2)}</td></tr>` : ''}
-    ${packagingCharge > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">₹${parseFloat(packagingCharge).toFixed(2)}</td></tr>` : ''}
-    ${deliveryCharge > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">₹${parseFloat(deliveryCharge).toFixed(2)}</td></tr>` : ''}
-    ${extraCharge > 0 ? `<tr><td class="b">${(extraChargeLabel || 'EXTRA').toUpperCase()}</td><td style="text-align:right;">₹${parseFloat(extraCharge).toFixed(2)}</td></tr>` : ''}
+    ${showSubtotal ? `<tr><td style="color:#555;">Subtotal</td><td style="text-align:right;color:#555;">₹${subtotal.toFixed(2)}</td></tr>` : ''}
+    ${pkg > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">₹${pkg.toFixed(2)}</td></tr>` : ''}
+    ${dlv > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">₹${dlv.toFixed(2)}</td></tr>` : ''}
+    ${exAmt > 0 ? `<tr><td class="b">${(extraChargeLabel || 'EXTRA').toUpperCase()}</td><td style="text-align:right;">₹${exAmt.toFixed(2)}</td></tr>` : ''}
   </table>
   <hr class="sep">
   <table style="margin-bottom:6px;">
