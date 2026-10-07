@@ -952,10 +952,21 @@ export default function StaffDashboard() {
 
     // Get charges from store (persisted on placeOrder) OR from current orderContext/extraCharge state
     const stored = getCharges(firstOrder.orderType, firstOrder.tableNumber, firstOrder.roomNumber);
-    const pkgCharge = orderContext.packagingCharge || stored.packagingCharge || 0;
-    const dlvCharge = orderContext.deliveryCharge  || stored.deliveryCharge  || 0;
-    const exCharge  = extraCharge.amount > 0 ? extraCharge.amount : stored.extraChargeAmount || 0;
-    const exLabel   = extraCharge.label   || stored.extraChargeLabel || '';
+    let pkgCharge = orderContext.packagingCharge || stored.packagingCharge || 0;
+    let dlvCharge = orderContext.deliveryCharge  || stored.deliveryCharge  || 0;
+    let exCharge  = extraCharge.amount > 0 ? extraCharge.amount : stored.extraChargeAmount || 0;
+    const exLabel = extraCharge.label || stored.extraChargeLabel || '';
+
+    // If charges aren't in store (e.g. user navigated away before saving),
+    // infer from totalAmount vs items total — covers delivery/takeaway charges
+    const itemsTotal = mergedItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+    const orderTotal = total || (ordersToUse.reduce((s, o) => s + (o.totalAmount || 0), 0));
+    const inferredExtra = orderTotal - itemsTotal;
+    if (inferredExtra > 0 && pkgCharge === 0 && dlvCharge === 0 && exCharge === 0) {
+      if (firstOrder.orderType === 'delivery') dlvCharge = inferredExtra;
+      else if (firstOrder.orderType === 'takeaway') pkgCharge = inferredExtra;
+      else exCharge = inferredExtra;
+    }
 
     const html = buildBillHTML({
       restaurantName: restaurant?.name,
