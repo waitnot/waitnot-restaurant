@@ -99,13 +99,13 @@ export default function StaffDashboard() {
     if (ctx.orderType === 'room') return `room-${ctx.roomNumber}`;
     return ctx.orderType;
   };
-  const saveCharges = () => {
+  const saveCharges = (pkg, dlv, exAmt, exLbl) => {
     const key = getSlotKey();
     chargeStore.current[key] = {
-      packagingCharge: orderContext.packagingCharge || 0,
-      deliveryCharge: orderContext.deliveryCharge || 0,
-      extraChargeAmount: extraCharge.amount || 0,
-      extraChargeLabel: extraCharge.label || '',
+      packagingCharge:   pkg  !== undefined ? pkg  : (orderContext.packagingCharge || 0),
+      deliveryCharge:    dlv  !== undefined ? dlv  : (orderContext.deliveryCharge  || 0),
+      extraChargeAmount: exAmt !== undefined ? exAmt : (extraCharge.amount || 0),
+      extraChargeLabel:  exLbl !== undefined ? exLbl : (extraCharge.label  || ''),
     };
   };
   const getCharges = (orderType, tableNumber, roomNumber) => {
@@ -1257,7 +1257,12 @@ export default function StaffDashboard() {
                         <label className="text-xs text-gray-500 shrink-0">Pkg ₹</label>
                         <input type="number" min="0" inputMode="numeric"
                           value={orderContext.packagingCharge || ''}
-                          onChange={e => { setOrderContext(prev => ({ ...prev, packagingCharge: parseFloat(e.target.value) || 0 })); setTimeout(saveCharges, 0); }}
+                          onChange={e => {
+                            const v = parseFloat(e.target.value) || 0;
+                            setOrderContext(prev => ({ ...prev, packagingCharge: v }));
+                            const key = getSlotKey();
+                            chargeStore.current[key] = { ...chargeStore.current[key], packagingCharge: v };
+                          }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
                     )}
@@ -1267,7 +1272,12 @@ export default function StaffDashboard() {
                         <label className="text-xs text-gray-500 shrink-0">Del ₹</label>
                         <input type="number" min="0" inputMode="numeric"
                           value={orderContext.deliveryCharge || ''}
-                          onChange={e => { setOrderContext(prev => ({ ...prev, deliveryCharge: parseFloat(e.target.value) || 0 })); setTimeout(saveCharges, 0); }}
+                          onChange={e => {
+                            const v = parseFloat(e.target.value) || 0;
+                            setOrderContext(prev => ({ ...prev, deliveryCharge: v }));
+                            const key = getSlotKey();
+                            chargeStore.current[key] = { ...chargeStore.current[key], deliveryCharge: v };
+                          }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
                     )}
@@ -1275,12 +1285,22 @@ export default function StaffDashboard() {
                     <div className="flex items-center gap-1 flex-1 min-w-[160px]">
                       <input type="text"
                         value={extraCharge.label}
-                        onChange={e => { setExtraCharge(prev => ({ ...prev, label: e.target.value })); setTimeout(saveCharges, 0); }}
+                        onChange={e => {
+                          const v = e.target.value;
+                          setExtraCharge(prev => ({ ...prev, label: v }));
+                          const key = getSlotKey();
+                          chargeStore.current[key] = { ...chargeStore.current[key], extraChargeLabel: v };
+                        }}
                         placeholder="Extra charge label"
                         className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
                       <input type="number" min="0" inputMode="numeric"
                         value={extraCharge.amount || ''}
-                        onChange={e => { setExtraCharge(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 })); setTimeout(saveCharges, 0); }}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value) || 0;
+                          setExtraCharge(prev => ({ ...prev, amount: v }));
+                          const key = getSlotKey();
+                          chargeStore.current[key] = { ...chargeStore.current[key], extraChargeAmount: v };
+                        }}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-14 focus:outline-none" />
                     </div>
                     {/* Live total including charges */}
@@ -1654,11 +1674,12 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => setShiftModal({ orders: tableOrders, type: 'table', current: parseInt(tableNum) })} className="flex-1 py-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 flex items-center justify-center gap-1">⇄ Shift</button>
-                            <button onClick={() => printKOTBatch(tableOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
-                            <button onClick={() => printBill(tableOrders, tableNum, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
-                            <button onClick={() => cancelOrders(tableOrders, `Table ${tableNum}`)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
-                            <button onClick={() => clearTable(tableOrders, parseInt(tableNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
+                            <button onClick={() => setShiftModal({ orders: tableOrders, type: 'table', current: parseInt(tableNum) })} className="flex-1 py-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 flex items-center justify-center">⇄ Shift</button>
+                            <button onClick={() => { openTable(parseInt(tableNum)); setActiveView('tables'); }} className="flex-1 py-2.5 text-xs font-semibold text-green-600 hover:bg-green-50 border-l border-gray-100 flex items-center justify-center">Add</button>
+                            <button onClick={() => printKOTBatch(tableOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center">KOT</button>
+                            <button onClick={() => printBill(tableOrders, tableNum, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center">Bill</button>
+                            <button onClick={() => cancelOrders(tableOrders, `Table ${tableNum}`)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center">Cancel</button>
+                            <button onClick={() => clearTable(tableOrders, parseInt(tableNum))} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center">Clear</button>
                           </div>
                         </div>
                       );
@@ -1707,12 +1728,12 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => setShiftModal({ orders: roomOrders, type: 'room', current: parseInt(roomNum) })} className="flex-1 py-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 flex items-center justify-center gap-1">⇄ Shift</button>
-                            <button onClick={() => { openRoom(parseInt(roomNum)); setActiveView('tables'); }} className="flex-1 py-2.5 text-xs font-semibold text-green-600 hover:bg-green-50 border-l border-gray-100 flex items-center justify-center gap-1"><Plus size={14} /> Add</button>
-                            <button onClick={() => printKOTBatch(roomOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
-                            <button onClick={() => printBill(roomOrders, label, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
-                            <button onClick={() => cancelOrders(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
-                            <button onClick={() => clearTable(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
+                            <button onClick={() => setShiftModal({ orders: roomOrders, type: 'room', current: parseInt(roomNum) })} className="flex-1 py-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 flex items-center justify-center">⇄ Shift</button>
+                            <button onClick={() => { openRoom(parseInt(roomNum)); setActiveView('tables'); }} className="flex-1 py-2.5 text-xs font-semibold text-green-600 hover:bg-green-50 border-l border-gray-100 flex items-center justify-center">Add</button>
+                            <button onClick={() => printKOTBatch(roomOrders)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center">KOT</button>
+                            <button onClick={() => printBill(roomOrders, label, total)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center">Bill</button>
+                            <button onClick={() => cancelOrders(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center">Cancel</button>
+                            <button onClick={() => clearTable(roomOrders, label)} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center">Clear</button>
                           </div>
                         </div>
                       );
@@ -1753,10 +1774,11 @@ export default function StaffDashboard() {
                             ))}
                           </div>
                           <div className="flex border-t border-gray-100">
-                            <button onClick={() => printKOT(order)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-1"><Printer size={14} /> KOT</button>
-                            <button onClick={() => printBill([order], order.customerName || 'Guest', order.totalAmount)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center gap-1"><Printer size={14} /> Bill</button>
-                            <button onClick={() => cancelOrders([order], order.customerName || 'Guest')} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center gap-1"><X size={14} /> Cancel</button>
-                            <button onClick={() => clearTable([order], order.customerName || 'Guest')} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> Clear</button>
+                            <button onClick={() => { isTakeaway ? openTakeaway() : openDelivery(); setActiveView('tables'); }} className="flex-1 py-2.5 text-xs font-semibold text-green-600 hover:bg-green-50 flex items-center justify-center">Add</button>
+                            <button onClick={() => printKOT(order)} className="flex-1 py-2.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 border-l border-gray-100 flex items-center justify-center">KOT</button>
+                            <button onClick={() => printBill([order], order.customerName || 'Guest', order.totalAmount)} className="flex-1 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 border-x border-gray-100 flex items-center justify-center">Bill</button>
+                            <button onClick={() => cancelOrders([order], order.customerName || 'Guest')} className="flex-1 py-2.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-r border-gray-100 flex items-center justify-center">Cancel</button>
+                            <button onClick={() => clearTable([order], order.customerName || 'Guest')} className="flex-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center justify-center">Clear</button>
                           </div>
                         </div>
                       );
