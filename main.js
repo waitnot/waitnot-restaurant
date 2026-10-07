@@ -691,6 +691,12 @@ async function doPoll(force = false) {
       const total = items.reduce((s,i)=>s+i.price*i.qty, 0);
       const now   = new Date();
       (async () => {
+        const _itemSub   = (order.items||[]).filter(i=>!i.complimentary).reduce((s,i)=>s+(parseFloat(i.price)||0)*(parseInt(i.quantity)||1), 0);
+        const _orderTotal = parseFloat(order.totalAmount) || 0;
+        const _derivedCharge = Math.max(0, Math.round((_orderTotal - _itemSub) * 100) / 100);
+        const _pkgCharge = parseFloat(order.packagingCharge) || (order.orderType==='takeaway' ? _derivedCharge : 0);
+        const _delCharge = parseFloat(order.deliveryCharge)  || (order.orderType==='delivery' ? _derivedCharge : 0);
+        const _extCharge = (order.orderType==='dine-in'||order.orderType==='room') ? _derivedCharge : 0;
         const _billBuf = Buffer.from(buildBillBytes({
           restaurantName: restaurantName,
           slotLabel     : order.roomNumber ? `Room ${order.roomNumber}` : order.tableNumber ? `Table ${order.tableNumber}` : '',
@@ -703,9 +709,10 @@ async function doPoll(force = false) {
             price        : parseFloat(i.price) || 0,
             complimentary: !!i.complimentary,
           })),
-          packagingCharge: parseFloat(order.packagingCharge) || 0,
-          deliveryCharge : parseFloat(order.deliveryCharge)  || 0,
-          paperWidth    : store.get('paperWidth', '80mm'),
+          packagingCharge: _pkgCharge || undefined,
+          deliveryCharge : _delCharge || undefined,
+          extraCharge    : _extCharge || undefined,
+          paperWidth     : store.get('paperWidth', '80mm'),
         }));
         return rawPrintWindows(printer, _billBuf);
       })()
