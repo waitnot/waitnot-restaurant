@@ -358,7 +358,9 @@ export default function StaffDashboard() {
       if (!_isCapacitor) return;
       if (!settings.btBillPrinter && !settings.wifiPrinterIp) return;
       // Dedup: 30s window — prevents double bill
-      const printKey = `bill-${order?._id}`;
+      // Use order._id (camelCase from DB layer) or order.id (raw Postgres row)
+      const orderId = order?._id || order?.id;
+      const printKey = `bill-${orderId}`;
       if (alreadyPrinted(printKey)) return;
       markPrintedRef(printKey);
       const cached = JSON.parse(localStorage.getItem(`restaurant_cache_${s.restaurant_id}`) || '{}');
@@ -1045,9 +1047,25 @@ export default function StaffDashboard() {
 
           setSelectedTable(null);
           showToast('Table cleared — saved as combined bill');
-          // Auto-print is handled by the server's print-bill socket event
-          // (emitted by merge-and-complete with the merged order).
-          // Do NOT call printBill() here — it causes a double print.
+
+          // Auto-print bill: try direct print first (most reliable),
+          // dedup guard prevents the socket print-bill from double-printing.
+          const savedSettings = JSON.parse(localStorage.getItem(`printer_settings_${staff.restaurant_id}`) || '{}');
+          if (savedSettings.autoPrintFinalBill && _isCapacitor &&
+              (savedSettings.btBillPrinter || savedSettings.wifiPrinterIp)) {
+            const label = firstOrder?.orderType === 'room'
+              ? (restaurant?.features?.roomNames?.[firstOrder.roomNumber] || `Room ${firstOrder.roomNumber}`)
+              : firstOrder?.orderType === 'dine-in'
+              ? `Table ${firstOrder.tableNumber}`
+              : firstOrder?.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
+            // Mark ALL original order IDs so the socket print-bill event is deduped
+            tableOrders.forEach(o => markPrintedRef(`bill-${o._id}`));
+            // Also mark 'bill-undefined' in case mergedOrder._id is missing
+            markPrintedRef('bill-undefined');
+            // Print directly using the original orders (still in memory with full items)
+            printBill(tableOrders, label, tableOrders.reduce((s, o) => s + (o.totalAmount || 0), 0), true);
+          }
+
           await fetchOrders(staff.restaurant_id);
         } catch (err) {
           console.error('❌ Error clearing table:', err);
