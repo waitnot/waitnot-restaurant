@@ -16,22 +16,43 @@ import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
 
 // ─── Auto-Update ────────────────────────────────────────────────────────────
-// Bump this number every time you build and release a new APK.
-// When server versionCode > CURRENT_VERSION_CODE → update prompt shows.
-// When they are equal → no prompt (no update available).
+// RELEASE CHECKLIST — bump ALL of these on every release:
+//   1. CURRENT_VERSION_CODE below         (e.g. 5 → 6)
+//   2. server/routes/appVersion.js        version + versionCode + releaseNotes + downloadUrl
+//   3. client/android/app/build.gradle    versionCode + versionName
+// Never set the server versionCode higher than the APK before the APK is uploaded.
 const CURRENT_VERSION_CODE = 5;
 
-let _updateDialogVisible = false; // prevent stacking multiple dialogs
+// Trusted domain — only URLs on this origin are allowed as download targets.
+const TRUSTED_ORIGIN = 'https://waitnot-restaurant1.onrender.com';
+
+let _updateDialogVisible = false;  // prevent stacking multiple dialogs
+let _checkInProgress     = false;  // prevent concurrent fetch calls
 
 async function checkForUpdate() {
-  if (_updateDialogVisible) return; // already showing
+  // Guard: don't stack dialogs or concurrent requests
+  if (_updateDialogVisible || _checkInProgress) return;
+  _checkInProgress = true;
+
   try {
-    const res = await fetch('https://waitnot-restaurant1.onrender.com/api/app-version', { cache: 'no-store' });
-    if (!res.ok) return;
-    const data = await res.json();
+    const res = await fetch(
+      `${TRUSTED_ORIGIN}/api/app-version?installedVersion=${CURRENT_VERSION_CODE}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(10000) }
+    );
+    if (!res.ok) return; // server error — silently continue
+
+    let data;
+    try { data = await res.json(); } catch (_) { return; } // invalid JSON — silently continue
+
+    // Validate response shape before using it
+    if (!data || typeof data.versionCode !== 'number') return;
 
     // No update available
-    if (!data.versionCode || data.versionCode <= CURRENT_VERSION_CODE) return;
+    if (data.versionCode <= CURRENT_VERSION_CODE) return;
+
+    // Validate downloadUrl is from the trusted origin (security)
+    const url = data.downloadUrl || `${TRUSTED_ORIGIN}/updates-apk`;
+    if (!url.startsWith('https://')) return; // reject non-HTTPS
 
     // Skip if dismissed within 6h (unless forceUpdate)
     if (!data.forceUpdate) {
@@ -42,18 +63,20 @@ async function checkForUpdate() {
       }
     }
 
-    showUpdateDialog(data);
+    showUpdateDialog({ ...data, _resolvedUrl: url });
   } catch (_) {
-    // Silently fail — no internet or server down
+    // Network failure / timeout / Render cold-start — silently continue
+  } finally {
+    _checkInProgress = false;
   }
 }
 
-function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
+function showUpdateDialog({ version, releaseNotes, forceUpdate, _resolvedUrl }) {
   if (_updateDialogVisible) return;
   _updateDialogVisible = true;
   document.getElementById('update-dialog')?.remove();
 
-  const updateUrl = downloadUrl || 'https://waitnot-restaurant1.onrender.com/updates-apk';
+  const updateUrl = _resolvedUrl;
 
   const overlay = document.createElement('div');
   overlay.id = 'update-dialog';
@@ -63,14 +86,27 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
     z-index:99999;padding:24px;
   `;
 
+  // Format release notes as bullet points if multi-line
+  const notesHtml = releaseNotes
+    ? `<div style="font-size:13px;color:#555;background:#f5f5f5;padding:12px 14px;border-radius:10px;margin:14px 0;line-height:1.7;text-align:left;">${
+        releaseNotes.split('\n').filter(Boolean).map(l => `• ${l.replace(/^[•\-\*]\s*/,'')}`).join('<br>')
+      }</div>`
+    : '';
+
+  const icon   = forceUpdate ? '🚨' : '🚀';
+  const title  = forceUpdate ? 'Update Required' : 'Update Available';
+  const subtitle = forceUpdate
+    ? 'Your current version is no longer supported.'
+    : `Version ${version} is ready`;
+
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:20px;padding:28px;max-width:340px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
       <div style="text-align:center;margin-bottom:16px;">
-        <div style="font-size:48px;margin-bottom:8px;">🚀</div>
-        <h2 style="margin:0;font-size:22px;font-weight:800;color:#111;">Update Available</h2>
-        <p style="margin:6px 0 0;color:#666;font-size:14px;font-weight:600;">Version ${version} is ready</p>
+        <div style="font-size:48px;margin-bottom:8px;">${icon}</div>
+        <h2 style="margin:0;font-size:22px;font-weight:800;color:#111;">${title}</h2>
+        <p style="margin:6px 0 0;color:#666;font-size:14px;font-weight:600;">${subtitle}</p>
       </div>
-      ${releaseNotes ? `<div style="font-size:13px;color:#555;background:#f5f5f5;padding:12px 14px;border-radius:10px;margin:14px 0;line-height:1.6;">${releaseNotes}</div>` : ''}
+      ${notesHtml}
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px;">
         <button id="update-now-btn"
           style="display:block;width:100%;text-align:center;background:#EF4444;color:#fff;padding:15px;border-radius:12px;font-weight:700;font-size:17px;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(239,68,68,0.4);">
@@ -82,7 +118,7 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
           Remind me in 6 hours
         </button>` : ''}
       </div>
-      ${forceUpdate ? `<p style="text-align:center;font-size:12px;color:#EF4444;margin-top:12px;font-weight:700;">⚠ This update is required to continue</p>` : ''}
+      ${forceUpdate ? `<p style="text-align:center;font-size:12px;color:#EF4444;margin-top:12px;font-weight:700;">⚠ This update is required to continue using the app</p>` : ''}
     </div>
   `;
 
@@ -107,22 +143,27 @@ function showUpdateDialog({ version, releaseNotes, forceUpdate, downloadUrl }) {
   });
 
   document.getElementById('update-later')?.addEventListener('click', () => {
-    localStorage.setItem('app_version_dismissed', Date.now());
+    localStorage.setItem('app_version_dismissed', Date.now().toString());
     overlay.remove();
     _updateDialogVisible = false;
   });
 
-  // Block backdrop dismiss for forceUpdate
   if (!forceUpdate) {
+    // Backdrop tap = dismiss (sets 6h timer)
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        localStorage.setItem('app_version_dismissed', Date.now());
+        localStorage.setItem('app_version_dismissed', Date.now().toString());
         overlay.remove();
         _updateDialogVisible = false;
       }
     });
   } else {
+    // Force update — block all dismissal
     overlay.addEventListener('click', e => e.stopPropagation());
+    // Also override Android back button to prevent bypassing forced update
+    window.addEventListener('popstate', (e) => {
+      if (_updateDialogVisible) e.preventDefault();
+    });
   }
 }
 
@@ -132,7 +173,7 @@ setTimeout(checkForUpdate, 2000);
 // ── Check every 30 minutes while app is open
 setInterval(checkForUpdate, 30 * 60 * 1000);
 
-// ── Check every time app comes back to foreground (user switches back)
+// ── Check every time app comes back to foreground
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') checkForUpdate();
 });
@@ -144,7 +185,6 @@ if (window.Capacitor?.isNativePlatform?.()) {
       if (isActive) checkForUpdate();
     });
   }).catch(() => {
-    // Fallback: listen via Capacitor bridge directly
     try {
       window.Capacitor.Plugins.App?.addListener('appStateChange', ({ isActive }) => {
         if (isActive) checkForUpdate();
