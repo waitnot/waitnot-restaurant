@@ -1,6 +1,6 @@
 {
   "name": "waitnot-staff-dashboard",
-  "version": "3.14.1-w",
+  "version": "3.14.2-w",
   "description": "WaitNot Staff Dashboard Desktop Application",
   "main": "main.js",
   "scripts": {
