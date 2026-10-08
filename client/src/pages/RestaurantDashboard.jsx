@@ -88,7 +88,7 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
               <svg className="w-16 h-16 mx-auto mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M14 3v18" />
               </svg>
-              <p className="text-sm">Select a table to view details</p>
+              <p className="text-sm text-text-secondary">Select a table to view details</p>
             </div>
           </div>
         ) : (
@@ -1899,11 +1899,11 @@ export default function RestaurantDashboard() {
   if (!restaurant) return <div className="text-center py-12">Loading...</div>;
 
   const statusColors = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    preparing: 'bg-blue-100 text-blue-800',
-    'out-for-delivery': 'bg-purple-100 text-purple-800',
-    delivered: 'bg-green-100 text-green-800',
-    completed: 'bg-gray-100 text-gray-800'
+    pending: 'bg-amber-50 text-amber-700 border border-amber-200',
+    preparing: 'bg-blue-50 text-blue-700 border border-blue-200',
+    'out-for-delivery': 'bg-purple-50 text-purple-700 border border-purple-200',
+    delivered: 'bg-green-50 text-green-700 border border-green-200',
+    completed: 'bg-gray-50 text-gray-600 border border-gray-200'
   };
 
   // Filter orders based on type (ensure orders are valid and not duplicated)
@@ -1999,7 +1999,7 @@ export default function RestaurantDashboard() {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
-          <div className="relative w-72 bg-white h-full shadow-2xl flex flex-col z-10">
+          <div className="relative w-72 bg-white h-full flex flex-col z-10 drawer-panel shadow-drawer">
             <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
               <span className="font-bold text-gray-800 text-base">{restaurant.name}</span>
               <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} /></button>
@@ -2240,7 +2240,7 @@ export default function RestaurantDashboard() {
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-gray-700">Delivery & Takeaway <span className="text-gray-400 font-normal">({activeDeliveryOrders.length} active)</span></h2>
+              <h2 className="text-sm font-semibold text-text-primary">Delivery & Takeaway <span className="text-gray-400 font-normal">({activeDeliveryOrders.length} active)</span></h2>
             </div>
             {activeDeliveryOrders.filter(o => orderWorkflowTab === 'all' || o.status === orderWorkflowTab).length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl text-center">
@@ -2251,7 +2251,7 @@ export default function RestaurantDashboard() {
             )}
             <div className="space-y-2">
               {activeDeliveryOrders.filter(o => orderWorkflowTab === 'all' || o.status === orderWorkflowTab).map((order) => (
-                <div key={order._id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div key={order._id} className="bg-white rounded-card shadow-card border border-border overflow-hidden">
                   {/* Compact header row */}
                   <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-50">
                     <div className="flex-1 min-w-0">
