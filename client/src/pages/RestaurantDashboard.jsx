@@ -1928,7 +1928,7 @@ export default function RestaurantDashboard() {
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
   return (
-    <div className={activeTab === 'Staff' ? 'h-screen overflow-hidden bg-canvas flex flex-col' : 'min-h-screen bg-canvas'}>
+    <div className={'h-screen bg-canvas flex flex-col overflow-hidden'}>
       {/* Success/Error Toast Banner */}
       {successMessage && (
         <div className={`fixed top-0 left-0 right-0 z-50 ${
@@ -2105,8 +2105,8 @@ export default function RestaurantDashboard() {
         </div>
       )}
 
-      <div className={activeTab === 'Staff' ? 'flex-1 overflow-hidden flex flex-col' : 'max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4'}>
-        <div className="flex mb-3 sm:mb-4 overflow-x-auto hide-scrollbar shrink-0 border-b border-gray-200">
+      <div className={'flex-1 min-h-0 flex flex-col overflow-hidden'}>
+        <div className="flex overflow-x-auto hide-scrollbar shrink-0 border-b border-gray-200">
           {/* Staff Ordering Tab - Moved to first position */}
           <FeatureGuard feature="staffOrders">
             <button
@@ -2236,7 +2236,10 @@ export default function RestaurantDashboard() {
           </button>
         </div>
 
-        {/* Tab Content */}
+        {/* Non-Staff tab content — scrollable, padded, max-width constrained */}
+        {activeTab !== 'Staff' && (
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" style={{WebkitOverflowScrolling:'touch'}}>
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -3654,7 +3657,8 @@ export default function RestaurantDashboard() {
         )}
 
         {/* Staff Order Tab */}
-        {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
+            {/* Staff tab handled separately */}
+            {activeTab === 'Staff' && isFeatureEnabled('staffOrders') && (
           <div style={{display:'flex', flexDirection:'column', flex:1, overflow:'hidden'}}>
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
@@ -3905,6 +3909,9 @@ export default function RestaurantDashboard() {
         )}
       </div>
 
+            </div>
+          </div>
+        )}
       {/* Notification Settings Modal */}
       {showNotificationSettings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
