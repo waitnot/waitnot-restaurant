@@ -69,7 +69,7 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
                   {!isOccupied && (
                     <span className={`text-xs leading-none ${isSelected ? 'text-white/70' : 'text-green-500'}`}>Free</span>
                   )}
-                  {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
+                  {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse border-2 border-white"></span>}
                 </button>
               );
             })}
@@ -3658,8 +3658,8 @@ export default function RestaurantDashboard() {
           <div style={{display:'flex', flexDirection:'column', flex:1, overflow:'hidden'}}>
             {staffView === 'tables' ? (
               /* ── TABLE GRID VIEW ── */
-              <div style={{flex:1, overflowY:'auto', overflowX:'hidden'}} className="px-4 sm:px-6 py-4 bg-gray-50">
-                <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Select Table</h2>
+              <div style={{flex:1, overflowY:'auto', overflowX:'hidden'}} className="px-4 sm:px-6 py-4 bg-canvas">
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Select Table</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-4">
                   {Array.from({ length: restaurant?.tables || 0 }, (_, i) => i + 1).map(n => {
                     const tOrders = activeDineInOrders.filter(o => parseInt(o.tableNumber) === n);
@@ -3669,11 +3669,11 @@ export default function RestaurantDashboard() {
                       <button
                         key={n}
                         onClick={() => { setStaffSelectedTable(n); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'dine-in', tableNumber: String(n) })); }}
-                        className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-red-50 border-red-300 hover:border-red-500' : 'bg-green-50 border-green-300 hover:border-green-500'}`}
+                        className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${isOccupied ? 'bg-red-50/70 border-red-200 hover:border-red-400' : 'bg-green-50/60 border-green-200 hover:border-green-400'}`}
                       >
-                        <span className={`text-lg font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
-                        {isOccupied ? <span className="text-xs font-medium text-red-600 leading-none">₹{tTotal}</span> : <span className="text-xs text-green-500 leading-none">Free</span>}
-                        {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
+                        <span className={`text-xl font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
+                        {isOccupied ? <span className="text-xs font-semibold text-red-600 leading-none">₹{tTotal}</span> : <span className="text-xs font-medium text-green-500 leading-none">Free</span>}
+                        {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse border-2 border-white"></span>}
                       </button>
                     );
                   })}
@@ -3685,7 +3685,7 @@ export default function RestaurantDashboard() {
                 {/* Rooms — if configured */}
                 {(restaurant?.rooms || 0) > 0 && (
                   <>
-                    <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-4">Rooms</h2>
+                    <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 mt-5">Rooms</h2>
                     <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-2">
                       {Array.from({ length: restaurant.rooms }, (_, i) => i + 1).map(n => {
                         const roomLabel = restaurant?.features?.roomNames?.[n] || ('R' + n);
@@ -3696,12 +3696,11 @@ export default function RestaurantDashboard() {
                           <button
                             key={n}
                             onClick={() => { setStaffSelectedTable(n); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'room', tableNumber: '', roomNumber: String(n) })); }}
-                            className={`relative rounded-xl py-3 px-1 border-2 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95 ${isOccupied ? 'bg-orange-50 border-orange-300 hover:border-orange-500' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}
+                            className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${isOccupied ? 'bg-orange-50/70 border-orange-200 hover:border-orange-400' : 'bg-blue-50/60 border-blue-200 hover:border-blue-400'}`}
                           >
-                            <span className="text-base leading-none">🛏</span>
                             <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{roomLabel}</span>
-                            {isOccupied ? <span className="text-xs font-medium text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs text-blue-400 leading-none">Free</span>}
-                            {isOccupied && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>}
+                            {isOccupied ? <span className="text-xs font-semibold text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs font-medium text-blue-400 leading-none">Free</span>}
+                            {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full animate-pulse border-2 border-white"></span>}
                           </button>
                         );
                       })}
@@ -3710,20 +3709,18 @@ export default function RestaurantDashboard() {
                 )}
 
                 {/* Takeaway & Delivery — same grid, full names */}
-                <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Quick Order</h2>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 mt-5">Quick Order</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
                   <button
                     onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '' })); }}
-                    className="rounded-xl py-3 px-1 border-2 border-orange-300 hover:border-orange-500 bg-orange-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95"
+                    className="table-card no-select rounded-card py-3.5 px-1 border border-orange-200 bg-orange-50/70 hover:border-orange-400 flex flex-col items-center gap-1"
                   >
-                    <span className="text-base leading-none">🥡</span>
                     <span className="text-xs font-bold text-orange-600 leading-none text-center">TW</span>
                   </button>
                   <button
                     onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '' })); }}
-                    className="rounded-xl py-3 px-1 border-2 border-blue-300 hover:border-blue-500 bg-blue-50 flex flex-col items-center gap-0.5 transition-all hover:scale-105 active:scale-95"
+                    className="table-card no-select rounded-card py-3.5 px-1 border border-blue-200 bg-blue-50/70 hover:border-blue-400 flex flex-col items-center gap-1"
                   >
-                    <span className="text-base leading-none">🛵</span>
                     <span className="text-xs font-bold text-blue-600 leading-none text-center">DEL</span>
                   </button>
                 </div>
