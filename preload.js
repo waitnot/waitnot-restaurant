@@ -17,7 +17,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // API URL is resolved dynamically from remote-config via IPC.
 // We start with the known fallback so Socket.IO patch works immediately,
 // then replace it once the async IPC response comes back.
-let API = 'https://waitnot-restaurant-2.onrender.com';
+let API = 'https://waitnot-restaurant1.onrender.com';
 ipcRenderer.invoke('config:getApiUrl').then(url => {
   if (url && typeof url === 'string' && url.startsWith('https://')) {
     API = url;

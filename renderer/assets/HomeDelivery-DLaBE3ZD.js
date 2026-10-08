@@ -43,18 +43,18 @@
     <meta name="business:contact_data:postal_code" content="India" />
     <meta name="business:contact_data:country_name" content="India" />
     <meta name="business:contact_data:phone_number" content="+91-6364039135" />
-    <meta name="business:contact_data:website" content="https://waitnot.in" />
+    <meta name="business:contact_data:website" content="https://waitnot-restaurant1.onrender.com" />
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="WaitNot - Restaurant Management System" />
     <meta property="og:title" content="Best Restaurant Management System India | Digital Menu & QR Ordering Software" />
     <meta property="og:description" content="#1 Restaurant Management System in India. Digital menu, QR code ordering, POS system. Trusted by 1000+ restaurants. Increase revenue by 40%. Free trial!" />
-    <meta property="og:image" content="https://waitnot.in/og-restaurant-management-system.jpg" />
+    <meta property="og:image" content="https://waitnot-restaurant1.onrender.com/og-restaurant-management-system.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Restaurant Management System - Digital Menu QR Code Ordering POS Software India" />
-    <meta property="og:url" content="https://waitnot.in" />
+    <meta property="og:url" content="https://waitnot-restaurant1.onrender.com" />
     <meta property="og:locale" content="en_IN" />
     
     <!-- Twitter Card -->
@@ -63,23 +63,23 @@
     <meta name="twitter:creator" content="@RestaurantTechIN" />
     <meta name="twitter:title" content="Restaurant Management System | Digital Menu QR Ordering | India's #1 Restaurant Software" />
     <meta name="twitter:description" content="Transform your restaurant with India's best management system. Digital menu, QR ordering, POS. 1000+ restaurants trust us. 40% revenue increase. Free trial!" />
-    <meta name="twitter:image" content="https://waitnot.in/twitter-restaurant-software.jpg" />
+    <meta name="twitter:image" content="https://waitnot-restaurant1.onrender.com/twitter-restaurant-software.jpg" />
     <meta name="twitter:image:alt" content="Restaurant Management System Digital Menu QR Code Ordering Software" />
     
     <!-- LinkedIn -->
-    <meta property="og:image:secure_url" content="https://waitnot.in/og-restaurant-management-system.jpg" />
+    <meta property="og:image:secure_url" content="https://waitnot-restaurant1.onrender.com/og-restaurant-management-system.jpg" />
     <meta name="linkedin:owner" content="WaitNot Restaurant Technologies" />
     
     <!-- WhatsApp -->
     <meta property="og:image:type" content="image/jpeg" />
     
     <!-- Canonical URL -->
-    <link rel="canonical" href="https://waitnot.in" />
+    <link rel="canonical" href="https://waitnot-restaurant1.onrender.com" />
     
     <!-- Alternate Languages -->
-    <link rel="alternate" hreflang="en-in" href="https://waitnot.in" />
-    <link rel="alternate" hreflang="hi-in" href="https://waitnot.in/hi" />
-    <link rel="alternate" hreflang="x-default" href="https://waitnot.in" />
+    <link rel="alternate" hreflang="en-in" href="https://waitnot-restaurant1.onrender.com" />
+    <link rel="alternate" hreflang="hi-in" href="https://waitnot-restaurant1.onrender.com/hi" />
+    <link rel="alternate" hreflang="x-default" href="https://waitnot-restaurant1.onrender.com" />
     
     <!-- Preconnect for Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -96,8 +96,8 @@
       "@type": "SoftwareApplication",
       "name": "WaitNot Restaurant Management System",
       "description": "Complete restaurant management system with digital menu, QR code ordering, POS system, online payments, and analytics for restaurants in India",
-      "url": "https://waitnot.in",
-      "logo": "https://waitnot.in/logo-restaurant-management-system.png",
+      "url": "https://waitnot-restaurant1.onrender.com",
+      "logo": "https://waitnot-restaurant1.onrender.com/logo-restaurant-management-system.png",
       "applicationCategory": "RestaurantManagementSoftware",
       "applicationSubCategory": "Restaurant Technology",
       "operatingSystem": "Web Browser, iOS, Android, Windows, macOS, Linux",
@@ -107,7 +107,7 @@
       "creator": {
         "@type": "Organization",
         "name": "WaitNot Technologies",
-        "url": "https://waitnot.in"
+        "url": "https://waitnot-restaurant1.onrender.com"
       },
       "offers": [
         {
@@ -189,17 +189,17 @@
         "Reporting Dashboard"
       ],
       "screenshot": [
-        "https://waitnot.in/screenshot-restaurant-dashboard.jpg",
-        "https://waitnot.in/screenshot-digital-menu.jpg",
-        "https://waitnot.in/screenshot-qr-ordering.jpg"
+        "https://waitnot-restaurant1.onrender.com/screenshot-restaurant-dashboard.jpg",
+        "https://waitnot-restaurant1.onrender.com/screenshot-digital-menu.jpg",
+        "https://waitnot-restaurant1.onrender.com/screenshot-qr-ordering.jpg"
       ],
       "publisher": {
         "@type": "Organization",
         "name": "WaitNot Technologies",
-        "url": "https://waitnot.in",
+        "url": "https://waitnot-restaurant1.onrender.com",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://waitnot.in/logo-restaurant-management-system.png"
+          "url": "https://waitnot-restaurant1.onrender.com/logo-restaurant-management-system.png"
         },
         "contactPoint": {
           "@type": "ContactPoint",
@@ -224,7 +224,7 @@
       "@type": "LocalBusiness",
       "name": "WaitNot Restaurant Management System",
       "description": "India's leading restaurant management system provider specializing in digital menus, QR code ordering, and POS solutions",
-      "url": "https://waitnot.in",
+      "url": "https://waitnot-restaurant1.onrender.com",
       "telephone": "+91-6364039135",
       "email": "contact@waitnot.in",
       "address": {
