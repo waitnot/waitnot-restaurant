@@ -2116,7 +2116,7 @@ export default function RestaurantDashboard() {
 
       <div className={'flex-1 min-h-0 flex flex-col overflow-hidden'}>
         <div className="overflow-x-auto hide-scrollbar shrink-0 border-b border-gray-200 bg-white">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 flex">{/* tab buttons */}
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 flex">
           {/* Staff Ordering Tab - Moved to first position */}
           <FeatureGuard feature="staffOrders">
             <button
@@ -2244,8 +2244,8 @@ export default function RestaurantDashboard() {
             <span className="hidden sm:inline">Discounts</span>
             <span className="sm:hidden">Discounts</span>
           </button>
-          </div>{/* end max-w-7xl tab inner */}
-        </div>{/* end tab bar outer */}
+          </div>
+        </div>
 
         {/* Tab Content */}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
