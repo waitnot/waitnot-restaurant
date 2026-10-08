@@ -1,5 +1,5 @@
 {
-  "api_url": "https://waitnot-restaurant-2.onrender.com",
-  "version": "3.11.0-w",
+  "api_url": "https://www.waitnot.in",
+  "version": "3.13.8-w",
   "_note": "Edit api_url here to change the backend without rebuilding the exe. Must be HTTPS."
 }

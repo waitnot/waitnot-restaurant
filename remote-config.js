@@ -35,7 +35,7 @@ const REMOTE_CONFIG_URL =
 
 // Fallback — used ONLY if both remote fetch AND cache file fail.
 // Update this to the latest known-good server when building a new release.
-const FALLBACK_API_URL = 'https://waitnot-restaurant-2.onrender.com';
+const FALLBACK_API_URL = 'https://www.waitnot.in';
 
 const FETCH_TIMEOUT_MS   = 8000;   // 8s timeout for remote fetch
 const CACHE_FILENAME     = 'waitnot-config.json';
