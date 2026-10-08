@@ -1979,18 +1979,27 @@ export default function RestaurantDashboard() {
           <button onClick={logout} className="no-select p-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0 transition-colors" title="Logout">
             <LogOut size={18} />
           </button>
+          {/* Occasional timings — inline, no height change */}
+          <button onClick={() => setShowOccasionalHours(true)} className="no-select hidden sm:flex items-center gap-1 text-xs text-gray-400 hover:text-primary shrink-0 transition-colors whitespace-nowrap" title="Setup occasional timings">
+            <Calendar size={11} />
+            <span className="hidden lg:inline">Timings</span>
+          </button>
         </div>
+        {/* Offline banner — outside h-14 row but still inside nav, fixed height */}
+        {!storeOnline && (
+          <div className="max-w-7xl mx-auto pb-2 px-1">
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 flex items-center justify-between">
+              <span className="text-xs text-red-700 font-medium">⚠️ Store Offline — customers cannot order</span>
+              <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-red-600 underline ml-2 shrink-0"><Clock size={10} className="inline mr-0.5" />Fix</button>
+            </div>
+          </div>
+        )}
 
         {/* Offline banner */}
         {!storeOnline && (
           <div className="max-w-7xl mx-auto mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2 flex items-center justify-between">
             <span className="text-sm text-red-700 font-medium">⚠️ Store is Offline — customers cannot place new orders</span>
             <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-red-600 underline flex items-center gap-1"><Clock size={12} /> Setup occasional timings</button>
-          </div>
-        )}
-        {storeOnline && (
-          <div className="max-w-7xl mx-auto mt-1 flex justify-end">
-            <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-gray-400 hover:text-primary flex items-center gap-1"><Calendar size={11} /> Setup occasional timings</button>
           </div>
         )}
       </nav>
