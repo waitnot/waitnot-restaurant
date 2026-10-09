@@ -83,11 +83,12 @@ function createWindow() {
     // Attach listener BEFORE loadURL so we never miss the did-finish-load event
     mainWindow.webContents.once('did-finish-load', () => {
       console.log('✅ Local files loaded successfully via waitnot://');
-      // Set initial route — only if no hash already set
+      // Set initial route — navigate to staff-login if on root
       setTimeout(() => {
         mainWindow.webContents.executeJavaScript(`
-          if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '') {
-            window.location.replace(window.location.href.split('#')[0] + '#/staff-login');
+          if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
+            window.history.replaceState(null, '', '/staff-login');
+            window.dispatchEvent(new PopStateEvent('popstate'));
           }
         `).catch(() => {});
       }, 500);
@@ -191,8 +192,9 @@ function createWindow() {
       mainWindow.webContents.once('did-finish-load', () => {
         setTimeout(() => {
           mainWindow.webContents.executeJavaScript(`
-            if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '') {
-              window.location.replace(window.location.href.split('#')[0] + '#/staff-login');
+            if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
+              window.history.replaceState(null, '', '/staff-login');
+              window.dispatchEvent(new PopStateEvent('popstate'));
             }
           `).catch(() => {});
         }, 500);
