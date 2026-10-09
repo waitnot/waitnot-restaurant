@@ -2235,7 +2235,7 @@ export default function RestaurantDashboard() {
 
         {/* Tab Content */}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
-          <div>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto" style={{height:'100%'}}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-text-primary">Delivery & Takeaway <span className="text-gray-400 font-normal">({activeDeliveryOrders.length} active)</span></h2>
             </div>
@@ -2332,7 +2332,7 @@ export default function RestaurantDashboard() {
         )}
 
         {activeTab === 'menu' && (
-          <div>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto">
             {/* Sub-tab toggle: Items / Visibility */}
             <div className="flex gap-2 mb-4">
               <button onClick={() => setMenuSubTab('items')}
@@ -2985,7 +2985,7 @@ export default function RestaurantDashboard() {
         )}
 
         {activeTab === 'qr' && (
-          <div>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
               <p className="text-sm text-blue-800 mb-2">
                 <strong>📱 Scan to Order:</strong> Customers can scan these QR codes to order directly from their table without waiting for a waiter.
@@ -3312,7 +3312,7 @@ export default function RestaurantDashboard() {
         )}
 
         {activeTab === 'history' && (
-          <div>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto [&>*]:max-w-none">
             {/* Header row */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
               <div>
@@ -3474,7 +3474,7 @@ export default function RestaurantDashboard() {
 
         {/* Feedback Tab */}
         {activeTab === 'feedback' && (
-          <div className="space-y-3 sm:space-y-4">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto space-y-3 sm:space-y-4">
             <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-3 sm:mb-4">
               <h2 className="text-lg sm:text-xl font-bold text-gray-800">💬 Customer Feedback</h2>
               <p className="text-gray-600 text-xs sm:text-sm">
@@ -3642,12 +3642,16 @@ export default function RestaurantDashboard() {
 
         {/* Staff Management Tab */}
         {activeTab === 'staff-management' && isFeatureEnabled('staffManagement') && (
-          <StaffManagement restaurantId={restaurant?._id} />
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto">
+            <StaffManagement restaurantId={restaurant?._id} />
+          </div>
         )}
 
         {/* Discounts Tab */}
         {activeTab === 'discounts' && (
-          <DiscountManager restaurant={restaurant} />
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto">
+            <DiscountManager restaurant={restaurant} />
+          </div>
         )}
 
         {/* Staff Order Tab */}
