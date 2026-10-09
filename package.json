@@ -1,6 +1,6 @@
 {
   "name": "waitnot-staff-dashboard",
-  "version": "3.14.7-w",
+  "version": "3.14.8-w",
   "description": "WaitNot Staff Dashboard Desktop Application",
   "main": "main.js",
   "scripts": {
@@ -32,7 +32,7 @@
     "productName": "WaitNot Staff",
     "copyright": "Copyright 2024 WaitNot Team",
     "directories": {
-      "output": "C:\\WaitNot-310w",
+      "output": "D:\\\\WaitNot-out",
       "buildResources": "build"
     },
     "publish": [
@@ -75,6 +75,7 @@
       "sign": null
     },
     "electronLanguages": ["en-US", "en"],
+    "afterPack": "./afterpack.js",
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
