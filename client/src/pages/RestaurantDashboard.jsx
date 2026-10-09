@@ -3319,16 +3319,108 @@ export default function RestaurantDashboard() {
                 <h2 className="text-lg font-bold text-gray-800">Order History</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Completed orders: {orders.filter(o => o.status === 'completed').length}</p>
               </div>
-              {/* Search bar */}
-              <div className="relative w-full sm:w-72">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by #001, table, customer, item..."
-                  value={historySearch || ''}
-                  onChange={e => setHistorySearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {/* Export Excel button */}
+                <button
+                  onClick={() => {
+                    const completed = orders.filter(o => o.status === 'completed');
+                    if (completed.length === 0) { showToast('No completed orders to export', 'error'); return; }
+
+                    // GST computation (assume 5% GST split as 2.5% CGST + 2.5% SGST for intra-state)
+                    const GST_RATE = 5;
+                    const rows = completed.map((o, idx) => {
+                      const subtotal    = (o.items || []).reduce((s, i) => s + (parseFloat(i.price)||0) * (parseInt(i.quantity)||1), 0);
+                      const discount    = parseFloat(o.discountAmount || 0);
+                      const taxableVal  = Math.max(0, subtotal - discount);
+                      const cgst        = parseFloat(((taxableVal * (GST_RATE/2)) / 100).toFixed(2));
+                      const sgst        = cgst;
+                      const igst        = 0;
+                      const cess        = 0;
+                      const totalInv    = parseFloat((taxableVal + cgst + sgst + igst + cess).toFixed(2));
+
+                      const orderTypeLabel = o.orderType === 'dine-in'  ? 'Dine-in'
+                        : o.orderType === 'takeaway' ? 'Takeaway'
+                        : o.orderType === 'delivery' ? 'Delivery'
+                        : o.orderType === 'room'     ? 'Room'
+                        : 'Online';
+
+                      const payMode = (o.paymentMethod || 'cash') === 'cash'   ? 'Cash'
+                        : (o.paymentMethod || '') === 'online' ? 'UPI'
+                        : (o.paymentMethod || '') === 'card'   ? 'Card'
+                        : 'Other';
+
+                      const channel = o.source === 'staff' ? 'Direct' : o.source === 'qr' ? 'Waitnot' : 'Other';
+                      const invoiceDate = o.updatedAt ? new Date(o.updatedAt).toLocaleDateString('en-IN') : '';
+                      const invoiceNo = `INV-${String(o.orderNumber || idx+1).padStart(3,'0')}`;
+
+                      return [
+                        invoiceNo,                         // Invoice Number
+                        invoiceDate,                       // Invoice Date
+                        o._id || '',                       // Order ID
+                        restaurant?._id || '',             // Outlet ID
+                        'B2C',                             // Customer Type
+                        o.customerName || '',              // Customer Name
+                        '',                                // Customer GSTIN
+                        '',                                // Customer State
+                        restaurant?.address || '',         // Place of Supply
+                        '',                                // State Code
+                        orderTypeLabel,                    // Order Type
+                        channel,                           // Sales Channel
+                        payMode,                           // Payment Mode
+                        subtotal.toFixed(2),               // Subtotal
+                        discount.toFixed(2),               // Discount
+                        taxableVal.toFixed(2),             // Taxable Value
+                        cgst.toFixed(2),                   // CGST
+                        sgst.toFixed(2),                   // SGST
+                        igst.toFixed(2),                   // IGST
+                        cess.toFixed(2),                   // CESS
+                        totalInv.toFixed(2),               // Total Invoice Value
+                        `${GST_RATE}%`,                    // GST Rate
+                        '996331',                          // SAC/HSN (restaurant services)
+                        'Completed',                       // Invoice Status
+                        '',                                // Credit Note
+                        '',                                // Debit Note
+                      ];
+                    });
+
+                    const headers = [
+                      'Invoice Number','Invoice Date','Order ID','Outlet ID',
+                      'Customer Type','Customer Name','Customer GSTIN','Customer State',
+                      'Place of Supply','State Code','Order Type','Sales Channel',
+                      'Payment Mode','Subtotal','Discount','Taxable Value',
+                      'CGST','SGST','IGST','CESS','Total Invoice Value',
+                      'GST Rate','SAC/HSN','Invoice Status','Credit Note','Debit Note',
+                    ];
+
+                    const csv = [headers, ...rows]
+                      .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+                      .join('\r\n');
+
+                    const BOM = '\uFEFF'; // UTF-8 BOM for Excel
+                    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+                    const url  = URL.createObjectURL(blob);
+                    const a    = document.createElement('a');
+                    a.href     = url;
+                    a.download = `${(restaurant?.name||'orders').replace(/\s+/g,'-')}-invoice-${new Date().toISOString().slice(0,10)}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast('Export downloaded');
+                  }}
+                  className="no-select flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 active:opacity-80 transition-colors shrink-0"
+                >
+                  ⬇ Export Excel
+                </button>
+                {/* Search bar */}
+                <div className="relative flex-1 sm:w-72">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by #001, table, customer, item..."
+                    value={historySearch || ''}
+                    onChange={e => setHistorySearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
               </div>
             </div>
 
