@@ -891,8 +891,6 @@ app.whenReady().then(async () => {
       return net.fetch('file://' + path.join(appRoot, 'renderer', url).replace(/\\\\/g, '/'));
     } catch(e) { return new Response('Not found', { status: 404 }); }
   });
-    } catch(e) { callback({ error: -6 }); }
-  });
 
   // Register custom protocol for local sound files
   protocol.handle('app-sounds', (request) => {
@@ -900,8 +898,6 @@ app.whenReady().then(async () => {
       const url = request.url.substring(12);
       return net.fetch('file://' + path.join(appRoot, 'sounds', url).replace(/\\\\/g, '/'));
     } catch(e) { return new Response('Not found', { status: 404 }); }
-  });
-    } catch(e) { callback({ error: -6 }); }
   });
 
   createWindow();
