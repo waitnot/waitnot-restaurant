@@ -2236,7 +2236,7 @@ export default function RestaurantDashboard() {
         {/* Tab Content */}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
           <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto" style={{height:'100%'}}>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
               <h2 className="text-sm font-semibold text-text-primary">Delivery & Takeaway <span className="text-gray-400 font-normal">({activeDeliveryOrders.length} active)</span></h2>
             </div>
             {activeDeliveryOrders.filter(o => orderWorkflowTab === 'all' || o.status === orderWorkflowTab).length === 0 && (
@@ -3339,6 +3339,8 @@ export default function RestaurantDashboard() {
             ) : (
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 {/* Table header */}
+                <div className="overflow-x-auto">
+                <div className="min-w-[640px]">
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   <div className="col-span-1">#</div>
                   <div className="col-span-2">Order</div>
@@ -3467,6 +3469,8 @@ export default function RestaurantDashboard() {
                     );
                   });
                 })()}
+                </div>{/* min-w-[640px] */}
+                </div>{/* overflow-x-auto */}
               </div>
             )}
           </div>
