@@ -1979,21 +1979,7 @@ export default function RestaurantDashboard() {
           <button onClick={logout} className="no-select p-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0 transition-colors" title="Logout">
             <LogOut size={18} />
           </button>
-          {/* Occasional timings — inline, no height change */}
-          <button onClick={() => setShowOccasionalHours(true)} className="no-select hidden sm:flex items-center gap-1 text-xs text-gray-400 hover:text-primary shrink-0 transition-colors whitespace-nowrap" title="Setup occasional timings">
-            <Calendar size={11} />
-            <span className="hidden lg:inline">Timings</span>
-          </button>
         </div>
-        {/* Offline banner — outside h-14 row but still inside nav, fixed height */}
-        {!storeOnline && (
-          <div className="max-w-7xl mx-auto pb-2 px-1">
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 flex items-center justify-between">
-              <span className="text-xs text-red-700 font-medium">⚠️ Store Offline — customers cannot order</span>
-              <button onClick={() => setShowOccasionalHours(true)} className="text-xs text-red-600 underline ml-2 shrink-0"><Clock size={10} className="inline mr-0.5" />Fix</button>
-            </div>
-          </div>
-        )}
 
         {/* Offline banner */}
         {!storeOnline && (
@@ -2249,7 +2235,7 @@ export default function RestaurantDashboard() {
 
         {/* Tab Content */}
         {activeTab === 'delivery' && isFeatureEnabled('deliveryOrders') && (
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto" style={{height:'100%'}}>
+          <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-text-primary">Delivery & Takeaway <span className="text-gray-400 font-normal">({activeDeliveryOrders.length} active)</span></h2>
             </div>
@@ -2318,7 +2304,7 @@ export default function RestaurantDashboard() {
           </div>
         )}
 
-        {activeTab === 'dine-in' && (<div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto" style={{height:'100%'}}>
+        {activeTab === 'dine-in' && (
           <FloorPlanView
             restaurant={restaurant}
             activeDineInOrders={activeDineInOrders}
@@ -2330,10 +2316,9 @@ export default function RestaurantDashboard() {
             openEditOrderModal={openEditOrderModal}
             cancelOrder={cancelOrder}
           />
-          </div>
         )}
 
-        {activeTab === 'rooms' && (<div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 overflow-y-auto" style={{height:'100%'}}>
+        {activeTab === 'rooms' && (
           <RoomFloorPlanView
             restaurant={restaurant}
             activeRoomOrders={activeRoomOrders}
