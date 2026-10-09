@@ -18,6 +18,9 @@ const Analytics = () => {
   const [orderSearch, setOrderSearch] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archiveOrders, setArchiveOrders] = useState([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -461,6 +464,24 @@ const Analytics = () => {
                 >
                   {showOrdersTable ? 'Hide Orders' : 'Edit Report'}
                 </button>
+                <button
+                  onClick={async () => {
+                    const restaurantId = localStorage.getItem('restaurantId');
+                    setArchiveLoading(true);
+                    try {
+                      const res = await axios.get(`/api/orders/restaurant/${restaurantId}/archives`);
+                      setArchiveOrders(res.data || []);
+                      setShowArchiveModal(true);
+                    } catch (e) {
+                      alert('Failed to load archive: ' + (e.message || 'Unknown error'));
+                    } finally {
+                      setArchiveLoading(false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2"
+                >
+                  {archiveLoading ? '...' : '🗂 Deleted Orders'}
+                </button>
               </div>
             </div>
           </div>
@@ -856,6 +877,116 @@ const Analytics = () => {
             >
               {confirmModal.confirmLabel || 'Confirm'}
             </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Deleted Orders Archive Modal ─────────────────────────────────── */}
+    {showArchiveModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">🗂 Deleted Orders Archive</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{archiveOrders.length} archived order{archiveOrders.length !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {archiveOrders.length > 0 && (
+                <button
+                  onClick={() => {
+                    const headers = [
+                      'Invoice Number','Deleted At','Reason','Order ID','Customer','Order Type',
+                      'Payment Mode','Items','Subtotal','Total Amount','Status'
+                    ];
+                    const rows = archiveOrders.map(a => {
+                      const d = a.order_data || {};
+                      const items = (d.items||[]).map(i=>`${i.name} x${i.quantity}`).join('; ');
+                      const subtotal = (d.items||[]).reduce((s,i)=>s+(parseFloat(i.price)||0)*(parseInt(i.quantity)||1),0);
+                      const invNum = a.invoice_number ? `INV-${String(a.invoice_number).padStart(3,'0')}` : '—';
+                      return [
+                        invNum,
+                        new Date(a.archived_at).toLocaleString('en-IN'),
+                        a.archive_reason === 'history_cleared' ? 'History Cleared' : 'Deleted',
+                        d._id || d.id || '',
+                        d.customerName || d.customer_name || '',
+                        d.orderType || d.order_type || '',
+                        d.paymentMethod || d.payment_method || 'cash',
+                        items,
+                        subtotal.toFixed(2),
+                        (d.totalAmount || d.total_amount || 0),
+                        d.status || '',
+                      ];
+                    });
+                    const csv = [headers, ...rows]
+                      .map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','))
+                      .join('\r\n');
+                    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `deleted-orders-archive-${new Date().toISOString().slice(0,10)}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700"
+                >
+                  ⬇ Export CSV
+                </button>
+              )}
+              <button onClick={() => setShowArchiveModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none font-light">×</button>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {archiveOrders.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <p className="text-4xl mb-3">📭</p>
+                <p className="font-medium">No deleted orders yet</p>
+                <p className="text-sm mt-1">Orders you delete will appear here permanently</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[700px]">
+                  <thead>
+                    <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-2 rounded-l">Invoice</th>
+                      <th className="px-3 py-2">Deleted At</th>
+                      <th className="px-3 py-2">Reason</th>
+                      <th className="px-3 py-2">Customer</th>
+                      <th className="px-3 py-2">Type</th>
+                      <th className="px-3 py-2">Items</th>
+                      <th className="px-3 py-2 text-right rounded-r">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {archiveOrders.map((a, i) => {
+                      const d = a.order_data || {};
+                      const items = (d.items||[]).map(i=>`${i.name}×${i.quantity}`).join(', ');
+                      const total = d.totalAmount || d.total_amount || 0;
+                      const invLabel = a.invoice_number ? `INV-${String(a.invoice_number).padStart(3,'0')}` : '—';
+                      const reason = a.archive_reason === 'history_cleared' ? 'History Clear' : 'Deleted';
+                      const orderType = (d.orderType||d.order_type||'').charAt(0).toUpperCase()+(d.orderType||d.order_type||'').slice(1);
+                      return (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-700">{invLabel}</td>
+                          <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">{new Date(a.archived_at).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</td>
+                          <td className="px-3 py-2.5">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.archive_reason === 'history_cleared' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>{reason}</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-gray-700">{d.customerName||d.customer_name||'Guest'}</td>
+                          <td className="px-3 py-2.5 text-xs text-gray-500">{orderType||'—'}</td>
+                          <td className="px-3 py-2.5 text-xs text-gray-600 max-w-[200px] truncate">{items||'—'}</td>
+                          <td className="px-3 py-2.5 text-xs font-semibold text-gray-800 text-right">₹{total}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>
