@@ -678,6 +678,7 @@ export const orderDB = {
       _id: row.id,
       restaurantId: row.restaurant_id,
       orderNumber: row.order_number || null,
+      invoiceNumber: row.invoice_number || null,
       tableNumber: row.table_number,
       roomNumber: row.room_number,
       customerName: row.customer_name,
@@ -731,6 +732,7 @@ export const orderDB = {
       _id: row.id,
       restaurantId: row.restaurant_id,
       orderNumber: row.order_number || null,
+      invoiceNumber: row.invoice_number || null,
       tableNumber: row.table_number,
       roomNumber: row.room_number,
       customerName: row.customer_name,
@@ -757,7 +759,7 @@ export const orderDB = {
   },
   
   async findByRestaurant(restaurantId, status) {
-    let whereClause = 'WHERE o.restaurant_id = $1';
+    let whereClause = 'WHERE o.restaurant_id = $1 AND (o.archived IS NULL OR o.archived = false)';
     const params = [restaurantId];
 
     if (status === 'active') {
@@ -792,6 +794,7 @@ export const orderDB = {
       _id: row.id,
       restaurantId: row.restaurant_id,
       orderNumber: row.order_number || null,
+      invoiceNumber: row.invoice_number || null,
       tableNumber: row.table_number,
       roomNumber: row.room_number,
       customerName: row.customer_name,
@@ -1023,6 +1026,7 @@ export const orderDB = {
         _id: row.id,
         restaurantId: row.restaurant_id,
         orderNumber: row.order_number || null,
+      invoiceNumber: row.invoice_number || null,
         tableNumber: row.table_number,
         roomNumber: row.room_number,
         customerName: row.customer_name,
