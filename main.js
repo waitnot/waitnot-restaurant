@@ -877,8 +877,9 @@ app.whenReady().then(async () => {
       const url      = new URL(request.url);
       const filePath = path.join(appRoot, 'renderer', url.pathname);
       const ext      = path.extname(filePath).toLowerCase();
-      const mimeType = _mimeMap[ext] || 'application/octet-stream';
-      return net.fetch('file://' + filePath.replace(/\\\\/g, '/'));
+      // SPA fallback: if no extension (i.e. a route, not an asset), serve index.html
+      const servePath = ext ? filePath : path.join(appRoot, 'renderer', 'index.html');
+      return net.fetch('file://' + servePath.replace(/\\/g, '/'));
     } catch (e) {
       return new Response('Not found', { status: 404 });
     }
