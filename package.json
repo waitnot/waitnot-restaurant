@@ -1,6 +1,6 @@
 {
   "name": "waitnot-staff-dashboard",
-  "version": "3.14.6-w",
+  "version": "3.14.7-w",
   "description": "WaitNot Staff Dashboard Desktop Application",
   "main": "main.js",
   "scripts": {
@@ -65,8 +65,7 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis",     "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        { "target": "nsis",     "arch": ["x64"] }
       ],
       "icon": "logo.ico",
       "requestedExecutionLevel": "asInvoker",
@@ -75,6 +74,7 @@
       "signAndEditExecutable": false,
       "sign": null
     },
+    "electronLanguages": ["en-US", "en"],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
