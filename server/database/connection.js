@@ -195,7 +195,7 @@ export async function initDatabase() {
       )
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_order_archives_restaurant ON order_archives(restaurant_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_invoice ON orders(restaurant_id, invoice_number)`;
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_invoice ON orders(restaurant_id, invoice_number)`);
 
     // Create staff tables
     await client.query(`
