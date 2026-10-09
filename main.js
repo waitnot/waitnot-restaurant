@@ -1,4 +1,4 @@
-﻿const { app, BrowserWindow, Menu, shell, dialog, ipcMain, protocol } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain, protocol, net } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
@@ -871,31 +871,36 @@ app.whenReady().then(async () => {
     '.wav'  : 'audio/wav',
     '.webmanifest': 'application/manifest+json',
   };
-  protocol.registerFileProtocol('waitnot', (request, callback) => {
+  // Electron 28: use protocol.handle() instead of deprecated registerFileProtocol
+  protocol.handle('waitnot', (request) => {
     try {
       const url      = new URL(request.url);
       const filePath = path.join(appRoot, 'renderer', url.pathname);
       const ext      = path.extname(filePath).toLowerCase();
-      const mimeType = _mimeMap[ext] || null;
-      callback(mimeType ? { path: filePath, mimeType } : { path: filePath });
+      const mimeType = _mimeMap[ext] || 'application/octet-stream';
+      return net.fetch('file://' + filePath.replace(/\\\\/g, '/'));
     } catch (e) {
-      callback({ error: -6 });
+      return new Response('Not found', { status: 404 });
     }
   });
 
   // Register custom protocol for local files (legacy, keep for compat)
-  protocol.registerFileProtocol('app', (request, callback) => {
+  protocol.handle('app', (request) => {
     try {
-      const url = request.url.substr(6);
-      callback({ path: path.join(appRoot, 'renderer', url) });
+      const url = request.url.substring(6);
+      return net.fetch('file://' + path.join(appRoot, 'renderer', url).replace(/\\\\/g, '/'));
+    } catch(e) { return new Response('Not found', { status: 404 }); }
+  });
     } catch(e) { callback({ error: -6 }); }
   });
 
   // Register custom protocol for local sound files
-  protocol.registerFileProtocol('app-sounds', (request, callback) => {
+  protocol.handle('app-sounds', (request) => {
     try {
-      const url = request.url.substr(12);
-      callback({ path: path.join(appRoot, 'sounds', url) });
+      const url = request.url.substring(12);
+      return net.fetch('file://' + path.join(appRoot, 'sounds', url).replace(/\\\\/g, '/'));
+    } catch(e) { return new Response('Not found', { status: 404 }); }
+  });
     } catch(e) { callback({ error: -6 }); }
   });
 
