@@ -21,6 +21,7 @@ const Analytics = () => {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveOrders, setArchiveOrders] = useState([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveSearch, setArchiveSearch] = useState('');
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -469,18 +470,36 @@ const Analytics = () => {
                     const restaurantId = localStorage.getItem('restaurantId');
                     setArchiveLoading(true);
                     try {
-                      const res = await axios.get(`/api/orders/restaurant/${restaurantId}/archives`);
-                      setArchiveOrders(res.data || []);
+                      // Fetch both active orders + archived orders, merge and sort by date
+                      const [activeRes, archiveRes] = await Promise.all([
+                        axios.get(`/api/orders/restaurant/${restaurantId}`),
+                        axios.get(`/api/orders/restaurant/${restaurantId}/archives`).catch(() => ({ data: [] }))
+                      ]);
+                      // Normalise archived rows into same shape as active orders
+                      const archived = (archiveRes.data || []).map(a => ({
+                        ...(a.order_data || {}),
+                        _archived: true,
+                        _archiveReason: a.archive_reason,
+                        _archivedAt: a.archived_at,
+                        invoiceNumber: a.invoice_number,
+                        _id: a.original_order_id,
+                      }));
+                      const active = (activeRes.data || []).map(o => ({ ...o, _archived: false }));
+                      // Merge and sort by createdAt DESC
+                      const all = [...active, ...archived].sort(
+                        (a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0)
+                      );
+                      setArchiveOrders(all);
                       setShowArchiveModal(true);
                     } catch (e) {
-                      alert('Failed to load archive: ' + (e.message || 'Unknown error'));
+                      alert('Failed to load orders: ' + (e.message || 'Unknown error'));
                     } finally {
                       setArchiveLoading(false);
                     }
                   }}
                   className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2"
                 >
-                  {archiveLoading ? '...' : '🗂 Deleted Orders'}
+                  {archiveLoading ? '...' : '📋 All Orders'}
                 </button>
               </div>
             </div>
@@ -882,41 +901,50 @@ const Analytics = () => {
       </div>
     )}
 
-    {/* ── Deleted Orders Archive Modal ─────────────────────────────────── */}
+    {/* ── All Orders Modal (active + archived, merged date-wise) ──────── */}
     {showArchiveModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">🗂 Deleted Orders Archive</h2>
-              <p className="text-xs text-gray-400 mt-0.5">{archiveOrders.length} archived order{archiveOrders.length !== 1 ? 's' : ''}</p>
+              <h2 className="text-lg font-bold text-gray-900">📋 All Orders</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {archiveOrders.length} order{archiveOrders.length !== 1 ? 's' : ''} total
+                {' · '}{archiveOrders.filter(o => o._archived).length} deleted
+                {' · '}{archiveOrders.filter(o => !o._archived).length} active
+              </p>
             </div>
             <div className="flex items-center gap-3">
               {archiveOrders.length > 0 && (
                 <button
                   onClick={() => {
                     const headers = [
-                      'Invoice Number','Deleted At','Reason','Order ID','Customer','Order Type',
-                      'Payment Mode','Items','Subtotal','Total Amount','Status'
+                      'Invoice Number','Order Date','Status','Customer','Order Type',
+                      'Payment Mode','Items','Subtotal','Total Amount','Deleted','Delete Reason','Deleted At'
                     ];
-                    const rows = archiveOrders.map(a => {
-                      const d = a.order_data || {};
-                      const items = (d.items||[]).map(i=>`${i.name} x${i.quantity}`).join('; ');
-                      const subtotal = (d.items||[]).reduce((s,i)=>s+(parseFloat(i.price)||0)*(parseInt(i.quantity)||1),0);
-                      const invNum = a.invoice_number ? `INV-${String(a.invoice_number).padStart(3,'0')}` : '—';
+                    const rows = archiveOrders.map(o => {
+                      const items = (o.items||[]).map(i=>`${i.name} x${i.quantity}`).join('; ');
+                      const subtotal = (o.items||[]).reduce((s,i)=>s+(parseFloat(i.price)||0)*(parseInt(i.quantity)||1),0);
+                      const invLabel = o.invoiceNumber ? `INV-${String(o.invoiceNumber).padStart(3,'0')}` : '—';
+                      const deleteReason = o._archived
+                        ? (o._archiveReason === 'history_cleared' ? 'History Cleared' : 'Manually Deleted')
+                        : '';
                       return [
-                        invNum,
-                        new Date(a.archived_at).toLocaleString('en-IN'),
-                        a.archive_reason === 'history_cleared' ? 'History Cleared' : 'Deleted',
-                        d._id || d.id || '',
-                        d.customerName || d.customer_name || '',
-                        d.orderType || d.order_type || '',
-                        d.paymentMethod || d.payment_method || 'cash',
+                        invLabel,
+                        new Date(o.createdAt || o.created_at || 0).toLocaleString('en-IN'),
+                        o._archived ? 'Deleted' : (o.status || 'active'),
+                        o.customerName || 'Guest',
+                        o.orderType || '—',
+                        o.paymentMethod || 'cash',
                         items,
                         subtotal.toFixed(2),
-                        (d.totalAmount || d.total_amount || 0),
-                        d.status || '',
+                        o.totalAmount || 0,
+                        o._archived ? 'Yes' : 'No',
+                        deleteReason,
+                        o._archived && o._archivedAt
+                          ? new Date(o._archivedAt).toLocaleString('en-IN')
+                          : '',
                       ];
                     });
                     const csv = [headers, ...rows]
@@ -926,7 +954,7 @@ const Analytics = () => {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `deleted-orders-archive-${new Date().toISOString().slice(0,10)}.csv`;
+                    a.download = `all-orders-${new Date().toISOString().slice(0,10)}.csv`;
                     a.click();
                     URL.revokeObjectURL(url);
                   }}
@@ -935,8 +963,37 @@ const Analytics = () => {
                   ⬇ Export CSV
                 </button>
               )}
-              <button onClick={() => setShowArchiveModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none font-light">×</button>
+              <button onClick={() => { setShowArchiveModal(false); setArchiveSearch(''); }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none font-light">×</button>
             </div>
+          </div>
+
+          {/* Date / search filter */}
+          <div className="px-6 py-3 border-b border-gray-100 flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 flex-1 max-w-xs">
+              <Search size={14} className="text-gray-400 shrink-0" />
+              <input
+                value={archiveSearch}
+                onChange={e => setArchiveSearch(e.target.value)}
+                placeholder="Search date (e.g. Jan 2026), customer, type…"
+                className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
+              />
+              {archiveSearch && (
+                <button onClick={() => setArchiveSearch('')}><X size={14} className="text-gray-400" /></button>
+              )}
+            </div>
+            <span className="text-xs text-gray-400">
+              Showing {archiveOrders.filter(o => {
+                const q = archiveSearch.toLowerCase();
+                if (!q) return true;
+                const dateStr = new Date(o.createdAt || o.created_at || 0).toLocaleString('en-IN').toLowerCase();
+                return (
+                  dateStr.includes(q) ||
+                  (o.customerName||'').toLowerCase().includes(q) ||
+                  (o.orderType||'').toLowerCase().includes(q) ||
+                  (o.items||[]).some(i => i.name.toLowerCase().includes(q))
+                );
+              }).length} of {archiveOrders.length}
+            </span>
           </div>
 
           {/* Body */}
@@ -944,45 +1001,78 @@ const Analytics = () => {
             {archiveOrders.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <p className="text-4xl mb-3">📭</p>
-                <p className="font-medium">No deleted orders yet</p>
-                <p className="text-sm mt-1">Orders you delete will appear here permanently</p>
+                <p className="font-medium">No orders found</p>
+                <p className="text-sm mt-1">Orders will appear here once created</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[700px]">
+                <table className="w-full text-sm min-w-[750px]">
                   <thead>
                     <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       <th className="px-3 py-2 rounded-l">Invoice</th>
-                      <th className="px-3 py-2">Deleted At</th>
-                      <th className="px-3 py-2">Reason</th>
+                      <th className="px-3 py-2">Order Date</th>
                       <th className="px-3 py-2">Customer</th>
                       <th className="px-3 py-2">Type</th>
                       <th className="px-3 py-2">Items</th>
+                      <th className="px-3 py-2">Payment</th>
+                      <th className="px-3 py-2">Status</th>
                       <th className="px-3 py-2 text-right rounded-r">Amount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {archiveOrders.map((a, i) => {
-                      const d = a.order_data || {};
-                      const items = (d.items||[]).map(i=>`${i.name}×${i.quantity}`).join(', ');
-                      const total = d.totalAmount || d.total_amount || 0;
-                      const invLabel = a.invoice_number ? `INV-${String(a.invoice_number).padStart(3,'0')}` : '—';
-                      const reason = a.archive_reason === 'history_cleared' ? 'History Clear' : 'Deleted';
-                      const orderType = (d.orderType||d.order_type||'').charAt(0).toUpperCase()+(d.orderType||d.order_type||'').slice(1);
-                      return (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="px-3 py-2.5 font-mono text-xs text-gray-700">{invLabel}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">{new Date(a.archived_at).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</td>
-                          <td className="px-3 py-2.5">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.archive_reason === 'history_cleared' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>{reason}</span>
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-gray-700">{d.customerName||d.customer_name||'Guest'}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-500">{orderType||'—'}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-600 max-w-[200px] truncate">{items||'—'}</td>
-                          <td className="px-3 py-2.5 text-xs font-semibold text-gray-800 text-right">₹{total}</td>
-                        </tr>
-                      );
-                    })}
+                    {archiveOrders
+                      .filter(o => {
+                        const q = archiveSearch.toLowerCase();
+                        if (!q) return true;
+                        const dateStr = new Date(o.createdAt || o.created_at || 0).toLocaleString('en-IN').toLowerCase();
+                        return (
+                          dateStr.includes(q) ||
+                          (o.customerName||'').toLowerCase().includes(q) ||
+                          (o.orderType||'').toLowerCase().includes(q) ||
+                          (o.items||[]).some(i => i.name.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((o, i) => {
+                        const invLabel = o.invoiceNumber
+                          ? `INV-${String(o.invoiceNumber).padStart(3,'0')}`
+                          : '—';
+                        const orderDate = o.createdAt || o.created_at;
+                        const items = (o.items||[]).map(it=>`${it.name}×${it.quantity}`).join(', ');
+                        const orderType = (o.orderType||'').charAt(0).toUpperCase()+(o.orderType||'').slice(1);
+                        const deleteReason = o._archiveReason === 'history_cleared' ? 'History Clear' : 'Deleted';
+                        return (
+                          <tr key={`${o._id||i}-${i}`} className={`hover:bg-gray-50 ${o._archived ? 'opacity-75' : ''}`}>
+                            <td className="px-3 py-2.5 font-mono text-xs text-gray-700">{invLabel}</td>
+                            <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                              {orderDate
+                                ? new Date(orderDate).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})
+                                : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-gray-700">{o.customerName||'Guest'}</td>
+                            <td className="px-3 py-2.5 text-xs text-gray-500">{orderType||'—'}</td>
+                            <td className="px-3 py-2.5 text-xs text-gray-600 max-w-[200px] truncate">{items||'—'}</td>
+                            <td className="px-3 py-2.5 text-xs capitalize text-gray-500">{o.paymentMethod||'cash'}</td>
+                            <td className="px-3 py-2.5">
+                              {o._archived ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                                  {deleteReason}
+                                </span>
+                              ) : (
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                  o.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                  o.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                  'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {o.status || 'active'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-xs font-semibold text-gray-800 text-right">
+                              ₹{o.totalAmount || 0}
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
