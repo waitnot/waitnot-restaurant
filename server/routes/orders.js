@@ -69,6 +69,23 @@ router.post('/', checkOrderRateLimit, async (req, res) => {
     
     const order = await orderDB.create(req.body);
     
+    // Assign next sequential invoice number for this restaurant
+    try {
+      const invResult = await query(`
+        INSERT INTO invoice_counters (restaurant_id, last_invoice_number)
+        VALUES ($1, 1)
+        ON CONFLICT (restaurant_id) DO UPDATE
+          SET last_invoice_number = invoice_counters.last_invoice_number + 1,
+              updated_at = CURRENT_TIMESTAMP
+        RETURNING last_invoice_number
+      `, [restaurantId]);
+      const invoiceNum = invResult.rows[0].last_invoice_number;
+      await query(`UPDATE orders SET invoice_number = $1 WHERE id = $2`, [invoiceNum, order._id || order.id]);
+      order.invoiceNumber = invoiceNum;
+    } catch (invErr) {
+      console.warn('Invoice number assignment failed (non-fatal):', invErr.message);
+    }
+    
     console.log('✅ Order created successfully:', order._id);
     
     // Send real-time notification
@@ -317,6 +334,11 @@ router.post('/merge-and-complete', async (req, res) => {
       if (io) {
         io.to(`restaurant-${restaurantId}`).emit('orders-updated', { orderIds, updateData: { status: 'completed' } });
         io.to('admin-room').emit('orders-updated', { orderIds, updateData: { status: 'completed' } });
+        // Emit print-bill so the app auto-prints the bill (same as multi-order path)
+        const singleOrder = await orderDB.findById(orderIds[0]);
+        if (singleOrder) {
+          io.to(`restaurant-${restaurantId}`).emit('print-bill', { order: singleOrder, orders: [singleOrder] });
+        }
       }
       return res.json({ success: true, merged: false });
     }
@@ -414,23 +436,119 @@ router.post('/merge-and-complete', async (req, res) => {
   }
 });
 
-// Delete a single order by ID
+// Delete a single order by ID — archives it first, then renumbers active invoices
 router.delete('/:id', async (req, res) => {
   try {
-    const order = await orderDB.delete(req.params.id);
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    // 1. Fetch full order before deleting
+    const existing = await orderDB.findById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Order not found' });
+
+    const restaurantId = existing.restaurantId || existing.restaurant_id;
+
+    // 2. Save to order_archives (permanent record)
+    await query(`
+      INSERT INTO order_archives (original_order_id, restaurant_id, invoice_number, order_number, order_data, archive_reason)
+      VALUES ($1, $2, $3, $4, $5, 'deleted')
+      ON CONFLICT DO NOTHING
+    `, [
+      req.params.id,
+      restaurantId,
+      existing.invoiceNumber || existing.invoice_number || null,
+      existing.orderNumber  || existing.order_number  || null,
+      JSON.stringify(existing)
+    ]);
+
+    // 3. Soft-delete: mark archived + deleted_at (keeps row for analytics)
+    await query(`
+      UPDATE orders SET archived = true, deleted_at = CURRENT_TIMESTAMP, invoice_number = NULL
+      WHERE id = $1
+    `, [req.params.id]);
+
+    // 4. Renumber remaining active (non-archived) orders sequentially for this restaurant
+    await query(`
+      UPDATE orders o
+      SET invoice_number = sub.new_inv
+      FROM (
+        SELECT id,
+               ROW_NUMBER() OVER (ORDER BY created_at ASC) AS new_inv
+        FROM orders
+        WHERE restaurant_id = $1
+          AND archived = false
+          AND invoice_number IS NOT NULL
+      ) sub
+      WHERE o.id = sub.id
+    `, [restaurantId]);
+
+    // 5. Update counter to the current max
+    await query(`
+      INSERT INTO invoice_counters (restaurant_id, last_invoice_number)
+      VALUES ($1, (SELECT COALESCE(MAX(invoice_number), 0) FROM orders WHERE restaurant_id = $1 AND archived = false))
+      ON CONFLICT (restaurant_id) DO UPDATE
+        SET last_invoice_number = (SELECT COALESCE(MAX(invoice_number), 0) FROM orders WHERE restaurant_id = invoice_counters.restaurant_id AND archived = false),
+            updated_at = CURRENT_TIMESTAMP
+    `, [restaurantId]);
 
     const io = req.app.get('io');
     if (io) {
-      // DB returns snake_case — use restaurant_id directly
-      const restaurantId = order.restaurant_id || order.restaurantId;
       io.to(`restaurant-${restaurantId}`).emit('order-deleted', { orderId: req.params.id });
       io.to('admin-room').emit('order-deleted', { orderId: req.params.id });
     }
 
-    res.json({ success: true, orderId: req.params.id });
+    res.json({ success: true, orderId: req.params.id, archived: true });
   } catch (error) {
-    console.error('❌ Order delete failed:', error);
+    console.error('❌ Order archive/delete failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Archive all completed orders for a restaurant and reset invoice counter
+router.post('/restaurant/:restaurantId/clear-history', async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+
+    // 1. Archive all completed orders
+    const completed = await query(`
+      SELECT * FROM orders
+      WHERE restaurant_id = $1 AND status = 'completed' AND archived = false
+    `, [restaurantId]);
+
+    for (const o of completed.rows) {
+      await query(`
+        INSERT INTO order_archives (original_order_id, restaurant_id, invoice_number, order_number, order_data, archive_reason)
+        VALUES ($1, $2, $3, $4, $5, 'history_cleared')
+        ON CONFLICT DO NOTHING
+      `, [o.id, restaurantId, o.invoice_number, o.order_number, JSON.stringify(o)]);
+    }
+
+    // 2. Soft-delete them
+    await query(`
+      UPDATE orders SET archived = true, deleted_at = CURRENT_TIMESTAMP
+      WHERE restaurant_id = $1 AND status = 'completed' AND archived = false
+    `, [restaurantId]);
+
+    // 3. Reset invoice counter to 0 so next order starts from 1
+    await query(`
+      INSERT INTO invoice_counters (restaurant_id, last_invoice_number)
+      VALUES ($1, 0)
+      ON CONFLICT (restaurant_id) DO UPDATE SET last_invoice_number = 0, updated_at = CURRENT_TIMESTAMP
+    `, [restaurantId]);
+
+    res.json({ success: true, archivedCount: completed.rowCount });
+  } catch (error) {
+    console.error('❌ Clear history failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get archived orders for a restaurant (for audit/reporting)
+router.get('/restaurant/:restaurantId/archives', async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const result = await query(`
+      SELECT * FROM order_archives WHERE restaurant_id = $1 ORDER BY archived_at DESC
+    `, [restaurantId]);
+    res.json(result.rows);
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
