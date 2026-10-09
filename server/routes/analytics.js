@@ -1,5 +1,6 @@
 import express from 'express';
 import { orderDB } from '../db.js';
+import { query } from '../database/connection.js';
 
 const router = express.Router();
 
@@ -205,6 +206,16 @@ router.get('/restaurant/:restaurantId/report', async (req, res) => {
     const { type = 'weekly', format = 'json', clearHistory = 'false' } = req.query;
     
     const orders = await orderDB.findByRestaurant(restaurantId);
+
+    // Include archived orders so sales reports are never missing historical data
+    let archivedOrders = [];
+    try {
+      const archResult = await query(`SELECT order_data FROM order_archives WHERE restaurant_id = $1`, [restaurantId]);
+      archivedOrders = archResult.rows.map(r => {
+        try { return typeof r.order_data === 'string' ? JSON.parse(r.order_data) : r.order_data; } catch { return null; }
+      }).filter(Boolean);
+    } catch (_) {}
+    const allOrders = [...orders, ...archivedOrders];
     
     // Calculate date range based on report type
     const now = new Date();
@@ -227,58 +238,97 @@ router.get('/restaurant/:restaurantId/report', async (req, res) => {
         startDate = new Date(0);
     }
     
-    const filteredOrders = orders.filter(order => {
+    const filteredOrders = allOrders.filter(order => {
       const orderDate = new Date(order.createdAt);
       return orderDate >= startDate && orderDate <= endDate;
     });
     
-    const reportData = filteredOrders.map(order => ({
-      orderId: order._id,
-      date: new Date(order.createdAt).toLocaleDateString(),
-      time: new Date(order.createdAt).toLocaleTimeString(),
-      customer: order.customerName || 'N/A',
-      phone: order.customerPhone || 'N/A',
-      type: order.type || 'dine-in',
-      table: order.tableNumber || 'N/A',
-      status: order.status,
-      paymentMethod: order.paymentMethod || 'cash',
-      paymentStatus: order.paymentStatus || 'pending',
-      items: order.items ? order.items.map(item => `${item.name} x${item.quantity}`).join('; ') : '',
-      totalAmount: order.totalAmount || order.total || 0,
-      deliveryAddress: order.deliveryAddress || 'N/A'
-    }));
+    const reportData = filteredOrders.map((order, idx) => {
+      const subtotal   = (order.items || []).reduce((s, i) => s + (parseFloat(i.price)||0) * (parseInt(i.quantity)||1), 0);
+      const discount   = parseFloat(order.discountAmount || 0);
+      const taxableVal = Math.max(0, subtotal - discount);
+      const cgst       = parseFloat(((taxableVal * 2.5) / 100).toFixed(2));
+      const sgst       = cgst;
+      const totalInv   = parseFloat((taxableVal + cgst + sgst).toFixed(2));
+      const invNum     = order.invoiceNumber || order.invoice_number;
+      const invLabel   = invNum ? `INV-${String(invNum).padStart(3,'0')}` : `ORD-${String(order.orderNumber || order.order_number || idx+1).padStart(3,'0')}`;
+
+      const orderTypeLabel = order.orderType === 'dine-in' || order.type === 'dine-in' ? 'Dine-in'
+        : (order.orderType||order.type) === 'takeaway' ? 'Takeaway'
+        : (order.orderType||order.type) === 'delivery' ? 'Delivery'
+        : (order.orderType||order.type) === 'room'     ? 'Room' : 'Online';
+
+      const payMode = (order.paymentMethod||'cash') === 'cash' ? 'Cash'
+        : (order.paymentMethod||'') === 'online' ? 'UPI'
+        : (order.paymentMethod||'') === 'card'   ? 'Card' : 'Other';
+
+      const channel  = order.source === 'staff' ? 'Direct' : order.source === 'qr' ? 'Waitnot' : 'Other';
+      const invDate  = new Date(order.updatedAt || order.createdAt).toLocaleDateString('en-IN');
+      const status   = order.status === 'completed' ? 'Completed' : order.status === 'cancelled' ? 'Cancelled' : 'Completed';
+
+      return {
+        'Invoice Number':     invLabel,
+        'Invoice Date':       invDate,
+        'Order ID':           order._id || order.id || '',
+        'Outlet ID':          order.restaurantId || order.restaurant_id || '',
+        'Customer Type':      'B2C',
+        'Customer Name':      order.customerName || order.customer_name || '',
+        'Customer GSTIN':     '',
+        'Customer State':     '',
+        'Place of Supply':    '',
+        'State Code':         '',
+        'Order Type':         orderTypeLabel,
+        'Sales Channel':      channel,
+        'Payment Mode':       payMode,
+        'Subtotal':           subtotal.toFixed(2),
+        'Discount':           discount.toFixed(2),
+        'Taxable Value':      taxableVal.toFixed(2),
+        'CGST':               cgst.toFixed(2),
+        'SGST':               sgst.toFixed(2),
+        'IGST':               '0.00',
+        'CESS':               '0.00',
+        'Total Invoice Value': totalInv.toFixed(2),
+        'GST Rate':           '5%',
+        'SAC/HSN':            '996331',
+        'Invoice Status':     status,
+        'Credit Note':        '',
+        'Debit Note':         '',
+      };
+    });
     
     // Clear order history if requested
     if (clearHistory === 'true') {
       console.log(`Clearing order history for restaurant ${restaurantId} after ${type} report generation`);
-      
-      // Delete completed orders that are included in the report
-      const completedOrderIds = filteredOrders
-        .filter(order => order.status === 'completed')
-        .map(order => order._id);
-      
-      if (completedOrderIds.length > 0) {
-        await orderDB.deleteMultiple(completedOrderIds);
-        console.log(`Cleared ${completedOrderIds.length} completed orders from history`);
+      // Use the archive endpoint instead of hard-deleting
+      try {
+        const archiveRes = await fetch(`http://localhost:${process.env.PORT || 5001}/api/orders/restaurant/${restaurantId}/clear-history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const archiveData = await archiveRes.json();
+        console.log(`Archived ${archiveData.archivedCount || 0} orders`);
+      } catch (archErr) {
+        console.warn('Archive via API failed, using direct query:', archErr.message);
+        // Fallback: direct soft-delete
+        const completedOrderIds = filteredOrders.filter(o => o.status === 'completed').map(o => o._id);
+        if (completedOrderIds.length > 0) {
+          const ph = completedOrderIds.map((_, i) => `$${i+1}`).join(',');
+          await query(`UPDATE orders SET archived = true, deleted_at = CURRENT_TIMESTAMP WHERE id IN (${ph})`, completedOrderIds);
+          await query(`INSERT INTO invoice_counters (restaurant_id, last_invoice_number) VALUES ($1, 0) ON CONFLICT (restaurant_id) DO UPDATE SET last_invoice_number = 0`, [restaurantId]);
+        }
       }
     }
     
     if (format === 'csv') {
-      // Convert to CSV
       const headers = Object.keys(reportData[0] || {});
+      const escape  = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
       const csvRows = [
-        headers.join(','),
-        ...reportData.map(row => 
-          headers.map(header => {
-            const value = row[header];
-            return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
-          }).join(',')
-        )
+        headers.map(escape).join(','),
+        ...reportData.map(row => headers.map(h => escape(row[h])).join(','))
       ];
-      
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${type}_report_${new Date().toISOString().split('T')[0]}.csv"`);
-      res.send(csvRows.join('\n'));
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${type}_invoice_report_${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send('\uFEFF' + csvRows.join('\r\n')); // UTF-8 BOM for Excel
     } else {
       res.json({
         type,
