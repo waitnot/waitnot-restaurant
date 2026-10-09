@@ -316,36 +316,67 @@ const Analytics = () => {
       case 'yearly': startDate = new Date(now.getFullYear(), 0, 1); break;
       default: startDate = new Date(0);
     }
-    return orders.filter(o => new Date(o.createdAt) >= startDate && new Date(o.createdAt) <= endDate).map(order => ({
-      'Order ID': order._id,
-      'Date': new Date(order.createdAt).toLocaleDateString(),
-      'Time': new Date(order.createdAt).toLocaleTimeString(),
-      'Customer': order.customerName || 'N/A',
-      'Phone': order.customerPhone || 'N/A',
-      'Type': order.orderType || 'dine-in',
-      'Table': order.tableNumber || 'N/A',
-      'Status': order.status,
-      'Payment Method': order.paymentMethod || 'cash',
-      'Payment Status': order.paymentStatus || 'pending',
-      'Items': order.items ? order.items.map(i => `${i.name} x${i.quantity}`).join('; ') : '',
-      'Total Amount': order.totalAmount || 0,
-      'Delivery Address': order.deliveryAddress || 'N/A'
-    }));
+    return orders.filter(o => new Date(o.createdAt) >= startDate && new Date(o.createdAt) <= endDate).map((order, idx) => {
+      const subtotal   = (order.items || []).reduce((s, i) => s + (parseFloat(i.price)||0) * (parseInt(i.quantity)||1), 0);
+      const discount   = parseFloat(order.discountAmount || 0);
+      const taxableVal = Math.max(0, subtotal - discount);
+      const cgst       = parseFloat(((taxableVal * 2.5) / 100).toFixed(2));
+      const sgst       = cgst;
+      const totalInv   = parseFloat((taxableVal + cgst + sgst).toFixed(2));
+
+      const orderTypeLabel = order.orderType === 'dine-in'  ? 'Dine-in'
+        : order.orderType === 'takeaway' ? 'Takeaway'
+        : order.orderType === 'delivery' ? 'Delivery'
+        : order.orderType === 'room'     ? 'Room'
+        : 'Online';
+
+      const payMode = (order.paymentMethod || 'cash') === 'cash'   ? 'Cash'
+        : (order.paymentMethod || '') === 'online' ? 'UPI'
+        : (order.paymentMethod || '') === 'card'   ? 'Card'
+        : 'Other';
+
+      const channel = order.source === 'staff' ? 'Direct' : order.source === 'qr' ? 'Waitnot' : 'Other';
+
+      return {
+        'Invoice Number':       `INV-${String(order.orderNumber || idx+1).padStart(3,'0')}`,
+        'Invoice Date':          new Date(order.updatedAt || order.createdAt).toLocaleDateString('en-IN'),
+        'Order ID':              order._id || '',
+        'Outlet ID':             order.restaurantId || '',
+        'Customer Type':         'B2C',
+        'Customer Name':         order.customerName || '',
+        'Customer GSTIN':        '',
+        'Customer State':        '',
+        'Place of Supply':       '',
+        'State Code':            '',
+        'Order Type':            orderTypeLabel,
+        'Sales Channel':         channel,
+        'Payment Mode':          payMode,
+        'Subtotal':              subtotal.toFixed(2),
+        'Discount':              discount.toFixed(2),
+        'Taxable Value':         taxableVal.toFixed(2),
+        'CGST':                  cgst.toFixed(2),
+        'SGST':                  sgst.toFixed(2),
+        'IGST':                  '0.00',
+        'CESS':                  '0.00',
+        'Total Invoice Value':   totalInv.toFixed(2),
+        'GST Rate':              '5%',
+        'SAC/HSN':               '996331',
+        'Invoice Status':        order.status === 'completed' ? 'Completed' : order.status === 'cancelled' ? 'Cancelled' : 'Completed',
+        'Credit Note':           '',
+        'Debit Note':            '',
+      };
+    });
   };
 
   const convertToCSV = (data) => {
     if (!data.length) return '';
     const headers = Object.keys(data[0]);
+    const escape  = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
     const csvRows = [
-      headers.join(','),
-      ...data.map(row =>
-        headers.map(header => {
-          const value = row[header];
-          return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
-        }).join(',')
-      )
+      headers.map(escape).join(','),
+      ...data.map(row => headers.map(h => escape(row[h])).join(','))
     ];
-    return csvRows.join('\n');
+    return '\uFEFF' + csvRows.join('\r\n'); // UTF-8 BOM for Excel
   };
 
   if (loading) {
