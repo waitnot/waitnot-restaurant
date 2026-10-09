@@ -363,3 +363,45 @@ body {
     transition: none !important;
   }
 }
+
+/* ── Responsive overrides ──────────────────────────────────────────────── */
+
+/* Scrollbar width compensation — prevent layout shift on scroll appear/hide */
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
+/* Touch target minimum */
+@media (max-width: 640px) {
+  button, [role="button"] {
+    min-height: 36px;
+  }
+
+  /* History table scrolls horizontally on mobile */
+  .history-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Menu grid: fewer columns on very small screens */
+  .menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Stack flex rows on mobile */
+  .mobile-stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Safe area insets for modern mobile devices */
+.bottom-nav-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent content from being hidden behind bottom nav */
+.pb-bottom-nav {
+  padding-bottom: 4rem; /* 64px = h-16 bottom nav */
+}
