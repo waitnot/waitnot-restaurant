@@ -167,6 +167,36 @@ export async function initDatabase() {
          OR NOT (features ? 'deliveryOrders')
     `);
 
+    // ── Invoice / Archive migrations ──────────────────────────────────────────
+    // invoice_number: sequential per-restaurant, human-readable, reset-able
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS invoice_number INTEGER`);
+    // archived: soft-delete flag (order removed from active list but kept for reports)
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false`);
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE`);
+    // invoice_counter: track the last used invoice number per restaurant so resets are clean
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_counters (
+        restaurant_id UUID PRIMARY KEY REFERENCES restaurants(id) ON DELETE CASCADE,
+        last_invoice_number INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // order_archives: permanent record of every order ever placed (never deleted)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS order_archives (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        original_order_id UUID NOT NULL,
+        restaurant_id UUID REFERENCES restaurants(id) ON DELETE CASCADE,
+        invoice_number INTEGER,
+        order_number INTEGER,
+        order_data JSONB NOT NULL,
+        archived_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        archive_reason VARCHAR(50) DEFAULT 'deleted'
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_order_archives_restaurant ON order_archives(restaurant_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_invoice ON orders(restaurant_id, invoice_number)`;
+
     // Create staff tables
     await client.query(`
       CREATE TABLE IF NOT EXISTS staff (
