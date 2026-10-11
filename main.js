@@ -83,15 +83,29 @@ function createWindow() {
     // Attach listener BEFORE loadURL so we never miss the did-finish-load event
     mainWindow.webContents.once('did-finish-load', () => {
       console.log('✅ Local files loaded successfully via waitnot://');
-      // Set initial route — navigate to staff-login if on root
-      setTimeout(() => {
+      // Guard: if React Router resets to "/" (marketing home), push to /staff-login
+      // We poll for 3 seconds after load to catch lazy-load induced re-routes.
+      let guarded = false;
+      const guard = setInterval(() => {
+        if (guarded) { clearInterval(guard); return; }
         mainWindow.webContents.executeJavaScript(`
-          if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
-            window.history.replaceState(null, '', '/staff-login');
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          }
-        `).catch(() => {});
-      }, 500);
+          (function(){
+            const p = window.location.pathname;
+            const loggedIn = !!localStorage.getItem('staffToken');
+            if (p === '/' || p === '/index.html' || p === '') {
+              if (loggedIn) {
+                window.history.replaceState(null,'','/staff-dashboard');
+              } else {
+                window.history.replaceState(null,'','/staff-login');
+              }
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            } else if (p !== '/' && p !== '/index.html') {
+              return 'done';
+            }
+          })()
+        `).then(r => { if (r === 'done') { guarded = true; clearInterval(guard); } }).catch(() => {});
+      }, 200);
+      setTimeout(() => clearInterval(guard), 3000);
     });
 
     // ── Fix Socket.IO origin ────────────────────────────────────────────────
@@ -192,8 +206,9 @@ function createWindow() {
       mainWindow.webContents.once('did-finish-load', () => {
         setTimeout(() => {
           mainWindow.webContents.executeJavaScript(`
-            if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
-              window.history.replaceState(null, '', '/staff-login');
+            const _lp=window.location.pathname,_li=!!localStorage.getItem('staffToken');
+            if(_lp==='/'||_lp==='/index.html'||_lp===''){
+              window.history.replaceState(null,'',_li?'/staff-dashboard':'/staff-login');
               window.dispatchEvent(new PopStateEvent('popstate'));
             }
           `).catch(() => {});
