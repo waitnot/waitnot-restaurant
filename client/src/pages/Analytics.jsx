@@ -17,6 +17,7 @@ const Analytics = () => {
   const [showOrdersTable, setShowOrdersTable] = useState(false);
   const [orderSearch, setOrderSearch] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [expandedDays, setExpandedDays] = useState({});
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveOrders, setArchiveOrders] = useState([]);
@@ -241,6 +242,22 @@ const Analytics = () => {
         } finally {
           setDeletingId(null);
         }
+      }
+    });
+  };
+
+  const deleteDay = (dayOrders) => {
+    const dateLabel = new Date(dayOrders[0].createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    setConfirmModal({
+      message: `Delete all ${dayOrders.length} orders on ${dateLabel}? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        const ids = dayOrders.map(o => o._id);
+        // delete sequentially to avoid hammering server
+        for (const id of ids) {
+          try { await axios.delete(`/api/orders/${id}`); } catch (e) { /* skip failed */ }
+        }
+        setOrders(prev => prev.filter(o => !ids.includes(o._id)));
       }
     });
   };
@@ -732,114 +749,162 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* Edit Report — Orders Table */}
+        {/* Edit Report — Day-wise accordion */}
         {showOrdersTable && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-800">Orders — Edit / Delete</h3>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Orders — Edit / Delete</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{orders.length} orders · grouped by day</p>
+              </div>
               <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 w-64">
                 <Search size={14} className="text-gray-400 shrink-0" />
                 <input
                   value={orderSearch}
                   onChange={e => setOrderSearch(e.target.value)}
-                  placeholder="Search by table, customer, type..."
+                  placeholder="Search customer, type, item..."
                   className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
                 />
                 {orderSearch && <button onClick={() => setOrderSearch('')}><X size={14} className="text-gray-400" /></button>}
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs text-gray-500 uppercase tracking-wide">
-                    <th className="pb-3 pr-4">Date / Time</th>
-                    <th className="pb-3 pr-4">Type</th>
-                    <th className="pb-3 pr-4">Table / Room</th>
-                    <th className="pb-3 pr-4">Customer</th>
-                    <th className="pb-3 pr-4">Items</th>
-                    <th className="pb-3 pr-4">Payment</th>
-                    <th className="pb-3 pr-4">Status</th>
-                    <th className="pb-3 text-right">Total</th>
-                    <th className="pb-3"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders
-                    .filter(o => {
-                      const q = orderSearch.toLowerCase();
-                      if (!q) return true;
-                      return (
-                        o.tableNumber?.toString().includes(q) ||
-                        o.roomNumber?.toString().includes(q) ||
-                        o.customerName?.toLowerCase().includes(q) ||
-                        o.orderType?.toLowerCase().includes(q) ||
-                        o.status?.toLowerCase().includes(q) ||
-                        o.items?.some(i => i.name.toLowerCase().includes(q))
-                      );
-                    })
-                    .map(order => (
-                      <tr key={order._id} className="border-b border-gray-50 hover:bg-gray-50 group">
-                        <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">
-                          {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}{' '}
-                          <span className="text-xs">{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </td>
-                        <td className="py-2.5 pr-4">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            order.orderType === 'dine-in' ? 'bg-red-100 text-red-700' :
-                            order.orderType === 'room' ? 'bg-orange-100 text-orange-700' :
-                            order.orderType === 'takeaway' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-blue-100 text-blue-700'
-                          }`}>
-                            {order.orderType === 'dine-in' ? '🍽 Dine-In' :
-                             order.orderType === 'room' ? '🛏 Room' :
-                             order.orderType === 'takeaway' ? '🥡 Takeaway' : '🛵 Delivery'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 pr-4 text-gray-700">
-                          {order.tableNumber ? `T${order.tableNumber}` : order.roomNumber ? `R${order.roomNumber}` : '—'}
-                        </td>
-                        <td className="py-2.5 pr-4 text-gray-700 max-w-[120px] truncate">{order.customerName || '—'}</td>
-                        <td className="py-2.5 pr-4 text-gray-600 max-w-[180px]">
-                          <span className="truncate block">{order.items?.map(i => `${i.name} ×${i.quantity}`).join(', ')}</span>
-                        </td>
-                        <td className="py-2.5 pr-4">
-                          <span className={`text-xs font-medium capitalize ${order.paymentMethod === 'online' ? 'text-blue-600' : 'text-green-600'}`}>
-                            {order.paymentMethod || 'cash'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 pr-4">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                            'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="py-2.5 pr-4 text-right font-semibold text-gray-800">₹{order.totalAmount}</td>
-                        <td className="py-2.5 text-right">
-                          <button
-                            onClick={() => deleteOrder(order._id)}
-                            disabled={deletingId === order._id}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              {orders.filter(o => {
+            {(() => {
+              // Group orders by calendar date (most recent first)
+              const filtered = orders.filter(o => {
                 const q = orderSearch.toLowerCase();
                 if (!q) return true;
-                return o.tableNumber?.toString().includes(q) || o.customerName?.toLowerCase().includes(q) || o.orderType?.toLowerCase().includes(q) || o.items?.some(i => i.name.toLowerCase().includes(q));
-              }).length === 0 && (
-                <p className="text-center text-gray-400 py-8 text-sm">No orders found</p>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-3">{orders.length} total orders · Hover a row to reveal the delete button</p>
+                return (
+                  (o.customerName || '').toLowerCase().includes(q) ||
+                  (o.orderType || '').toLowerCase().includes(q) ||
+                  (o.tableNumber?.toString() || '').includes(q) ||
+                  (o.roomNumber?.toString() || '').includes(q) ||
+                  (o.items || []).some(i => i.name.toLowerCase().includes(q))
+                );
+              });
+
+              if (filtered.length === 0) {
+                return <p className="text-center text-gray-400 py-8 text-sm">No orders found</p>;
+              }
+
+              // Build day buckets
+              const dayMap = {};
+              filtered.forEach(o => {
+                const d = new Date(o.createdAt);
+                const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                if (!dayMap[key]) dayMap[key] = [];
+                dayMap[key].push(o);
+              });
+              const days = Object.keys(dayMap).sort((a, b) => b.localeCompare(a));
+
+              return (
+                <div className="space-y-2">
+                  {days.map(dayKey => {
+                    const dayOrders = dayMap[dayKey];
+                    const isOpen = expandedDays[dayKey] ?? false;
+                    const dayTotal = dayOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+                    const dateLabel = new Date(dayKey + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+
+                    return (
+                      <div key={dayKey} className="border border-gray-200 rounded-xl overflow-hidden">
+                        {/* Day header row */}
+                        <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                          {/* Expand toggle */}
+                          <button
+                            onClick={() => setExpandedDays(prev => ({ ...prev, [dayKey]: !isOpen }))}
+                            className="text-gray-400 hover:text-gray-600 shrink-0"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              {isOpen ? <path d="M3 6l5 5 5-5" /> : <path d="M6 3l5 5-5 5" />}
+                            </svg>
+                          </button>
+
+                          {/* Date + stats — clicking also expands */}
+                          <button
+                            onClick={() => setExpandedDays(prev => ({ ...prev, [dayKey]: !isOpen }))}
+                            className="flex-1 flex items-center gap-4 text-left min-w-0"
+                          >
+                            <span className="font-semibold text-gray-800 text-sm">{dateLabel}</span>
+                            <span className="text-xs text-gray-400 bg-white border border-gray-200 px-2 py-0.5 rounded-full shrink-0">{dayOrders.length} order{dayOrders.length !== 1 ? 's' : ''}</span>
+                            <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full shrink-0">₹{dayTotal.toLocaleString()}</span>
+                          </button>
+
+                          {/* Delete whole day */}
+                          <button
+                            onClick={() => deleteDay(dayOrders)}
+                            title={`Delete all ${dayOrders.length} orders on this day`}
+                            className="shrink-0 flex items-center gap-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={13} />
+                            <span className="hidden sm:inline">Delete day</span>
+                          </button>
+                        </div>
+
+                        {/* Expanded order rows */}
+                        {isOpen && (
+                          <div className="divide-y divide-gray-50">
+                            {dayOrders.map(order => (
+                              <div key={order._id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 group text-sm">
+                                {/* Time */}
+                                <span className="text-xs text-gray-400 whitespace-nowrap w-12 shrink-0 mt-0.5">
+                                  {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+
+                                {/* Type badge */}
+                                <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                  order.orderType === 'dine-in'  ? 'bg-red-100 text-red-700' :
+                                  order.orderType === 'room'     ? 'bg-orange-100 text-orange-700' :
+                                  order.orderType === 'takeaway' ? 'bg-yellow-100 text-yellow-700' :
+                                                                   'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {order.orderType === 'dine-in' ? 'Dine-In' :
+                                   order.orderType === 'room' ? 'Room' :
+                                   order.orderType === 'takeaway' ? 'Takeaway' : 'Delivery'}
+                                </span>
+
+                                {/* Table/Room */}
+                                <span className="shrink-0 text-xs text-gray-500 w-8">
+                                  {order.tableNumber ? `T${order.tableNumber}` : order.roomNumber ? `R${order.roomNumber}` : '—'}
+                                </span>
+
+                                {/* Customer + items */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-gray-800 font-medium truncate">{order.customerName || 'Guest'}</p>
+                                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                                    {(order.items || []).map(i => `${i.name} ×${i.quantity}`).join(', ') || '—'}
+                                  </p>
+                                </div>
+
+                                {/* Payment */}
+                                <span className={`shrink-0 text-xs font-medium ${order.paymentMethod === 'online' ? 'text-blue-600' : 'text-green-600'}`}>
+                                  {order.paymentMethod || 'cash'}
+                                </span>
+
+                                {/* Amount */}
+                                <span className="shrink-0 font-semibold text-gray-800 w-16 text-right">₹{order.totalAmount}</span>
+
+                                {/* Delete */}
+                                <button
+                                  onClick={() => deleteOrder(order._id)}
+                                  disabled={deletingId === order._id}
+                                  title="Delete this order"
+                                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                                >
+                                  {deletingId === order._id
+                                    ? <span className="block w-3.5 h-3.5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                                    : <Trash2 size={14} />
+                                  }
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
