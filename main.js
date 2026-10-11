@@ -186,7 +186,7 @@ function createWindow() {
         }).catch(() => { pollActive = false; });
       }, 3000);
 
-    mainWindow.loadURL('waitnot://app/index.html').catch((error) => {
+    mainWindow.loadURL('waitnot://app/staff-login').catch((error) => {
       console.error('❌ waitnot:// failed, trying loadFile fallback:', error);
       const indexPath = path.join(app.getAppPath(), 'renderer', 'index.html');
       mainWindow.webContents.once('did-finish-load', () => {
