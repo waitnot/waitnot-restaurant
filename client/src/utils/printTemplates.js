@@ -92,71 +92,104 @@ export function buildBillHTML({ restaurantName, slotLabel, orderType, customerNa
     price: parseFloat(i.price) || 0,
     quantity: parseInt(i.quantity) || 1,
   }));
-  const subtotal = billItems.filter(i => !i.complimentary).reduce((s, i) => s + (i.price * i.quantity), 0);
-  const compTotal = billItems.filter(i => i.complimentary).reduce((s, i) => s + (i.price * i.quantity), 0);
+
+  const subtotal = billItems.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
   const pkg   = parseFloat(packagingCharge) || 0;
   const dlv   = parseFloat(deliveryCharge)  || 0;
   const exAmt = parseFloat(extraCharge)     || 0;
   const extra = pkg + dlv + exAmt;
   const grandTotal = subtotal + extra;
-  const showSubtotal = extra > 0; // only show subtotal row when there are extra charges
+  const showSubtotal = extra > 0;
 
-  const rows = billItems.map(i => `
-    <tr>
-      <td style="padding:5px 2px;font-size:12px;font-weight:900;border-bottom:1px dashed #000;word-break:break-word;width:50%;">${i.name}${i.complimentary ? ' ★COMP' : ''}</td>
-      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:center;border-bottom:1px dashed #000;width:12%;">${i.quantity}</td>
-      <td style="padding:5px 2px;font-size:11px;text-align:right;border-bottom:1px dashed #000;width:18%;">${i.complimentary ? 'COMP' : '₹' + i.price.toFixed(2)}</td>
-      <td style="padding:5px 2px;font-size:12px;font-weight:900;text-align:right;border-bottom:1px dashed #000;width:20%;">${i.complimentary ? '₹0' : '₹' + (i.price * i.quantity).toFixed(2)}</td>
-    </tr>`).join('');
+  const receiptTitle =
+    orderType === 'delivery' ? 'DELIVERY RECEIPT' :
+    orderType === 'takeaway' ? 'TAKEAWAY RECEIPT' :
+    orderType === 'room'     ? 'ROOM RECEIPT'     :
+                               'DINE-IN RECEIPT';
+
+  // Item rows — "item name x qty" left, "Rs.amt" right
+  const rows = billItems.map(i => {
+    const amt = i.complimentary ? 'COMP' : `Rs.${(i.price * i.quantity).toFixed(0)}`;
+    const label = `${i.name}${i.complimentary ? ' ★' : ''} x${i.quantity}`;
+    return `<tr>
+      <td style="padding:4px 0;font-size:13px;word-break:break-word;">${label}</td>
+      <td style="padding:4px 0;font-size:13px;font-weight:900;text-align:right;white-space:nowrap;">${amt}</td>
+    </tr>`;
+  }).join('');
+
+  const W = width === '58mm' ? '218px' : '302px';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill</title>
-<style>${PAGE_CSS(width)}</style></head><body>
-<div class="w">
-  <div class="c" style="margin-bottom:8px;">
-    <div style="font-size:22px;font-weight:900;letter-spacing:2px;">${(restaurantName || '').toUpperCase()}</div>
-    <div style="font-size:12px;font-weight:900;margin-top:4px;">
-      ${orderType === 'delivery' ? 'DELIVERY RECEIPT' : orderType === 'takeaway' ? 'TAKEAWAY RECEIPT' : orderType === 'room' ? 'ROOM RECEIPT' : 'DINE-IN RECEIPT'}
-    </div>
+<style>
+  @page { size: ${width} auto; margin: 2mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; background:#fff; font-family:'Courier New',Courier,monospace; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .wrap { width:100%; max-width:${W}; margin:0 auto; padding:4px; }
+  .c { text-align:center; }
+  .b { font-weight:900; }
+  .dash { border:none; border-top:1px dashed #000; margin:5px 0; }
+  table { width:100%; border-collapse:collapse; }
+  td { vertical-align:top; }
+</style>
+</head><body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="c" style="margin-bottom:6px;">
+    <div style="font-size:20px;font-weight:900;letter-spacing:2px;">${(restaurantName || '').toUpperCase()}</div>
+    <div style="font-size:12px;font-weight:700;margin-top:3px;letter-spacing:1px;">${receiptTitle}</div>
   </div>
-  <hr class="sep">
-  <table style="font-size:12px;margin-bottom:5px;">
-    ${slotLabel ? `<tr><td class="b">SLOT</td><td style="text-align:right;font-size:14px;font-weight:900;">${slotLabel}</td></tr>` : ''}
-    <tr><td class="b">DATE</td><td style="text-align:right;">${d}</td></tr>
-    <tr><td class="b">TIME</td><td style="text-align:right;">${t}</td></tr>
-    ${customerName ? `<tr><td class="b">NAME</td><td style="text-align:right;">${customerName}</td></tr>` : ''}
-    ${customerPhone ? `<tr><td class="b">PHONE</td><td style="text-align:right;">${customerPhone}</td></tr>` : ''}
-    ${paymentMethod ? `<tr><td class="b">PAYMENT</td><td style="text-align:right;font-weight:900;">${paymentMethod.toUpperCase()}</td></tr>` : ''}
-    ${deliveryAddress ? `<tr><td class="b" colspan="2" style="padding-top:4px;">ADDR: ${deliveryAddress}</td></tr>` : ''}
+  <hr class="dash">
+
+  <!-- Info block -->
+  <table style="font-size:13px;margin-bottom:4px;">
+    ${slotLabel       ? `<tr><td class="b" style="width:55%;">SLOT:</td><td style="text-align:right;">${slotLabel}</td></tr>` : ''}
+    <tr><td class="b">DATE:</td><td style="text-align:right;">${d}</td></tr>
+    <tr><td class="b">TIME:</td><td style="text-align:right;">${t}</td></tr>
+    ${customerName    ? `<tr><td class="b">NAME:</td><td style="text-align:right;">${customerName}</td></tr>` : ''}
+    ${customerPhone   ? `<tr><td class="b">PHONE:</td><td style="text-align:right;">${customerPhone}</td></tr>` : ''}
+    ${paymentMethod   ? `<tr><td class="b">PAYMENT:</td><td style="text-align:right;font-weight:900;">${paymentMethod.toUpperCase()}</td></tr>` : ''}
+    ${deliveryAddress ? `<tr><td class="b" colspan="2" style="padding-top:3px;">ADDR: ${deliveryAddress}</td></tr>` : ''}
   </table>
-  <hr class="sep">
-  <table style="margin-bottom:4px;">
+  <hr class="dash">
+
+  <!-- Items header -->
+  <table style="font-size:13px;font-weight:900;margin-bottom:2px;">
     <tr>
-      <th style="text-align:left;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:50%;">ITEM</th>
-      <th style="text-align:center;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:12%;">QTY</th>
-      <th style="text-align:right;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:18%;">RATE</th>
-      <th style="text-align:right;font-size:11px;font-weight:900;padding:3px 2px;border-bottom:2px solid #000;width:20%;">AMT</th>
+      <td>ITEM</td>
+      <td style="text-align:right;">AMT</td>
     </tr>
-    ${rows}
   </table>
-  <hr class="sep">
-  <table style="font-size:12px;margin-bottom:5px;">
-    ${compTotal > 0 ? `<tr><td class="b">COMPLIMENTARY</td><td style="text-align:right;">−₹${compTotal.toFixed(2)}</td></tr>` : ''}
-    ${showSubtotal ? `<tr><td style="color:#555;">Subtotal</td><td style="text-align:right;color:#555;">₹${subtotal.toFixed(2)}</td></tr>` : ''}
-    ${pkg > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">₹${pkg.toFixed(2)}</td></tr>` : ''}
-    ${dlv > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">₹${dlv.toFixed(2)}</td></tr>` : ''}
-    ${exAmt > 0 ? `<tr><td class="b">${(extraChargeLabel || 'EXTRA').toUpperCase()}</td><td style="text-align:right;">₹${exAmt.toFixed(2)}</td></tr>` : ''}
+  <hr class="dash">
+
+  <!-- Items -->
+  <table style="margin-bottom:4px;">${rows}</table>
+  <hr class="dash">
+
+  <!-- Extra charges -->
+  ${showSubtotal ? `
+  <table style="font-size:12px;margin-bottom:4px;">
+    <tr><td>Subtotal</td><td style="text-align:right;">Rs.${subtotal.toFixed(0)}</td></tr>
+    ${pkg   > 0 ? `<tr><td class="b">PACKAGING</td><td style="text-align:right;">Rs.${pkg.toFixed(0)}</td></tr>` : ''}
+    ${dlv   > 0 ? `<tr><td class="b">DELIVERY</td><td style="text-align:right;">Rs.${dlv.toFixed(0)}</td></tr>` : ''}
+    ${exAmt > 0 ? `<tr><td class="b">${(extraChargeLabel || 'EXTRA').toUpperCase()}</td><td style="text-align:right;">Rs.${exAmt.toFixed(0)}</td></tr>` : ''}
   </table>
-  <hr class="sep">
+  <hr class="dash">` : ''}
+
+  <!-- Total -->
   <table style="margin-bottom:6px;">
     <tr>
-      <td style="font-size:18px;font-weight:900;padding:4px 2px;">TOTAL</td>
-      <td style="text-align:right;font-size:22px;font-weight:900;padding:4px 2px;">₹${grandTotal.toFixed(2)}</td>
+      <td style="font-size:18px;font-weight:900;">TOTAL:</td>
+      <td style="text-align:right;font-size:22px;font-weight:900;">Rs.${grandTotal.toFixed(0)}</td>
     </tr>
   </table>
-  <hr class="sep">
-  <div class="c" style="font-size:13px;font-weight:900;padding:6px 0;">THANK YOU! PLEASE VISIT AGAIN</div>
-  <div class="c" style="font-size:18px;padding:3px 0;">★ ★ ★ ★ ★</div>
-  <div class="c" style="font-size:10px;margin-top:6px;color:#555;">Printed: ${d} ${t}</div>
+  <hr class="dash">
+
+  <!-- Footer -->
+  <div class="c" style="font-size:12px;font-weight:700;padding:4px 0;letter-spacing:1px;">THANK YOU! VISIT AGAIN</div>
+  <div class="c" style="font-size:14px;padding:2px 0;letter-spacing:4px;">* * * * * * * *</div>
+  <div class="c" style="font-size:10px;margin-top:6px;color:#555;">${d} ${t}</div>
+
 </div>
 </body></html>`;
 }
