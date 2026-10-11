@@ -703,24 +703,22 @@ export default function RestaurantDashboard() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [activeTab]);
 
-  // Load completed orders when history tab opens (lazy — only once per session)
+  // Load completed orders every time the history tab opens (fresh fetch)
   useEffect(() => {
     if (activeTab !== 'history') return;
-    if (completedOrdersLoaded) return;
     const restaurantId = localStorage.getItem('restaurantId');
     if (!restaurantId) return;
     axios.get(`/api/orders/restaurant/${restaurantId}?status=completed`)
       .then(({ data }) => {
         setOrders(prev => {
-          // Merge: keep active orders + add completed ones not already in list
-          const existingIds = new Set(prev.map(o => o._id));
-          const newCompleted = data.filter(o => !existingIds.has(o._id));
-          return [...prev, ...newCompleted];
+          // Keep all active orders; replace/add completed ones with fresh data
+          const activeOrders = prev.filter(o => o.status !== 'completed');
+          return [...activeOrders, ...data];
         });
         setCompletedOrdersLoaded(true);
       })
       .catch(e => console.error('Failed to load completed orders:', e));
-  }, [activeTab, completedOrdersLoaded]);
+  }, [activeTab]);
 
   // Lock body scroll when Staff Order tab is in order view (POS mode)
   useEffect(() => {
