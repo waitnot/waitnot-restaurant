@@ -1431,18 +1431,6 @@ export default function RestaurantDashboard() {
     const firstOrderType = firstOrder.orderType || 'dine-in';
     const slotLabel = (firstOrderType === 'room' ? 'ROOM ' : 'TABLE ') + tableNumber;
 
-    // Try custom bill first if enabled
-    if (settings.billCustomization.enableCustomBill) {
-      const allItemsCustom = {};
-      tableOrders.forEach(o => o.items.forEach(i => {
-        if (allItemsCustom[i.name]) { allItemsCustom[i.name].quantity += i.quantity; }
-        else allItemsCustom[i.name] = { name: i.name, price: i.price, quantity: i.quantity };
-      }));
-      const combinedOrder = { _id: `table-${tableNumber}-${Date.now()}`, customerName: firstOrder.customerName || 'Guest', customerPhone: firstOrder.customerPhone || '', orderType: firstOrderType, tableNumber, totalAmount, createdAt: new Date().toISOString(), items: Object.values(allItemsCustom) };
-      const customPrintSuccess = printCustomBill(combinedOrder, restaurant, settings.billCustomization);
-      if (customPrintSuccess) return;
-    }
-
     const allItems = {};
     tableOrders.forEach(o => o.items.forEach(i => {
       const price = parseFloat(i.price) || 0;
@@ -1483,10 +1471,6 @@ export default function RestaurantDashboard() {
 
   const printIndividualReceipt = (order) => {
     const settings = getPrinterSettings();
-    if (settings.billCustomization.enableCustomBill) {
-      const ok = printCustomBill(order, restaurant, settings.billCustomization);
-      if (ok) return;
-    }
     const slotLabel = order.tableNumber ? 'TABLE ' + order.tableNumber
       : order.roomNumber ? 'ROOM ' + order.roomNumber : null;
     const html = buildBillHTML({
@@ -1774,10 +1758,6 @@ export default function RestaurantDashboard() {
   // Print Customer Bill for Staff orders
   const printStaffCustomerBill = (order) => {
     const settings = getPrinterSettings();
-    if (settings.billCustomization.enableCustomBill) {
-      const ok = printCustomBill(order, restaurant, settings.billCustomization);
-      if (ok) return;
-    }
     const receiptWidth = settings.receiptWidth || '80mm';
     const html = buildBillHTML({
       restaurantName: restaurant.name,
