@@ -435,6 +435,7 @@ export default function RestaurantDashboard() {
   const { isFeatureEnabled } = useFeatures();
 
   // ── Shared print helper — mirrors StaffDashboard.printViaIframe exactly ──
+  // v2: Capacitor smartPrint, Electron type-aware, browser iframe fallback
   const printViaIframeRD = (html, type = 'bill', orderData = null) => {
     // On mobile (Capacitor) — route through smartPrint which uses BT ESC/POS
     if (window.Capacitor?.isNativePlatform?.() || window._isCapacitor) {
