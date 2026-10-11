@@ -443,7 +443,7 @@ export default function RestaurantDashboard() {
   const { isFeatureEnabled } = useFeatures();
 
   // ── Shared print helper — mirrors StaffDashboard.printViaIframe exactly ──
-  // v2: Capacitor smartPrint, Electron type-aware, browser iframe fallback
+  // v2: Capacitor smartPrint, Electron type-aware, browser blob-URL print
   const printViaIframeRD = (html, type = 'bill', orderData = null) => {
     // On mobile (Capacitor) — route through smartPrint which uses BT ESC/POS
     if (window.Capacitor?.isNativePlatform?.() || window._isCapacitor) {
@@ -460,23 +460,33 @@ export default function RestaurantDashboard() {
       window.electronAPI.silentPrint(html, printerName);
       return;
     }
-    // Browser: try popup, fallback to hidden iframe
-    const w = window.open('', '_blank', 'width=420,height=700');
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 5000); }, 350);
-      return;
+    // Browser: use blob URL — avoids popup blocker AND cross-origin iframe issues
+    try {
+      const blob = new Blob([html], { type: 'text/html' });
+      const url  = URL.createObjectURL(blob);
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;border:none;';
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch(e) {}
+        setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch(e) {}
+          URL.revokeObjectURL(url);
+        }, 4000);
+      };
+      iframe.src = url;
+    } catch(e) {
+      // Last resort: popup
+      const w = window.open('', '_blank', 'width=420,height=700');
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+        setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); }, 350);
+      }
     }
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;visibility:hidden;';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open(); doc.write(html); doc.close();
-    setTimeout(() => {
-      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) {}
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 3000);
-    }, 400);
   };
 
   const openPrintWindow = (html, type = 'bill', orderData = null) => {
