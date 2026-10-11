@@ -434,16 +434,24 @@ export default function RestaurantDashboard() {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useFeatures();
 
-  // Smart print helper: uses Electron ESC/POS → silent HTML → QZ Tray → browser fallback
-  // Print via iframe — works even when browser/Electron blocks popups
-  const printViaIframeRD = (html) => {
+  // ── Shared print helper — mirrors StaffDashboard.printViaIframe exactly ──
+  const printViaIframeRD = (html, type = 'bill', orderData = null) => {
+    // On mobile (Capacitor) — route through smartPrint which uses BT ESC/POS
+    if (window.Capacitor?.isNativePlatform?.() || window._isCapacitor) {
+      smartPrint(html, type, orderData);
+      return;
+    }
+    // Electron desktop — silent print, choosing printer by type
     if (window.electronAPI?.silentPrint) {
       const restaurantId = localStorage.getItem('restaurantId');
       const saved = JSON.parse(localStorage.getItem('printer_settings_' + restaurantId) || '{}');
-      window.electronAPI.silentPrint(html, saved.qzKitchenPrinter || saved.qzBillPrinter || saved.kitchenPrinterName || '');
+      const printerName = type === 'kitchen'
+        ? (saved.qzKitchenPrinter || saved.kitchenPrinterName || '')
+        : (saved.qzBillPrinter   || saved.cashCounterPrinterName || '');
+      window.electronAPI.silentPrint(html, printerName);
       return;
     }
-    // Try popup first
+    // Browser: try popup, fallback to hidden iframe
     const w = window.open('', '_blank', 'width=420,height=700');
     if (w) {
       w.document.write(html);
@@ -451,7 +459,6 @@ export default function RestaurantDashboard() {
       setTimeout(() => { w.focus(); w.print(); w.onafterprint = () => w.close(); setTimeout(() => { try { w.close(); } catch(e){} }, 5000); }, 350);
       return;
     }
-    // Fallback: hidden iframe
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;border:none;visibility:hidden;';
     document.body.appendChild(iframe);
@@ -464,11 +471,11 @@ export default function RestaurantDashboard() {
   };
 
   const openPrintWindow = (html, type = 'bill', orderData = null) => {
-    printViaIframeRD(html);
+    printViaIframeRD(html, type, orderData);
   };
 
   const doPrint = (fullHtml, type = 'bill', orderData = null) => {
-    printViaIframeRD(fullHtml);
+    printViaIframeRD(fullHtml, type, orderData);
   };
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -1434,7 +1441,7 @@ export default function RestaurantDashboard() {
       items: Object.values(allItems),
       paymentMethod: firstOrder.paymentMethod,
     });
-    printViaIframeRD(html);
+    printViaIframeRD(html, 'bill', { orders: tableOrders, tableLabel: slotLabel, total: totalAmount, restaurantName: restaurant.name });
   };
 
   // Returns receipt HTML for an individual order
@@ -1475,7 +1482,7 @@ export default function RestaurantDashboard() {
       deliveryCharge: order.deliveryCharge,
       paymentMethod: order.paymentMethod,
     });
-    printViaIframeRD(html);
+    printViaIframeRD(html, 'bill', { orders: [order], restaurantName: restaurant.name });
   };
 
   const printKitchenOrder = (tableNumber, tableOrders) => {
@@ -1483,41 +1490,34 @@ export default function RestaurantDashboard() {
     const firstOrderType = tableOrders[0]?.orderType || 'dine-in';
     const slotLabel = firstOrderType === 'room' ? `ROOM ${tableNumber}` : `TABLE ${tableNumber}`;
 
-    if (!settings.enableKitchenPrinting) { showToast('Kitchen printing is disabled in settings', 'error'); return; }
-
-    const unprintedItems = [];
+    // Merge all items (print everything, not just unprinted)
+    const allItems = {};
     tableOrders.forEach(order => {
-      order.items.forEach(item => {
-        if (!item.printed_to_kitchen) unprintedItems.push({ ...item, customerName: order.customerName });
+      (order.items || []).forEach(item => {
+        if (allItems[item.name]) allItems[item.name].quantity += (item.quantity || 1);
+        else allItems[item.name] = { name: item.name, price: item.price, quantity: item.quantity || 1 };
       });
     });
-    if (unprintedItems.length === 0) { showToast('No new items to print to kitchen', 'error'); return; }
 
     const receiptWidth = settings.kitchenReceiptSize === '58mm' ? '58mm' : '80mm';
     const html = buildKOTHTML({
       restaurantName: restaurant.name,
       slotLabel,
-      customerName: unprintedItems[0]?.customerName,
+      orderId: `${tableOrders.length > 1 ? tableOrders.length + ' ORDERS' : tableOrders[0]?._id?.slice(-8).toUpperCase()}`,
       orderType: firstOrderType,
-      items: unprintedItems,
+      customerName: tableOrders[0]?.customerName,
+      specialInstructions: tableOrders[0]?.specialInstructions,
+      items: Object.values(allItems),
       width: receiptWidth,
     });
-
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.onload = () => { setTimeout(() => { printWindow.print(); printWindow.close(); markItemsAsPrintedToKitchen(tableOrders); }, 250); };
-    } else { showToast('Please allow popups to print', 'error'); }
+    const merged = { ...tableOrders[0], items: Object.values(allItems) };
+    printViaIframeRD(html, 'kitchen', { order: merged, restaurantName: restaurant.name });
+    // Mark items as printed to kitchen
+    markItemsAsPrintedToKitchen(tableOrders);
   };
 
   const printKitchenOrderIndividual = (order) => {
     const settings = getPrinterSettings();
-    if (!settings.enableKitchenPrinting) { showToast('Kitchen printing is disabled in settings', 'error'); return; }
-
-    const unprintedItems = order.items.filter(item => !item.printed_to_kitchen);
-    if (unprintedItems.length === 0) { showToast('No new items to print to kitchen', 'error'); return; }
-
     const receiptWidth = settings.kitchenReceiptSize === '58mm' ? '58mm' : '80mm';
     const slotLabel = order.orderType === 'delivery' ? 'DELIVERY'
       : order.orderType === 'room' ? `ROOM ${order.roomNumber}`
@@ -1530,16 +1530,12 @@ export default function RestaurantDashboard() {
       orderType: order.orderType,
       customerName: order.customerName,
       deliveryAddress: order.deliveryAddress,
-      items: unprintedItems,
+      specialInstructions: order.specialInstructions,
+      items: order.items || [],
       width: receiptWidth,
     });
-
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.onload = () => { setTimeout(() => { printWindow.print(); printWindow.close(); markItemsAsPrintedToKitchen([order]); }, 250); };
-    } else { showToast('Please allow popups to print', 'error'); }
+    printViaIframeRD(html, 'kitchen', { order, restaurantName: restaurant.name });
+    markItemsAsPrintedToKitchen([order]);
   };
 
   // Staff Order Functions
@@ -1753,7 +1749,7 @@ export default function RestaurantDashboard() {
       items: order.items || [],
       width: receiptWidth,
     });
-    openPrintWindow(html, 'kitchen');
+    openPrintWindow(html, 'kitchen', { order, restaurantName: restaurant.name });
   };
 
   // Print Customer Bill for Staff orders
@@ -1777,7 +1773,7 @@ export default function RestaurantDashboard() {
       paymentMethod: order.paymentMethod,
       width: receiptWidth,
     });
-    openPrintWindow(html, 'bill');
+    openPrintWindow(html, 'bill', { orders: [order], restaurantName: restaurant.name });
   };
 
   // Edit Order Functions (for completed staff orders only)
