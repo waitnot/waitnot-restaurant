@@ -92,9 +92,9 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden flex flex-col" style={{maxHeight:'calc(100vh - 200px)', minHeight:'420px'}}>
+            {/* Header — pinned */}
+            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 shrink-0">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">{isStaffOrder ? 'Staff · ' : ''}Table {selectedFloorTable}</h3>
                 <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
@@ -105,33 +105,35 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
               </div>
             </div>
 
-            {/* Items */}
-            {Object.values(combinedItems).length > 0 ? (
-              <div className="px-5 py-4 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
-                <div className="space-y-2">
-                  {Object.values(combinedItems).map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                      <div>
-                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+            {/* Items — scrollable */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 border-b border-gray-100">
+              {Object.values(combinedItems).length > 0 ? (
+                <>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
+                  <div className="space-y-1">
+                    {Object.values(combinedItems).map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                          <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
-                  <span className="font-bold text-gray-800">Total</span>
-                  <span className="text-xl font-bold text-primary">₹{selectedTotal}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="px-5 py-6 border-b border-gray-100 text-center text-gray-400 text-sm">No orders for this table</div>
-            )}
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
+                    <span className="font-bold text-gray-800">Total</span>
+                    <span className="text-xl font-bold text-primary">₹{selectedTotal}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-gray-400 text-sm py-6">No orders for this table</p>
+              )}
+            </div>
 
-            {/* Status badges */}
+            {/* Status badges — pinned */}
             {selectedOrders.length > 0 && (
-              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap">
+              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap shrink-0">
                 {selectedOrders.map(o => (
                   <span key={o._id} className={`text-xs px-3 py-1 rounded-full font-semibold ${
                     o.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
@@ -143,8 +145,8 @@ function FloorPlanView({ restaurant, activeDineInOrders, printStaffKOT, printSta
               </div>
             )}
 
-            {/* Action buttons */}
-            <div className="px-5 py-4 flex flex-wrap gap-3">
+            {/* Action buttons — always visible at bottom */}
+            <div className="px-5 py-4 flex flex-wrap gap-3 shrink-0 bg-white border-t border-gray-100">
               <button
                 onClick={() => isStaffOrder ? printStaffKOT(firstOrder) : printKitchenOrder(selectedFloorTable, selectedOrders)}
                 className="px-5 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
@@ -266,8 +268,9 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-purple-50 to-white border-b border-gray-100">
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden flex flex-col" style={{maxHeight:'calc(100vh - 200px)', minHeight:'420px'}}>
+            {/* Header — pinned */}
+            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-purple-50 to-white border-b border-gray-100 shrink-0">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">{getRoomLabel(selectedRoom)}</h3>
                 <p className="text-sm text-gray-400 mt-0.5">{selectedOrders.length > 0 ? `${selectedOrders.length} order(s) · ${firstOrder?.customerName || ''}` : 'No orders'}</p>
@@ -278,31 +281,35 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
               </div>
             </div>
 
-            {Object.values(combinedItems).length > 0 ? (
-              <div className="px-5 py-4 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
-                <div className="space-y-2">
-                  {Object.values(combinedItems).map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                      <div>
-                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+            {/* Items — scrollable */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 border-b border-gray-100">
+              {Object.values(combinedItems).length > 0 ? (
+                <>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</p>
+                  <div className="space-y-1">
+                    {Object.values(combinedItems).map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                          <span className="text-xs text-gray-400 ml-2">× {item.quantity}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">₹{item.total}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
-                  <span className="font-bold text-gray-800">Total</span>
-                  <span className="text-xl font-bold text-purple-600">₹{selectedTotal}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="px-5 py-6 border-b border-gray-100 text-center text-gray-400 text-sm">No orders for this room</div>
-            )}
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-gray-200">
+                    <span className="font-bold text-gray-800">Total</span>
+                    <span className="text-xl font-bold text-purple-600">₹{selectedTotal}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-gray-400 text-sm py-6">No orders for this room</p>
+              )}
+            </div>
 
+            {/* Status badges — pinned */}
             {selectedOrders.length > 0 && (
-              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap">
+              <div className="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap shrink-0">
                 {selectedOrders.map(o => (
                   <span key={o._id} className={`text-xs px-3 py-1 rounded-full font-semibold ${
                     o.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
@@ -314,7 +321,8 @@ function RoomFloorPlanView({ restaurant, activeRoomOrders, printKitchenOrder, pr
               </div>
             )}
 
-            <div className="px-5 py-4 flex flex-wrap gap-3">
+            {/* Action buttons — always visible at bottom */}
+            <div className="px-5 py-4 flex flex-wrap gap-3 shrink-0 bg-white border-t border-gray-100">
               <button
                 onClick={() => printKitchenOrder(selectedRoom, selectedOrders)}
                 className="px-5 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
