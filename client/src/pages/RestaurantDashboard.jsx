@@ -739,7 +739,7 @@ export default function RestaurantDashboard() {
       .then(({ data }) => {
         setOrders(prev => {
           // Keep all active orders; replace/add completed ones with fresh data
-          const activeOrders = prev.filter(o => o.status !== 'completed');
+          const activeOrders = prev.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
           return [...activeOrders, ...data];
         });
         setCompletedOrdersLoaded(true);
@@ -1962,10 +1962,10 @@ export default function RestaurantDashboard() {
   );
   const roomOrders = validOrders.filter(order => order.orderType === 'room');
 
-  // Count only active orders for badges (exclude completed orders)
-  const activeDeliveryOrders = deliveryOrders.filter(order => order.status !== 'completed');
-  const activeDineInOrders = dineInOrders.filter(order => order.status !== 'completed');
-  const activeRoomOrders = roomOrders.filter(order => order.status !== 'completed');
+  // Count only active orders for badges (exclude completed and cancelled orders)
+  const activeDeliveryOrders = deliveryOrders.filter(order => order.status !== 'completed' && order.status !== 'cancelled');
+  const activeDineInOrders = dineInOrders.filter(order => order.status !== 'completed' && order.status !== 'cancelled');
+  const activeRoomOrders = roomOrders.filter(order => order.status !== 'completed' && order.status !== 'cancelled');
   // Unique busy table/room counts for badges
   // Derived values for Staff Order combined view
   const staffIsRoom = receptionistOrder.orderType === 'room';
