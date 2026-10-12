@@ -715,7 +715,22 @@ export default function RestaurantDashboard() {
       setOrders(prev => prev.filter(o => o._id !== orderId));
     });
 
-    return () => socket.disconnect();
+    // orders-merged: StaffDashboard clears a table → remove originals, add merged
+    socket.on('orders-merged', ({ orderIds, mergedOrder }) => {
+      setOrders(prev => {
+        const filtered = prev.filter(o => !orderIds.includes(o._id));
+        // mergedOrder is completed — don't add it back to active list
+        return filtered;
+      });
+    });
+
+    // Safety-net poll every 30s to catch any missed socket events
+    const pollInterval = setInterval(() => {
+      const id = localStorage.getItem('restaurantId');
+      if (id) fetchOrders(id);
+    }, 30000);
+
+    return () => { socket.disconnect(); clearInterval(pollInterval); };
   }, []);
 
   // Keyboard shortcuts for menu search
