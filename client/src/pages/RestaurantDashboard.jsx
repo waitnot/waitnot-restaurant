@@ -1453,8 +1453,14 @@ export default function RestaurantDashboard() {
 
   // Returns receipt HTML for an individual order
   const printIndividualReceiptHTML = (order) => {
-    const subtotal = (order.items || []).filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0);
-    const slotLabel = order.tableNumber ? 'TABLE ' + order.tableNumber : order.roomNumber ? 'ROOM ' + order.roomNumber : null;
+    const slotLabel = order.tableNumber ? 'TABLE ' + order.tableNumber
+      : order.roomNumber ? 'ROOM ' + order.roomNumber
+      : order.orderType === 'delivery' ? 'DELIVERY'
+      : order.orderType === 'takeaway' ? 'TAKEAWAY'
+      : null;
+    // Only use charges appropriate for this order type
+    const pkgCharge = order.orderType === 'takeaway' ? (parseFloat(order.packagingCharge) || 0) : 0;
+    const dlvCharge = order.orderType === 'delivery' ? (parseFloat(order.deliveryCharge) || 0) : 0;
     return buildBillHTML({
       restaurantName: restaurant.name,
       slotLabel,
@@ -1463,8 +1469,8 @@ export default function RestaurantDashboard() {
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
       items: order.items || [],
-      packagingCharge: order.packagingCharge,
-      deliveryCharge: order.deliveryCharge,
+      packagingCharge: pkgCharge,
+      deliveryCharge: dlvCharge,
       paymentMethod: order.paymentMethod,
     });
   };
@@ -1472,7 +1478,13 @@ export default function RestaurantDashboard() {
   const printIndividualReceipt = (order) => {
     const settings = getPrinterSettings();
     const slotLabel = order.tableNumber ? 'TABLE ' + order.tableNumber
-      : order.roomNumber ? 'ROOM ' + order.roomNumber : null;
+      : order.roomNumber ? 'ROOM ' + order.roomNumber
+      : order.orderType === 'delivery' ? 'DELIVERY'
+      : order.orderType === 'takeaway' ? 'TAKEAWAY'
+      : null;
+    // Only use charges appropriate for this order type
+    const pkgCharge = order.orderType === 'takeaway' ? (parseFloat(order.packagingCharge) || 0) : 0;
+    const dlvCharge = order.orderType === 'delivery' ? (parseFloat(order.deliveryCharge) || 0) : 0;
     const html = buildBillHTML({
       restaurantName: restaurant.name,
       slotLabel,
@@ -1481,11 +1493,11 @@ export default function RestaurantDashboard() {
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
       items: order.items || [],
-      packagingCharge: order.packagingCharge,
-      deliveryCharge: order.deliveryCharge,
+      packagingCharge: pkgCharge,
+      deliveryCharge: dlvCharge,
       paymentMethod: order.paymentMethod,
     });
-    printViaIframeRD(html, 'bill', { orders: [order], restaurantName: restaurant.name });
+    printViaIframeRD(html, 'bill', { orders: [order], tableLabel: slotLabel, restaurantName: restaurant.name, packagingCharge: pkgCharge, deliveryCharge: dlvCharge });
   };
 
   const printKitchenOrder = (tableNumber, tableOrders) => {
@@ -1759,20 +1771,28 @@ export default function RestaurantDashboard() {
   const printStaffCustomerBill = (order) => {
     const settings = getPrinterSettings();
     const receiptWidth = settings.receiptWidth || '80mm';
+    const slotLabel = order.tableNumber ? 'TABLE ' + order.tableNumber
+      : order.roomNumber ? 'ROOM ' + order.roomNumber
+      : order.orderType === 'delivery' ? 'DELIVERY'
+      : order.orderType === 'takeaway' ? 'TAKEAWAY'
+      : null;
+    // Only apply charges appropriate for this order type
+    const pkgCharge = order.orderType === 'takeaway' ? (parseFloat(order.packagingCharge) || 0) : 0;
+    const dlvCharge = order.orderType === 'delivery' ? (parseFloat(order.deliveryCharge) || 0) : 0;
     const html = buildBillHTML({
       restaurantName: restaurant.name,
-      slotLabel: order.tableNumber ? 'TABLE ' + order.tableNumber : order.roomNumber ? 'ROOM ' + order.roomNumber : null,
+      slotLabel,
       orderType: order.orderType,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
       items: order.items || [],
-      packagingCharge: order.packagingCharge,
-      deliveryCharge: order.deliveryCharge,
+      packagingCharge: pkgCharge,
+      deliveryCharge: dlvCharge,
       paymentMethod: order.paymentMethod,
       width: receiptWidth,
     });
-    openPrintWindow(html, 'bill', { orders: [order], restaurantName: restaurant.name });
+    openPrintWindow(html, 'bill', { orders: [order], tableLabel: slotLabel, restaurantName: restaurant.name, packagingCharge: pkgCharge, deliveryCharge: dlvCharge });
   };
 
   // Edit Order Functions (for completed staff orders only)
@@ -2277,7 +2297,7 @@ export default function RestaurantDashboard() {
                       </>
                     ) : (
                       <>
-                        <button onClick={() => smartPrint(printIndividualReceiptHTML(order), 'bill')} className="bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-800">⚡</button>
+                        <button onClick={() => { const html = printIndividualReceiptHTML(order); const slotLabel = order.orderType === 'delivery' ? 'DELIVERY' : order.orderType === 'takeaway' ? 'TAKEAWAY' : order.tableNumber ? 'TABLE '+order.tableNumber : null; const pkgCharge = order.orderType === 'takeaway' ? (parseFloat(order.packagingCharge)||0) : 0; const dlvCharge = order.orderType === 'delivery' ? (parseFloat(order.deliveryCharge)||0) : 0; smartPrint(html, 'bill', { orders: [order], tableLabel: slotLabel, total: order.totalAmount, restaurantName: restaurant.name, packagingCharge: pkgCharge, deliveryCharge: dlvCharge }); }} className="bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-800">⚡</button>
                         <button onClick={() => printIndividualReceipt(order)} className="bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-600">Print</button>
                         <button onClick={() => openEditOrderModal(order)} className="bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-600">Edit</button>
                         {order.status !== 'completed' && order.status !== 'cancelled' && (
