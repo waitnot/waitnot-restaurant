@@ -37,10 +37,10 @@ const router = express.Router();
 
 const APP_VERSION = {
   // ── Increment both on every release ──
-  version:     '1.0.7',
-  versionCode: 7,           // must match APK CURRENT_VERSION_CODE and build.gradle versionCode
+  version:     '1.0.8',
+  versionCode: 8,           // must match APK CURRENT_VERSION_CODE and build.gradle versionCode
 
-  releaseNotes: 'Fix bill item name truncation on 80mm printer (correct column layout).',
+  releaseNotes: '80mm ESC/POS: 4-column layout, name wrap, correct TOTAL line, CPL setting.',
 
   // forceUpdate: forces ALL users to update immediately (hides "Remind me later")
   forceUpdate: false,
