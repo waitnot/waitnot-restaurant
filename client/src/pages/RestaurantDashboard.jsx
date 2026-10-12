@@ -3870,7 +3870,7 @@ export default function RestaurantDashboard() {
                 {/* COL 1: Category */}
                 <div style={{width:'120px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderRight:'1px solid #f3f4f6'}}>
                   <div style={{overflowY:'auto', overflowX:'hidden', flex:1}}>
-                    {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category) || [])]].map(cat => (
+                    {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category).filter(c => c && c.trim()) || [])]].map(cat => (
                       <button key={cat} onClick={() => setSelectedCategory(cat)}
                         className={"px-2 py-2.5 text-xs font-semibold text-left border-b border-gray-100 transition-all w-full truncate " + (selectedCategory === cat ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50')}>
                         {cat === 'all' ? 'All' : cat}
