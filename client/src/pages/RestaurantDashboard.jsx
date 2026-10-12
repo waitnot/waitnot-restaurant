@@ -3866,7 +3866,7 @@ export default function RestaurantDashboard() {
                           const inOrder = receptionistOrder.items.find(x => x._id === item._id);
                           return (
                             <div key={item._id}
-                              style={{aspectRatio:'1/1', display:'flex', flexDirection:'column', justifyContent:'space-between'}}
+                              style={{aspectRatio:'1/1', maxHeight:'100px', display:'flex', flexDirection:'column', justifyContent:'space-between'}}
                               className={"relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none " + (inOrder ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary')}
                               onClick={() => { if (!inOrder) updateReceptionistOrderItem(item, 1); }}>
                               <div>
@@ -3953,7 +3953,24 @@ export default function RestaurantDashboard() {
                       <div key={idx} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
-                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">₹{item.price}</p>}
+                          {item.complimentary ? (
+                            <span className="text-xs text-green-600 font-semibold">Comp</span>
+                          ) : (
+                            <div className="flex items-center gap-0.5">
+                              <span className="text-xs text-gray-400">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.price}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => setReceptionistOrder(prev => ({
+                                  ...prev,
+                                  items: prev.items.map((it, i) => i === idx ? { ...it, price: parseFloat(e.target.value) || 0 } : it)
+                                }))}
+                                className="text-xs text-gray-500 bg-transparent w-14 outline-none border-b border-dashed border-gray-300 focus:border-primary"
+                              />
+                            </div>
+                          )}
                         </div>
                         <button onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
                           className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 " + (item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400')}>v</button>
@@ -3962,7 +3979,7 @@ export default function RestaurantDashboard() {
                           <span className="w-4 text-center text-xs font-bold">{item.quantity}</span>
                           <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
                         </div>
-                        <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
+                        <p className="text-xs font-semibold text-gray-700 w-12 text-right shrink-0">
                           {item.complimentary ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span> : '₹' + (item.price * item.quantity)}
                         </p>
                       </div>
