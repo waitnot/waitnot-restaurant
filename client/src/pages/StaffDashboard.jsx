@@ -322,6 +322,10 @@ export default function StaffDashboard() {
     newSocket.on('order-deleted', ({ orderId }) => {
       setOrders(prev => prev.filter(o => o._id !== orderId));
     });
+    // orders-merged: RestaurantDashboard clears a table — remove originals
+    newSocket.on('orders-merged', ({ orderIds }) => {
+      setOrders(prev => prev.filter(o => !orderIds.includes(o._id)));
+    });
     newSocket.on('connect', () => {
       newSocket.emit('join-restaurant', s.restaurant_id);
       fetchOrders(s.restaurant_id);
