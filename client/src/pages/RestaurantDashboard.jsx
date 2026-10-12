@@ -1732,7 +1732,6 @@ export default function RestaurantDashboard() {
         setConfirmModal(null);
         try {
           await axios.patch(`/api/orders/${order._id}/status`, { status: 'cancelled' });
-          // Auto-clear table session if dine-in
           if (order.orderType === 'dine-in' && order.tableNumber) {
             const sessionKey = `table_session_${restaurant._id}_${order.tableNumber}`;
             localStorage.removeItem(sessionKey);
@@ -1740,6 +1739,36 @@ export default function RestaurantDashboard() {
           const restaurantId = localStorage.getItem('restaurantId');
           await fetchOrders(restaurantId);
           showToast('Order cancelled');
+        } catch (error) {
+          showToast(`Failed to cancel: ${error.response?.data?.error || error.message}`, 'error');
+        }
+      }
+    });
+  };
+
+  // Cancel ALL orders on a table/room and go back to grid
+  const cancelAllOrders = (orders) => {
+    const slotText = orders[0]?.orderType === 'room'
+      ? `Room ${orders[0]?.roomNumber}`
+      : `Table ${orders[0]?.tableNumber}`;
+    setConfirmModal({
+      message: `Cancel all ${orders.length} order${orders.length > 1 ? 's' : ''} on ${slotText}? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await Promise.all(orders.map(o => axios.patch(`/api/orders/${o._id}/status`, { status: 'cancelled' })));
+          // Clear table session
+          if (orders[0]?.orderType === 'dine-in' && orders[0]?.tableNumber) {
+            const sessionKey = `table_session_${restaurant._id}_${orders[0].tableNumber}`;
+            localStorage.removeItem(sessionKey);
+          }
+          const restaurantId = localStorage.getItem('restaurantId');
+          await fetchOrders(restaurantId);
+          // Go back to grid
+          setStaffView('tables');
+          setStaffSelectedTable(null);
+          setReceptionistOrder(prev => ({ ...prev, items: [], tableNumber: '', roomNumber: '', customerName: '', customerPhone: '', specialInstructions: '' }));
+          showToast(`${slotText} orders cancelled`);
         } catch (error) {
           showToast(`Failed to cancel: ${error.response?.data?.error || error.message}`, 'error');
         }
@@ -3934,8 +3963,8 @@ export default function RestaurantDashboard() {
                       <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                         <button onClick={() => staffIsRoom ? clearRoomAndSaveToHistory(staffSelectedTable, staffExistingOrders, staffExistingTotal) : clearTableAndSaveToHistory(staffSelectedTable, staffExistingOrders, staffExistingTotal)} className="text-xs px-2.5 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">Clear</button>
                         <button onClick={() => setShiftModal({ orders: staffExistingOrders, type: staffIsRoom ? 'room' : 'table', current: staffSelectedTable })} className="text-xs px-2.5 py-1.5 bg-indigo-500 text-white rounded-lg font-bold hover:bg-indigo-600">Shift</button>
-                        {staffExistingOrders[0] && staffExistingOrders[0].status !== 'completed' && staffExistingOrders[0].status !== 'cancelled' && (
-                          <button onClick={() => cancelOrder(staffExistingOrders[0])} className="text-xs px-2.5 py-1.5 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600">Cancel</button>
+                        {staffExistingOrders.length > 0 && staffExistingOrders.some(o => o.status !== 'completed' && o.status !== 'cancelled') && (
+                          <button onClick={() => cancelAllOrders(staffExistingOrders)} className="text-xs px-2.5 py-1.5 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600">Cancel</button>
                         )}
                         {staffExistingOrders[0] && (
                           <button onClick={() => openEditOrderModal(staffExistingOrders[0])} className="text-xs px-2.5 py-1.5 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600">Edit</button>
