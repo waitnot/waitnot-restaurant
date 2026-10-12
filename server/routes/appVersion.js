@@ -37,10 +37,10 @@ const router = express.Router();
 
 const APP_VERSION = {
   // ── Increment both on every release ──
-  version:     '1.0.5',
-  versionCode: 5,           // must match APK CURRENT_VERSION_CODE and build.gradle versionCode
+  version:     '1.0.6',
+  versionCode: 6,           // must match APK CURRENT_VERSION_CODE and build.gradle versionCode
 
-  releaseNotes: 'Bug fixes and performance improvements.',
+  releaseNotes: 'Bill printing fixed: full item names on 80mm, bold text. Order sync between staff and restaurant. Cancel clears table. Shift goes back to grid.',
 
   // forceUpdate: forces ALL users to update immediately (hides "Remind me later")
   forceUpdate: false,
