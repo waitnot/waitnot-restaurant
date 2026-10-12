@@ -734,6 +734,50 @@ export default function PrinterSettings() {
 
             <div>
               <label className="block text-gray-700 font-semibold mb-2">
+                Characters per Line (80mm override)
+              </label>
+              <select
+                value={settings.charsPerLine || 'auto'}
+                onChange={(e) => handleSettingChange('charsPerLine', e.target.value === 'auto' ? null : parseInt(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="auto">Auto (48 for 80mm, 32 for 58mm)</option>
+                <option value="42">42 — if test strip wraps at 42</option>
+                <option value="48">48 — force 48</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Print the test strip below to find your printer's actual width.</p>
+              <button
+                onClick={async () => {
+                  try {
+                    const { buildTestStrip } = await import('../utils/qzPrint.js');
+                    const { default: qz } = await import('../utils/qzPrint.js').catch(()=>({}));
+                    const cpl = settings.charsPerLine ? parseInt(settings.charsPerLine) : undefined;
+                    const pw  = settings.kitchenReceiptSize || '80mm';
+                    const stripBytes = buildTestStrip(pw, cpl);
+                    // Send via BT printer if configured
+                    const btAddr = settings.btKitchenPrinter || settings.btBillPrinter;
+                    if (btAddr && window.Capacitor?.isNativePlatform?.()) {
+                      const { registerPlugin } = await import('@capacitor/core');
+                      const plugin = window.Capacitor?.Plugins?.EscPos || registerPlugin('EscPos');
+                      const hex = stripBytes.map(b=>b.toString(16).padStart(2,'0')).join('');
+                      await plugin.printHex({ address: btAddr, hex });
+                      alert('Test strip sent!');
+                    } else {
+                      // Browser fallback — show as text
+                      alert('Test strip bytes generated (W=' + (cpl || (pw==='80mm'?48:32)) + '). Connect a BT printer to print physically.');
+                    }
+                  } catch(e) {
+                    alert('Error: ' + e.message);
+                  }
+                }}
+                className="mt-2 px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold hover:bg-gray-800"
+              >
+                🖨 Print Test Strip
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2">
                 Auto Print Kitchen Bill
               </label>
               <div className="flex gap-4">
