@@ -104,21 +104,107 @@ function bytes(...parts) {
   }
   return out;
 }
-function toHex(arr) { return arr.map(b=>b.toString(16).padStart(2,'0')).join(''); }
-function lf(n=1) { const o=[]; for(let i=0;i<n;i++) o.push(...B.LF); return o; }
-function line(t) { return bytes(t,B.LF); }
-function cLine(t,W) { const s=String(t).substring(0,W); return line(' '.repeat(Math.max(0,Math.floor((W-s.length)/2)))+s); }
-function lrLine(l,r,W) { const rv=String(r); const lv=String(l).substring(0,W-rv.length-1); return line(lv+' '.repeat(Math.max(1,W-lv.length-rv.length))+rv); }
-function sep(W,c) { return line(c.repeat(W)); }
+function toHex(arr){return arr.map(b=>b.toString(16).padStart(2,'0')).join('');}
+function lf(n=1){const o=[];for(let i=0;i<n;i++)o.push(...B.LF);return o;}
+function line(t){return bytes(t,B.LF);}
+function cLine(t,W){const s=String(t).substring(0,W);return line(' '.repeat(Math.max(0,Math.floor((W-s.length)/2)))+s);}
+function lrLine(l,r,W){const rv=String(r);const lv=String(l).substring(0,W-rv.length-1);return line(lv+' '.repeat(Math.max(1,W-lv.length-rv.length))+rv);}
+function sep(W,c){return line(c.repeat(W));}
 
-function buildKOTBytes({restaurantName,slotLabel,orderId,orderType,customerName,deliveryAddress,specialInstructions,items,paperWidth='58mm'}) {
-  const now=new Date(); const W=paperWidth==='80mm'?42:32;
-  return bytes(B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,line((restaurantName||'RESTAURANT').toUpperCase().substring(0,W/2)),B.DOUBLE_OFF,line('KITCHEN ORDER TICKET'),orderType?line(orderType.toUpperCase()):[],B.BOLD_OFF,sep(W,'='),B.LEFT,slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],lrLine('DATE:',now.toLocaleDateString('en-IN'),W),bytes(B.BOLD_ON,lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),B.BOLD_OFF),orderId?lrLine('REF:',String(orderId).slice(-8).toUpperCase(),W):[],customerName?lrLine('NAME:',customerName,W):[],deliveryAddress?line('ADDR: '+deliveryAddress):[],sep(W,'='),B.CENTER,B.BOLD_ON,line('-- ITEMS TO PREPARE --'),B.BOLD_OFF,sep(W,'='),B.LEFT,...(items||[]).map(i=>bytes(B.BOLD_ON,lrLine(String(i.name).substring(0,W-6),'x'+i.quantity,W),B.BOLD_OFF)),sep(W,'='),specialInstructions?bytes(B.BOLD_ON,line('NOTE: '+specialInstructions),B.BOLD_OFF,sep(W,'-')):[],B.CENTER,B.BOLD_ON,line('PREPARE WITH CARE'),B.BOLD_OFF,lf(1),B.CUT);
+// Width: 80mm=48 (override 42 if strip wraps); 58mm=32
+function charsPerLine(paperWidth,override){
+  if(paperWidth==='80mm') return override||48;
+  return 32;
 }
 
-function buildBillBytes({restaurantName,slotLabel,orderType,customerName,customerPhone,deliveryAddress,items,packagingCharge,deliveryCharge,extraCharge=0,extraChargeLabel='',paymentMethod,paperWidth='58mm'}) {
-  const now=new Date(); const W=paperWidth==='80mm'?42:32;
-  const bi=(items||[]).map(i=>({...i,price:parseFloat(i.price)||0,quantity:parseInt(i.quantity)||1}));
+// Word-wrap name into lines of at most maxW chars
+function wrapName(name,maxW){
+  const words=String(name).split(' ');
+  const lines=[];let cur='';
+  for(const w of words){
+    const c=cur?cur+' '+w:w;
+    if(c.length<=maxW){cur=c;}
+    else{
+      if(cur)lines.push(cur);
+      let rem=w;
+      while(rem.length>maxW){lines.push(rem.substring(0,maxW));rem=rem.substring(maxW);}
+      cur=rem;
+    }
+  }
+  if(cur)lines.push(cur);
+  return lines.length?lines:[''];
+}
+
+// Build item rows: 4-col on 80mm, 2-col on 58mm
+function buildItemRows(bi,W){
+  const out=[];
+  if(W<=32){
+    // 58mm: "name xN   Rs.amt"
+    out.push(bytes(B.BOLD_ON,lrLine('ITEM','AMT',W),B.BOLD_OFF));
+    out.push(sep(W,'-'));
+    for(const i of bi){
+      const qty=' x'+i.quantity;
+      const amt=i.complimentary?'COMP':'Rs.'+(i.price*i.quantity).toFixed(0);
+      const maxN=W-amt.length-qty.length-1;
+      const chunk=i.name.substring(0,Math.max(1,maxN));
+      out.push(lrLine(chunk+qty,amt,W));
+      if(i.name.length>maxN){
+        for(const ch of wrapName(i.name.substring(maxN),W-2)) out.push(line('  '+ch));
+      }
+    }
+    return out;
+  }
+  // 80mm: ITEM | QTY | RATE | AMT
+  const cols=W>=46?{item:22,qty:4,rate:10,amt:12}:{item:20,qty:4,rate:8,amt:10};
+  const hdr='ITEM'.padEnd(cols.item)+'QTY'.padStart(cols.qty)+'RATE'.padStart(cols.rate)+'AMT'.padStart(cols.amt);
+  out.push(bytes(B.BOLD_ON,line(hdr),B.BOLD_OFF));
+  out.push(sep(W,'-'));
+  for(const i of bi){
+    const qtyS=String(i.quantity).padStart(cols.qty);
+    const rateS=i.complimentary?'COMP'.padStart(cols.rate):('Rs.'+i.price.toFixed(0)).padStart(cols.rate);
+    const amtS=i.complimentary?'COMP'.padStart(cols.amt):('Rs.'+(i.price*i.quantity).toFixed(0)).padStart(cols.amt);
+    const nl=wrapName(i.name,cols.item);
+    out.push(line(nl[0].padEnd(cols.item)+qtyS+rateS+amtS));
+    for(let n=1;n<nl.length;n++) out.push(line('  '+nl[n]));
+  }
+  return out;
+}
+
+function buildKOTBytes({restaurantName,slotLabel,orderId,orderType,customerName,deliveryAddress,specialInstructions,items,paperWidth='58mm',charsPerLineOverride}){
+  const W=charsPerLine(paperWidth,charsPerLineOverride);
+  console.log('ESC/POS KOT paperWidth='+paperWidth+' W='+W);
+  const now=new Date();
+  const itemRows=(items||[]).map(i=>{
+    const qty='x'+(i.quantity||i.qty||1);
+    const nl=wrapName(String(i.name),W-qty.length-1);
+    const o=[bytes(B.BOLD_ON,lrLine(nl[0],qty,W),B.BOLD_OFF)];
+    for(let n=1;n<nl.length;n++) o.push(bytes(B.BOLD_ON,line('  '+nl[n]),B.BOLD_OFF));
+    return o;
+  }).flat();
+  return bytes(
+    B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,
+    line((restaurantName||'RESTAURANT').toUpperCase().substring(0,Math.floor(W/2))),
+    B.DOUBLE_OFF,line('KITCHEN ORDER TICKET'),
+    orderType?line(orderType.toUpperCase()):[],B.BOLD_OFF,sep(W,'='),
+    B.LEFT,
+    slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],
+    lrLine('DATE:',now.toLocaleDateString('en-IN'),W),
+    bytes(B.BOLD_ON,lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),B.BOLD_OFF),
+    orderId?lrLine('REF:',String(orderId).slice(-8).toUpperCase(),W):[],
+    customerName?lrLine('NAME:',customerName,W):[],
+    deliveryAddress?line('ADDR: '+deliveryAddress):[],
+    sep(W,'='),B.CENTER,B.BOLD_ON,line('-- ITEMS TO PREPARE --'),B.BOLD_OFF,sep(W,'='),
+    B.LEFT,...itemRows,sep(W,'='),
+    specialInstructions?bytes(B.BOLD_ON,line('NOTE: '+specialInstructions),B.BOLD_OFF,sep(W,'-')):[],
+    B.CENTER,B.BOLD_ON,line('PREPARE WITH CARE'),B.BOLD_OFF,lf(1),B.CUT
+  );
+}
+
+function buildBillBytes({restaurantName,slotLabel,orderType,customerName,customerPhone,deliveryAddress,items,packagingCharge,deliveryCharge,extraCharge=0,extraChargeLabel='',paymentMethod,paperWidth='58mm',charsPerLineOverride}){
+  const W=charsPerLine(paperWidth,charsPerLineOverride);
+  console.log('ESC/POS Bill paperWidth='+paperWidth+' W='+W);
+  const now=new Date();
+  const bi=(items||[]).map(i=>({name:String(i.name||''),price:parseFloat(i.price)||0,quantity:parseInt(i.quantity||i.qty)||1,complimentary:!!i.complimentary}));
   const sub=bi.filter(i=>!i.complimentary).reduce((s,i)=>s+i.price*i.quantity,0);
   const pkg=parseFloat(packagingCharge)||0;
   const dlv=parseFloat(deliveryCharge)||0;
@@ -127,7 +213,44 @@ function buildBillBytes({restaurantName,slotLabel,orderType,customerName,custome
   const total=sub+ext;
   const showSub=ext>0;
   const rt=orderType==='delivery'?'DELIVERY RECEIPT':orderType==='takeaway'?'TAKEAWAY RECEIPT':orderType==='room'?'ROOM RECEIPT':'DINE-IN RECEIPT';
-  return bytes(B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,line((restaurantName||'RESTAURANT').toUpperCase().substring(0,16)),B.DOUBLE_OFF,line(rt),B.BOLD_OFF,sep(W,'='),B.LEFT,slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],lrLine('DATE:',now.toLocaleDateString('en-IN'),W),lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),customerName?lrLine('NAME:',customerName,W):[],customerPhone?lrLine('PHONE:',customerPhone,W):[],paymentMethod?bytes(B.BOLD_ON,lrLine('PAYMENT:',paymentMethod.toUpperCase(),W),B.BOLD_OFF):[],deliveryAddress?line('ADDR: '+deliveryAddress):[],sep(W,'='),bytes(B.BOLD_ON,lrLine('ITEM','AMT',W),B.BOLD_OFF),sep(W,'-'),...bi.map(i=>{const amt=i.complimentary?'COMP':'Rs.'+(i.price*i.quantity).toFixed(0);const qty=' x'+i.quantity;const maxNameLen=W-amt.length-qty.length-1;return maxNameLen>=1?lrLine(i.name.substring(0,maxNameLen)+qty,amt,W):bytes(line(i.name.substring(0,W)),lrLine(qty.trim(),amt,W));}),sep(W,'='),showSub?lrLine('SUBTOTAL:','Rs.'+sub.toFixed(0),W):[],pkg>0?lrLine('PACKAGING:','Rs.'+pkg.toFixed(0),W):[],dlv>0?lrLine('DELIVERY:','Rs.'+dlv.toFixed(0),W):[],exAmt>0?lrLine((extraChargeLabel||'EXTRA').toUpperCase().substring(0,W-8)+':','Rs.'+exAmt.toFixed(0),W):[],bytes(B.BOLD_ON,B.DOUBLE_ON,lrLine('TOTAL:','Rs.'+total.toFixed(0),W),B.DOUBLE_OFF,B.BOLD_OFF),sep(W,'='),B.CENTER,line('THANK YOU! VISIT AGAIN'),line('* * * * * * * *'),lf(1),B.CUT);
+  // TOTAL: double-width uses W/2 logical columns
+  const totalW=Math.floor(W/2);
+  const totalLine=lrLine('TOTAL:','Rs.'+total.toFixed(0),totalW);
+  const clamp=(lbl,max)=>lbl.length>max?lbl.substring(0,max-1)+':':lbl+':';
+  return bytes(
+    B.INIT,B.CENTER,B.DOUBLE_ON,B.BOLD_ON,
+    line((restaurantName||'RESTAURANT').toUpperCase().substring(0,Math.floor(W/2))),
+    B.DOUBLE_OFF,line(rt),B.BOLD_OFF,sep(W,'='),
+    B.LEFT,
+    slotLabel?bytes(B.BOLD_ON,lrLine('SLOT:',slotLabel,W),B.BOLD_OFF):[],
+    lrLine('DATE:',now.toLocaleDateString('en-IN'),W),
+    lrLine('TIME:',now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),W),
+    customerName?lrLine('NAME:',customerName,W):[],
+    customerPhone?lrLine('PHONE:',customerPhone,W):[],
+    paymentMethod?bytes(B.BOLD_ON,lrLine('PAYMENT:',paymentMethod.toUpperCase(),W),B.BOLD_OFF):[],
+    deliveryAddress?line('ADDR: '+deliveryAddress):[],
+    sep(W,'='),
+    ...buildItemRows(bi,W),
+    sep(W,'='),
+    showSub?lrLine('SUBTOTAL:','Rs.'+sub.toFixed(0),W):[],
+    pkg>0?lrLine('PACKAGING:','Rs.'+pkg.toFixed(0),W):[],
+    dlv>0?lrLine('DELIVERY:','Rs.'+dlv.toFixed(0),W):[],
+    exAmt>0?lrLine(clamp((extraChargeLabel||'EXTRA').toUpperCase(),W-10),'Rs.'+exAmt.toFixed(0),W):[],
+    B.BOLD_ON,B.DOUBLE_ON,totalLine,B.DOUBLE_OFF,B.BOLD_OFF,B.LEFT,
+    sep(W,'='),
+    B.CENTER,line('THANK YOU! VISIT AGAIN'),line('* * * * * * * *'),lf(1),B.CUT
+  );
+}
+
+// Width test strip — print to find physical CPL before setting override
+function buildTestStrip(paperWidth,charsPerLineOverride){
+  const W=charsPerLine(paperWidth,charsPerLineOverride);
+  return bytes(B.INIT,B.LEFT,
+    line('WIDTH TEST: paperWidth='+(paperWidth||'?')+' W='+W),
+    line('123456789012345678901234567890123456789012345678'),
+    sep(W,'='),
+    line('If ruler wrapped: set override=42'),
+    lf(2),B.CUT);
 }
 
 // ─── EscPos plugin (Android) ──────────────────────────────────────────────────
@@ -342,7 +465,7 @@ export async function smartPrint(html, type='bill', orderData=null) {
     try {
       if (type === 'kitchen' && orderData?.order) {
         const o = orderData.order;
-        byteArr = buildKOTBytes({ restaurantName: orderData.restaurantName, slotLabel: o.tableNumber ? 'TABLE '+o.tableNumber : o.roomNumber ? 'ROOM '+o.roomNumber : (o.orderType||'').toUpperCase(), orderId: o._id, orderType: o.orderType, customerName: o.customerName, deliveryAddress: o.deliveryAddress, specialInstructions: o.specialInstructions, items: o.items, paperWidth: s.paperWidth || '58mm' });
+        byteArr = buildKOTBytes({ restaurantName: orderData.restaurantName, slotLabel: o.tableNumber ? 'TABLE '+o.tableNumber : o.roomNumber ? 'ROOM '+o.roomNumber : (o.orderType||'').toUpperCase(), orderId: o._id, orderType: o.orderType, customerName: o.customerName, deliveryAddress: o.deliveryAddress, specialInstructions: o.specialInstructions, items: o.items, paperWidth: s.paperWidth || '58mm', charsPerLineOverride: s.charsPerLine ? parseInt(s.charsPerLine) : undefined });
       } else if (type === 'bill' && orderData?.orders) {
         const im = {};
         orderData.orders.forEach(o => (o.items||[]).forEach(i => {
@@ -359,7 +482,7 @@ export async function smartPrint(html, type='bill', orderData=null) {
         const dlvCharge = parseFloat(orderData.deliveryCharge)  || parseFloat(o0.deliveryCharge)  || parseFloat(o0.delivery_charge)  || 0;
         const exCharge  = parseFloat(orderData.extraCharge)     || 0;
         const exLabel   = orderData.extraChargeLabel || '';
-        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: oType, customerName: o0.customerName || o0.customer_name, customerPhone: o0.customerPhone || o0.customer_phone, deliveryAddress: o0.deliveryAddress || o0.delivery_address, items: Object.values(im), packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel, paymentMethod: o0.paymentMethod || o0.payment_method, paperWidth: s.paperWidth || '58mm' });
+        byteArr = buildBillBytes({ restaurantName: orderData.restaurantName, slotLabel: orderData.tableLabel, orderType: oType, customerName: o0.customerName || o0.customer_name, customerPhone: o0.customerPhone || o0.customer_phone, deliveryAddress: o0.deliveryAddress || o0.delivery_address, items: Object.values(im), packagingCharge: pkgCharge, deliveryCharge: dlvCharge, extraCharge: exCharge, extraChargeLabel: exLabel, paymentMethod: o0.paymentMethod || o0.payment_method, paperWidth: s.paperWidth || '58mm', charsPerLineOverride: s.charsPerLine ? parseInt(s.charsPerLine) : undefined });
       }
     } catch (e) { console.warn('byte build error:', e); }
 
@@ -402,3 +525,5 @@ export async function smartPrint(html, type='bill', orderData=null) {
   browserPrint(html);
   return { method:'browser' };
 }
+
+export { buildTestStrip };
