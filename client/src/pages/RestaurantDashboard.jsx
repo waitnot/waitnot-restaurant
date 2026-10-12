@@ -1938,6 +1938,19 @@ export default function RestaurantDashboard() {
   const activeDineInOrders = dineInOrders.filter(order => order.status !== 'completed');
   const activeRoomOrders = roomOrders.filter(order => order.status !== 'completed');
   // Unique busy table/room counts for badges
+  // Derived values for Staff Order combined view
+  const staffIsRoom = receptionistOrder.orderType === 'room';
+  const staffExistingOrders = staffSelectedTable
+    ? (staffIsRoom
+        ? activeRoomOrders.filter(o => parseInt(o.roomNumber) === staffSelectedTable)
+        : activeDineInOrders.filter(o => parseInt(o.tableNumber) === staffSelectedTable))
+    : [];
+  const staffExistingTotal = staffExistingOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+  const staffSlotLabel = staffIsRoom
+    ? (restaurant?.features?.roomNames?.[staffSelectedTable] || 'Room ' + staffSelectedTable)
+    : staffSelectedTable ? 'Table ' + staffSelectedTable
+    : receptionistOrder.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
+
   const activeDineInTableCount = new Set(activeDineInOrders.map(o => o.tableNumber).filter(Boolean)).size;
   const activeRoomOrderCount = new Set(activeRoomOrders.map(o => o.roomNumber).filter(Boolean)).size;
 
@@ -3756,52 +3769,44 @@ export default function RestaurantDashboard() {
                         className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${isOccupied ? 'bg-red-50/70 border-red-200 hover:border-red-400' : 'bg-green-50/60 border-green-200 hover:border-green-400'}`}
                       >
                         <span className={`text-xl font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
-                        {isOccupied ? <span className="text-xs font-semibold text-red-600 leading-none">₹{tTotal}</span> : <span className="text-xs font-medium text-green-500 leading-none">Free</span>}
+                        {isOccupied ? <span className="text-xs font-semibold text-red-600 leading-none">{'\\u20b9'}{tTotal}</span> : <span className="text-xs font-medium text-green-500 leading-none">Free</span>}
                         {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse border-2 border-white"></span>}
                       </button>
                     );
                   })}
                   {(!restaurant?.tables || restaurant.tables === 0) && <p className="col-span-full text-gray-400 text-sm text-center py-4">No tables configured.</p>}
                 </div>
-                {(restaurant?.rooms || 0) > 0 && (<>
-                  <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 mt-5">Rooms</h2>
-                  <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-2">
-                    {Array.from({ length: restaurant.rooms }, (_, i) => i + 1).map(n => {
-                      const roomLabel = restaurant?.features?.roomNames?.[n] || ('R' + n);
-                      const rOrders = activeRoomOrders.filter(o => parseInt(o.roomNumber) === n);
-                      const isOccupied = rOrders.length > 0;
-                      const rTotal = rOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
-                      return (
-                        <button key={n}
-                          onClick={() => { setStaffSelectedTable(n); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'room', tableNumber: '', roomNumber: String(n), items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }}
-                          className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${isOccupied ? 'bg-orange-50/70 border-orange-200 hover:border-orange-400' : 'bg-blue-50/60 border-blue-200 hover:border-blue-400'}`}
-                        >
-                          <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{roomLabel}</span>
-                          {isOccupied ? <span className="text-xs font-semibold text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs font-medium text-blue-400 leading-none">Free</span>}
-                          {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full animate-pulse border-2 border-white"></span>}
-                        </button>
-                      );
-                    })}
+                {(restaurant?.rooms || 0) > 0 && (
+                  <div>
+                    <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 mt-5">Rooms</h2>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 mb-2">
+                      {Array.from({ length: restaurant.rooms }, (_, i) => i + 1).map(n => {
+                        const roomLabel = restaurant?.features?.roomNames?.[n] || ('R' + n);
+                        const rOrders = activeRoomOrders.filter(o => parseInt(o.roomNumber) === n);
+                        const isOccupied = rOrders.length > 0;
+                        const rTotal = rOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+                        return (
+                          <button key={n}
+                            onClick={() => { setStaffSelectedTable(n); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'room', tableNumber: '', roomNumber: String(n), items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }}
+                            className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${isOccupied ? 'bg-orange-50/70 border-orange-200 hover:border-orange-400' : 'bg-blue-50/60 border-blue-200 hover:border-blue-400'}`}
+                          >
+                            <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{roomLabel}</span>
+                            {isOccupied ? <span className="text-xs font-semibold text-orange-600 leading-none">{'\\u20b9'}{rTotal}</span> : <span className="text-xs font-medium text-blue-400 leading-none">Free</span>}
+                            {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full animate-pulse border-2 border-white"></span>}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </>)}
+                )}
                 <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 mt-5">Quick Order</h2>
                 <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
-                  <button onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, customerName: '', customerPhone: '' })); }} className="table-card no-select rounded-card py-3.5 px-1 border border-orange-200 bg-orange-50/70 hover:border-orange-400 flex flex-col items-center gap-1"><span className="text-xs font-bold text-orange-600 leading-none text-center">TW</span></button>
-                  <button onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, customerName: '', customerPhone: '' })); }} className="table-card no-select rounded-card py-3.5 px-1 border border-blue-200 bg-blue-50/70 hover:border-blue-400 flex flex-col items-center gap-1"><span className="text-xs font-bold text-blue-600 leading-none text-center">DEL</span></button>
+                  <button onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, customerName: '', customerPhone: '' })); }} className="table-card no-select rounded-card py-3.5 px-1 border border-orange-200 bg-orange-50/70 hover:border-orange-400 flex flex-col items-center gap-1"><span className="text-xs font-bold text-orange-600 leading-none">TW</span></button>
+                  <button onClick={() => { setStaffSelectedTable(null); setStaffView('order'); setReceptionistOrder(prev => ({ ...prev, orderType: 'delivery', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, customerName: '', customerPhone: '' })); }} className="table-card no-select rounded-card py-3.5 px-1 border border-blue-200 bg-blue-50/70 hover:border-blue-400 flex flex-col items-center gap-1"><span className="text-xs font-bold text-blue-600 leading-none">DEL</span></button>
                 </div>
               </div>
-            ) : (() => {
+            ) : (
               /* ── ORDER INTERFACE — 3-column POS ── */
-              const isRoom = receptionistOrder.orderType === 'room';
-              const existingOrders = staffSelectedTable
-                ? (isRoom ? activeRoomOrders.filter(o => parseInt(o.roomNumber) === staffSelectedTable) : activeDineInOrders.filter(o => parseInt(o.tableNumber) === staffSelectedTable))
-                : [];
-              const existingTotal = existingOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
-              const slotLabel = isRoom
-                ? (restaurant?.features?.roomNames?.[staffSelectedTable] || 'Room ' + staffSelectedTable)
-                : staffSelectedTable ? 'Table ' + staffSelectedTable
-                : receptionistOrder.orderType === 'takeaway' ? 'Takeaway' : 'Delivery';
-              return (
               <div style={{display:'flex', width:'100%', height:'100%', overflow:'hidden'}}>
                 {/* COL 1: Category */}
                 <div style={{width:'96px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderRight:'1px solid #f3f4f6'}}>
@@ -3816,21 +3821,28 @@ export default function RestaurantDashboard() {
                 </div>
                 {/* COL 2: Menu */}
                 <div style={{flex:1, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#f9fafb'}}>
-                  {/* Top bar */}
                   <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center" style={{flexShrink:0}}>
-                    {staffSelectedTable && isRoom ? (
-                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
-                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🛏 {slotLabel}</span></>
+                    {staffSelectedTable && staffIsRoom ? (
+                      <React.Fragment>
+                        <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">{staffSlotLabel}</span>
+                      </React.Fragment>
                     ) : staffSelectedTable ? (
-                      <><button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
-                      <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">T{staffSelectedTable}</span></>
+                      <React.Fragment>
+                        <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">T{staffSelectedTable}</span>
+                      </React.Fragment>
                     ) : receptionistOrder.orderType === 'takeaway' ? (
-                      <><button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
-                      <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">🥡 TW</span></>
+                      <React.Fragment>
+                        <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">TW</span>
+                      </React.Fragment>
                     ) : (
-                      <><button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, deliveryAddress: '', specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">← Back</button>
-                      <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">🛵 DEL</span>
-                      <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[100px]" /></>
+                      <React.Fragment>
+                        <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, deliveryAddress: '', specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">DEL</span>
+                        <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[100px]" />
+                      </React.Fragment>
                     )}
                     <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder(prev => ({...prev, waiterId: e.target.value, waiterNumber: w?.waiter_number||''})); }} className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
                       <option value="">Waiter</option>
@@ -3838,7 +3850,6 @@ export default function RestaurantDashboard() {
                     </select>
                     <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))} placeholder="Name" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none min-w-[70px]" />
                   </div>
-                  {/* Search */}
                   <div className="px-3 py-1.5 bg-white border-b border-gray-100" style={{flexShrink:0}}>
                     <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
                       <Search size={13} className="text-gray-400 shrink-0" />
@@ -3846,7 +3857,6 @@ export default function RestaurantDashboard() {
                       {staffSearchQuery && <button onClick={() => setStaffSearchQuery('')}><X size={13} className="text-gray-400" /></button>}
                     </div>
                   </div>
-                  {/* Menu grid — square cards */}
                   <div style={{flex:1, overflowY:'auto', overflowX:'hidden', padding:'8px'}}>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                       {restaurant?.menu?.filter(i => i.available)
@@ -3862,11 +3872,11 @@ export default function RestaurantDashboard() {
                               <div>
                                 <span className={"absolute top-1.5 left-1.5 w-2 h-2 rounded-sm border " + (item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500')}></span>
                                 <p className="text-xs font-semibold text-gray-800 leading-tight pt-3.5 line-clamp-2">{item.name}</p>
-                                <p className="text-xs text-gray-400 mt-0.5">₹{item.price}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">Rs.{item.price}</p>
                               </div>
                               {inOrder ? (
                                 <div className="flex items-center justify-between gap-1">
-                                  <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }} className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-700">−</button>
+                                  <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, -1); }} className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-700">-</button>
                                   <span className="text-sm font-bold text-primary">{inOrder.quantity}</span>
                                   <button onClick={e => { e.stopPropagation(); updateReceptionistOrderItem(item, 1); }} className="w-6 h-6 rounded bg-primary text-white flex items-center justify-center text-sm font-bold">+</button>
                                 </div>
@@ -3879,91 +3889,105 @@ export default function RestaurantDashboard() {
                     </div>
                   </div>
                 </div>
-                {/* COL 3: Summary — wider */}
+                {/* COL 3: Summary */}
                 <div style={{width:'300px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderLeft:'1px solid #f3f4f6'}}>
-                  {/* Header */}
                   <div className="px-4 py-3 border-b border-gray-100 bg-gray-50" style={{flexShrink:0}}>
                     <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-gray-900 text-sm">{slotLabel}</h3>
+                      <h3 className="font-bold text-gray-900 text-sm">{staffSlotLabel}</h3>
                       {receptionistOrder.items.length > 0 && <button onClick={() => setReceptionistOrder(prev => ({...prev, items: []}))} className="text-xs text-gray-400 hover:text-red-500">Clear</button>}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">{receptionistOrder.customerName || 'Guest'}</p>
                   </div>
-                  {/* Running orders panel for occupied table/room */}
-                  {existingOrders.length > 0 && (
+                  {staffExistingOrders.length > 0 && (
                     <div className="border-b border-gray-100 bg-orange-50/50" style={{flexShrink:0}}>
                       <div className="px-4 pt-2 pb-1 flex items-center justify-between">
-                        <span className="text-xs font-bold text-orange-700">Running · ₹{existingTotal}</span>
+                        <span className="text-xs font-bold text-orange-700">Running</span>
                         <div className="flex gap-1">
-                          {existingOrders[0]?.source === 'staff' ? (<>
-                            <button onClick={() => printStaffKOT(existingOrders[0])} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
-                            <button onClick={() => printStaffCustomerBill(existingOrders[0])} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
-                          </>) : (<>
-                            <button onClick={() => printKitchenOrder(staffSelectedTable, existingOrders)} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
-                            <button onClick={() => printReceipt(staffSelectedTable, existingOrders, existingTotal)} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
-                          </>)}
+                          {staffExistingOrders[0] && staffExistingOrders[0].source === 'staff' ? (
+                            <React.Fragment>
+                              <button onClick={() => printStaffKOT(staffExistingOrders[0])} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
+                              <button onClick={() => printStaffCustomerBill(staffExistingOrders[0])} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
+                            </React.Fragment>
+                          ) : (
+                            <React.Fragment>
+                              <button onClick={() => printKitchenOrder(staffSelectedTable, staffExistingOrders)} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
+                              <button onClick={() => printReceipt(staffSelectedTable, staffExistingOrders, staffExistingTotal)} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
+                            </React.Fragment>
+                          )}
                         </div>
                       </div>
-                      {/* Merged items */}
                       <div className="px-4 pb-1 max-h-24 overflow-y-auto">
-                        {(() => { const m = {}; existingOrders.forEach(o => (o.items||[]).forEach(i => { if (m[i.name]) m[i.name].quantity += i.quantity; else m[i.name] = {...i}; })); return Object.values(m).map((i, idx) => <div key={idx} className="flex justify-between text-xs text-gray-600 py-0.5"><span>{i.name} ×{i.quantity}</span><span>₹{(i.price*i.quantity).toFixed(0)}</span></div>); })()}
+                        {staffExistingOrders.map((o, oi) => (o.items||[]).map((i, ii) => (
+                          <div key={oi+'-'+ii} className="flex justify-between text-xs text-gray-600 py-0.5">
+                            <span>{i.name} x{i.quantity}</span>
+                            <span>Rs.{(i.price*i.quantity).toFixed(0)}</span>
+                          </div>
+                        )))}
                       </div>
-                      {/* Action buttons */}
                       <div className="px-4 pb-2 flex flex-wrap gap-1.5">
-                        <button onClick={() => isRoom ? clearRoomAndSaveToHistory(staffSelectedTable, existingOrders, existingTotal) : clearTableAndSaveToHistory(staffSelectedTable, existingOrders, existingTotal)} className="text-xs px-2.5 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">✓ Clear</button>
-                        <button onClick={() => setShiftModal({ orders: existingOrders, type: isRoom ? 'room' : 'table', current: staffSelectedTable })} className="text-xs px-2.5 py-1.5 bg-indigo-500 text-white rounded-lg font-bold hover:bg-indigo-600">⇄ Shift</button>
-                        {existingOrders[0] && existingOrders[0].status !== 'completed' && existingOrders[0].status !== 'cancelled' && (
-                          <button onClick={() => cancelOrder(existingOrders[0])} className="text-xs px-2.5 py-1.5 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600">✕ Cancel</button>
+                        <button onClick={() => staffIsRoom ? clearRoomAndSaveToHistory(staffSelectedTable, staffExistingOrders, staffExistingTotal) : clearTableAndSaveToHistory(staffSelectedTable, staffExistingOrders, staffExistingTotal)} className="text-xs px-2.5 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">Clear</button>
+                        <button onClick={() => setShiftModal({ orders: staffExistingOrders, type: staffIsRoom ? 'room' : 'table', current: staffSelectedTable })} className="text-xs px-2.5 py-1.5 bg-indigo-500 text-white rounded-lg font-bold hover:bg-indigo-600">Shift</button>
+                        {staffExistingOrders[0] && staffExistingOrders[0].status !== 'completed' && staffExistingOrders[0].status !== 'cancelled' && (
+                          <button onClick={() => cancelOrder(staffExistingOrders[0])} className="text-xs px-2.5 py-1.5 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600">Cancel</button>
                         )}
-                        {existingOrders[0] && <button onClick={() => openEditOrderModal(existingOrders[0])} className="text-xs px-2.5 py-1.5 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600">Edit</button>}
+                        {staffExistingOrders[0] && (
+                          <button onClick={() => openEditOrderModal(staffExistingOrders[0])} className="text-xs px-2.5 py-1.5 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600">Edit</button>
+                        )}
                       </div>
                     </div>
                   )}
-                  {/* New items */}
                   <div style={{flex:1, overflowY:'auto', overflowX:'hidden', padding:'4px 16px', minHeight:0}}>
                     {receptionistOrder.items.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-gray-300">
                         <ShoppingCart size={28} className="mb-1 opacity-30" />
-                        <p className="text-xs">{existingOrders.length > 0 ? 'Add more items below' : 'Add items from menu'}</p>
+                        <p className="text-xs">{staffExistingOrders.length > 0 ? 'Add more items' : 'Add items from menu'}</p>
                       </div>
                     ) : receptionistOrder.items.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
-                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">₹{item.price}</p>}
+                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">Rs.{item.price}</p>}
                         </div>
                         <button onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
-                          className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 " + (item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400')}>✓</button>
+                          className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 " + (item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400')}>v</button>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">−</button>
+                          <button onClick={() => updateReceptionistOrderItem(item, -1)} className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">-</button>
                           <span className="w-4 text-center text-xs font-bold">{item.quantity}</span>
                           <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
                         </div>
-                        <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">{item.complimentary ? <span className="line-through text-gray-300">₹{item.price*item.quantity}</span> : '₹'+(item.price*item.quantity)}</p>
+                        <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
+                          {item.complimentary ? <span className="line-through text-gray-300">Rs.{item.price * item.quantity}</span> : 'Rs.' + (item.price * item.quantity)}
+                        </p>
                       </div>
                     ))}
                   </div>
-                  {/* Bottom actions */}
                   <div style={{flexShrink:0, borderTop:'1px solid #f3f4f6', background:'#fff'}}>
                     <div className="px-4 py-2 space-y-1.5">
                       <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder(prev => ({...prev, specialInstructions: e.target.value}))} placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary" />
                       {receptionistOrder.orderType === 'takeaway' && (
-                        <div className="flex items-center gap-2"><label className="text-xs text-gray-500 shrink-0">Packaging ₹</label><input type="number" min="0" value={receptionistOrder.packagingCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, packagingCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none w-24" /></div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500 shrink-0">Packaging Rs.</label>
+                          <input type="number" min="0" value={receptionistOrder.packagingCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, packagingCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none w-24" />
+                        </div>
                       )}
                       {receptionistOrder.orderType === 'delivery' && (
                         <div className="space-y-1.5">
-                          <div className="flex items-center gap-2"><label className="text-xs text-gray-500 shrink-0">Delivery ₹</label><input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none w-24" /></div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-500 shrink-0">Delivery Rs.</label>
+                            <input type="number" min="0" value={receptionistOrder.deliveryCharge || ''} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryCharge: parseFloat(e.target.value) || 0}))} placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none w-24" />
+                          </div>
                           <input type="text" value={receptionistOrder.customerName} onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))} placeholder="Customer name *" className={"w-full text-xs border rounded px-2 py-1.5 focus:outline-none " + (!receptionistOrder.customerName ? 'border-red-300 bg-red-50' : 'border-gray-200')} />
                           <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Delivery address *" className={"w-full text-xs border rounded px-2 py-1.5 focus:outline-none " + (!receptionistOrder.deliveryAddress ? 'border-red-300 bg-red-50' : 'border-gray-200')} />
                         </div>
                       )}
                     </div>
                     <div className="px-4 pb-3">
-                      {receptionistOrder.items.length > 0 && (() => {
-                        const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s,i) => s+i.price*i.quantity, 0);
-                        const extra = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0;
-                        return <div className="flex justify-between items-center text-xs text-gray-500 mb-2"><span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items{extra>0?' + ₹'+extra:''}</span><span className="text-base font-bold text-gray-900">₹{subtotal+extra}</span></div>;
-                      })()}
+                      {receptionistOrder.items.length > 0 && (
+                        <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
+                          <span>{receptionistOrder.items.reduce((s,i)=>s+i.quantity,0)} items</span>
+                          <span className="text-base font-bold text-gray-900">Rs.{receptionistOrder.items.filter(i => !i.complimentary).reduce((s, i) => s + i.price * i.quantity, 0) + (receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0)}</span>
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 gap-1.5">
                         <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white py-2.5 rounded-lg text-xs font-bold hover:bg-orange-600">KOT</button>
                         <button onClick={printStaffBillOnly} className="bg-blue-500 text-white py-2.5 rounded-lg text-xs font-bold hover:bg-blue-600">Bill</button>
@@ -3972,22 +3996,20 @@ export default function RestaurantDashboard() {
                     </div>
                   </div>
                 </div>
-                {/* Mobile bottom bar */}
-                {receptionistOrder.items.length > 0 && (() => {
-                  const subtotal = receptionistOrder.items.filter(i => !i.complimentary).reduce((s,i) => s+i.price*i.quantity, 0);
-                  const extra = receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0;
-                  return <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
-                    <span className="flex-1 font-bold text-sm">₹{subtotal+extra}</span>
+                {receptionistOrder.items.length > 0 && (
+                  <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 flex items-center gap-2 z-20">
+                    <span className="flex-1 font-bold text-sm">Rs.{receptionistOrder.items.filter(i => !i.complimentary).reduce((s,i) => s+i.price*i.quantity, 0) + (receptionistOrder.orderType === 'takeaway' ? (receptionistOrder.packagingCharge||0) : receptionistOrder.orderType === 'delivery' ? (receptionistOrder.deliveryCharge||0) : 0)}</span>
                     <button onClick={printStaffKOTOnly} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-bold">KOT</button>
                     <button onClick={printStaffBillOnly} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Bill</button>
                     <button onClick={clearReceptionistOrder} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold">Save</button>
-                  </div>;
-                })()}
+                  </div>
+                )}
               </div>
-              );
-            })()}
+            )}
           </div>
         )}
+      </div>
+
       {/* Notification Settings Modal */}
       {showNotificationSettings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -4473,37 +4495,37 @@ export default function RestaurantDashboard() {
         </div>
       )}
 
-
-      {/* Shift Table/Room Modal */}
       {shiftModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h3 className="font-bold text-gray-900 text-base mb-1">Shift {shiftModal.type === 'room' ? 'Room' : 'Table'}</h3>
-            <p className="text-xs text-gray-500 mb-4">Move orders from {shiftModal.type === 'room' ? 'Room' : 'Table'} {shiftModal.current} to another {shiftModal.type === 'room' ? 'room' : 'table'}</p>
+            <p className="text-xs text-gray-500 mb-4">Move orders from {shiftModal.type === 'room' ? 'Room' : 'Table'} {shiftModal.current} to:</p>
             <div className="grid grid-cols-5 gap-2 mb-4 max-h-48 overflow-y-auto">
               {Array.from({ length: shiftModal.type === 'room' ? (restaurant?.rooms || 0) : (restaurant?.tables || 0) }, (_, i) => i + 1)
                 .filter(n => n !== shiftModal.current)
                 .map(n => {
                   const label = shiftModal.type === 'room' ? (restaurant?.features?.roomNames?.[n] || 'R'+n) : String(n);
-                  const isOccupied = shiftModal.type === 'room'
+                  const isBusy = shiftModal.type === 'room'
                     ? activeRoomOrders.some(o => parseInt(o.roomNumber) === n)
                     : activeDineInOrders.some(o => parseInt(o.tableNumber) === n);
                   return (
                     <button key={n}
                       onClick={async () => {
                         try {
-                          const updateField = shiftModal.type === 'room' ? { orderType: 'room', roomNumber: String(n), tableNumber: null } : { orderType: 'dine-in', tableNumber: String(n), roomNumber: null };
+                          const updateField = shiftModal.type === 'room'
+                            ? { orderType: 'room', roomNumber: String(n), tableNumber: null }
+                            : { orderType: 'dine-in', tableNumber: String(n), roomNumber: null };
                           await Promise.all(shiftModal.orders.map(o => axios.patch(`/api/orders/${o._id}/shift`, updateField)));
                           const restaurantId = localStorage.getItem('restaurantId');
                           await fetchOrders(restaurantId);
                           setShiftModal(null);
-                          showToast(`Moved to ${shiftModal.type === 'room' ? 'Room' : 'Table'} ${label}`);
-                        } catch(e) { showToast('Shift failed: ' + (e.response?.data?.error || e.message), 'error'); }
+                          showToast('Moved to ' + (shiftModal.type === 'room' ? 'Room' : 'Table') + ' ' + label);
+                        } catch(e) { showToast('Shift failed', 'error'); }
                       }}
-                      className={`py-3 px-1 rounded-xl border-2 text-xs font-bold flex flex-col items-center gap-0.5 ${isOccupied ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700 hover:border-green-400'}`}
+                      className={"py-3 px-1 rounded-xl border-2 text-xs font-bold flex flex-col items-center gap-0.5 " + (isBusy ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700 hover:border-green-400')}
                     >
                       <span>{label}</span>
-                      {isOccupied && <span className="text-[10px] font-medium">Busy</span>}
+                      {isBusy && <span className="text-gray-400 font-normal">Busy</span>}
                     </button>
                   );
                 })}
