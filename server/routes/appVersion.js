@@ -37,10 +37,10 @@ const router = express.Router();
 
 const APP_VERSION = {
   // ── Increment both on every release ──
-  version:     '1.0.6',
-  versionCode: 6,           // must match APK CURRENT_VERSION_CODE and build.gradle versionCode
+  version:     '1.0.7',
+  versionCode: 7,           // must match APK CURRENT_VERSION_CODE and build.gradle versionCode
 
-  releaseNotes: 'Bill printing fixed: full item names on 80mm, bold text. Order sync between staff and restaurant. Cancel clears table. Shift goes back to grid.',
+  releaseNotes: 'Fix bill item name truncation on 80mm printer (correct column layout).',
 
   // forceUpdate: forces ALL users to update immediately (hides "Remind me later")
   forceUpdate: false,
