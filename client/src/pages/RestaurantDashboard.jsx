@@ -3823,26 +3823,26 @@ export default function RestaurantDashboard() {
                 <div style={{flex:1, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#f9fafb'}}>
                   <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center" style={{flexShrink:0}}>
                     {staffSelectedTable && staffIsRoom ? (
-                      <React.Fragment>
+                      <>
                         <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
                         <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">{staffSlotLabel}</span>
-                      </React.Fragment>
+                      </>
                     ) : staffSelectedTable ? (
-                      <React.Fragment>
+                      <>
                         <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
                         <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">T{staffSelectedTable}</span>
-                      </React.Fragment>
+                      </>
                     ) : receptionistOrder.orderType === 'takeaway' ? (
-                      <React.Fragment>
+                      <>
                         <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
                         <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">TW</span>
-                      </React.Fragment>
+                      </>
                     ) : (
-                      <React.Fragment>
+                      <>
                         <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, deliveryAddress: '', specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
                         <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">DEL</span>
                         <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[100px]" />
-                      </React.Fragment>
+                      </>
                     )}
                     <select value={receptionistOrder.waiterId} onChange={e => { const w = availableWaiters.find(x => x.id === parseInt(e.target.value)); setReceptionistOrder(prev => ({...prev, waiterId: e.target.value, waiterNumber: w?.waiter_number||''})); }} className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none bg-white">
                       <option value="">Waiter</option>
@@ -3904,15 +3904,15 @@ export default function RestaurantDashboard() {
                         <span className="text-xs font-bold text-orange-700">Running</span>
                         <div className="flex gap-1">
                           {staffExistingOrders[0] && staffExistingOrders[0].source === 'staff' ? (
-                            <React.Fragment>
+                            <>
                               <button onClick={() => printStaffKOT(staffExistingOrders[0])} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
                               <button onClick={() => printStaffCustomerBill(staffExistingOrders[0])} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
-                            </React.Fragment>
+                            </>
                           ) : (
-                            <React.Fragment>
+                            <>
                               <button onClick={() => printKitchenOrder(staffSelectedTable, staffExistingOrders)} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
                               <button onClick={() => printReceipt(staffSelectedTable, staffExistingOrders, staffExistingTotal)} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
-                            </React.Fragment>
+                            </>
                           )}
                         </div>
                       </div>
