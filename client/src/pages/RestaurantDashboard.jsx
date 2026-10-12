@@ -3769,7 +3769,7 @@ export default function RestaurantDashboard() {
                         className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${isOccupied ? 'bg-red-50/70 border-red-200 hover:border-red-400' : 'bg-green-50/60 border-green-200 hover:border-green-400'}`}
                       >
                         <span className={`text-xl font-bold leading-none ${isOccupied ? 'text-red-700' : 'text-green-700'}`}>{n}</span>
-                        {isOccupied ? <span className="text-xs font-semibold text-red-600 leading-none">&#8377;{tTotal}</span> : <span className="text-xs font-medium text-green-500 leading-none">Free</span>}
+                        {isOccupied ? <span className="text-xs font-semibold text-red-600 leading-none">₹{tTotal}</span> : <span className="text-xs font-medium text-green-500 leading-none">Free</span>}
                         {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse border-2 border-white"></span>}
                       </button>
                     );
@@ -3791,7 +3791,7 @@ export default function RestaurantDashboard() {
                             className={`table-card no-select relative rounded-card py-3.5 px-1 border flex flex-col items-center gap-1 ${isOccupied ? 'bg-orange-50/70 border-orange-200 hover:border-orange-400' : 'bg-blue-50/60 border-blue-200 hover:border-blue-400'}`}
                           >
                             <span className={`text-xs font-bold leading-none text-center ${isOccupied ? 'text-orange-700' : 'text-blue-600'}`}>{roomLabel}</span>
-                            {isOccupied ? <span className="text-xs font-semibold text-orange-600 leading-none">&#8377;{rTotal}</span> : <span className="text-xs font-medium text-blue-400 leading-none">Free</span>}
+                            {isOccupied ? <span className="text-xs font-semibold text-orange-600 leading-none">₹{rTotal}</span> : <span className="text-xs font-medium text-blue-400 leading-none">Free</span>}
                             {isOccupied && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full animate-pulse border-2 border-white"></span>}
                           </button>
                         );
@@ -3872,7 +3872,7 @@ export default function RestaurantDashboard() {
                               <div>
                                 <span className={"absolute top-1.5 left-1.5 w-2 h-2 rounded-sm border " + (item.isVeg ? 'border-green-600 bg-green-500' : 'border-red-600 bg-red-500')}></span>
                                 <p className="text-xs font-semibold text-gray-800 leading-tight pt-3.5 line-clamp-2">{item.name}</p>
-                                <p className="text-xs text-gray-400 mt-0.5">&#8377;{item.price}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">₹{item.price}</p>
                               </div>
                               {inOrder ? (
                                 <div className="flex items-center justify-between gap-1">
@@ -3890,7 +3890,7 @@ export default function RestaurantDashboard() {
                   </div>
                 </div>
                 {/* COL 3: Summary */}
-                <div style={{width:'300px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderLeft:'1px solid #f3f4f6'}}>
+                <div style={{width:'360px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderLeft:'1px solid #f3f4f6'}}>
                   <div className="px-4 py-3 border-b border-gray-100 bg-gray-50" style={{flexShrink:0}}>
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-gray-900 text-sm">{staffSlotLabel}</h3>
@@ -3920,7 +3920,7 @@ export default function RestaurantDashboard() {
                         {staffExistingOrders.map((o, oi) => (o.items||[]).map((i, ii) => (
                           <div key={oi+'-'+ii} className="flex justify-between text-xs text-gray-600 py-0.5">
                             <span>{i.name} x{i.quantity}</span>
-                            <span>&#8377;{(i.price*i.quantity).toFixed(0)}</span>
+                            <span>₹{(i.price*i.quantity).toFixed(0)}</span>
                           </div>
                         )))}
                       </div>
@@ -3946,7 +3946,7 @@ export default function RestaurantDashboard() {
                       <div key={idx} className="flex items-center gap-2 py-1.5 border-b border-gray-50">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
-                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">&#8377;{item.price}</p>}
+                          {item.complimentary ? <span className="text-xs text-green-600 font-semibold">Comp</span> : <p className="text-xs text-gray-400">₹{item.price}</p>}
                         </div>
                         <button onClick={() => setReceptionistOrder(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, complimentary: !it.complimentary } : it) }))}
                           className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs transition-colors shrink-0 " + (item.complimentary ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400')}>v</button>
@@ -3956,7 +3956,7 @@ export default function RestaurantDashboard() {
                           <button onClick={() => updateReceptionistOrderItem(item, 1)} className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">+</button>
                         </div>
                         <p className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
-                          {item.complimentary ? <span className="line-through text-gray-300">&#8377;{item.price * item.quantity}</span> : '&#8377;' + (item.price * item.quantity)}
+                          {item.complimentary ? <span className="line-through text-gray-300">₹{item.price * item.quantity}</span> : '₹' + (item.price * item.quantity)}
                         </p>
                       </div>
                     ))}
