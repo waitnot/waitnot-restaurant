@@ -499,6 +499,7 @@ export default function RestaurantDashboard() {
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
   const [completedOrdersLoaded, setCompletedOrdersLoaded] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [menuVisibilitySaving, setMenuVisibilitySaving] = useState(false);
   const [menuOffMsgDraft, setMenuOffMsgDraft] = useState('');
   const [feedback, setFeedback] = useState([]);
@@ -750,16 +751,17 @@ export default function RestaurantDashboard() {
     if (activeTab !== 'history') return;
     const restaurantId = localStorage.getItem('restaurantId');
     if (!restaurantId) return;
+    setHistoryLoading(true);
     axios.get(`/api/orders/restaurant/${restaurantId}?status=completed`)
       .then(({ data }) => {
         setOrders(prev => {
-          // Keep all active orders; replace/add completed ones with fresh data
           const activeOrders = prev.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
           return [...activeOrders, ...data];
         });
         setCompletedOrdersLoaded(true);
       })
-      .catch(e => console.error('Failed to load completed orders:', e));
+      .catch(e => console.error('Failed to load completed orders:', e))
+      .finally(() => setHistoryLoading(false));
   }, [activeTab]);
 
   // Lock body scroll when Staff Order tab is in order view (POS mode)
@@ -3358,6 +3360,14 @@ export default function RestaurantDashboard() {
 
         {activeTab === 'history' && (
           <div className="w-full px-3 sm:px-6 py-4 overflow-y-auto [&>*]:max-w-none">
+            {/* Loading state */}
+            {historyLoading && (
+              <div className="flex items-center justify-center py-16 gap-3">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-gray-500">Loading order history...</p>
+              </div>
+            )}
+            {!historyLoading && (<>
             {/* Header row */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
               <div>
@@ -3610,6 +3620,7 @@ export default function RestaurantDashboard() {
                 </div>{/* overflow-x-auto */}
               </div>
             )}
+            </>)}
           </div>
         )}
 
@@ -3902,7 +3913,7 @@ export default function RestaurantDashboard() {
                     </div>
                   </div>
                   <div style={{flex:1, overflowY:'auto', overflowX:'hidden', padding:'8px'}}>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
                       {restaurant?.menu?.filter(i => i.available)
                         .filter(i => selectedCategory === 'all' || i.category === selectedCategory)
                         .filter(i => !staffSearchQuery.trim() || i.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
@@ -3910,7 +3921,7 @@ export default function RestaurantDashboard() {
                           const inOrder = receptionistOrder.items.find(x => x._id === item._id);
                           return (
                             <div key={item._id}
-                              style={{aspectRatio:'1/1', maxHeight:'100px', display:'flex', flexDirection:'column', justifyContent:'space-between'}}
+                              style={{height:'90px', display:'flex', flexDirection:'column', justifyContent:'space-between'}}
                               className={"relative bg-white rounded-xl border-2 p-2 cursor-pointer transition-all select-none " + (inOrder ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary')}
                               onClick={() => { if (!inOrder) updateReceptionistOrderItem(item, 1); }}>
                               <div>
