@@ -811,7 +811,11 @@ export default function RestaurantDashboard() {
     for (let i = 0; i < retries; i++) {
       try {
         const { data } = await axios.get(`/api/orders/restaurant/${id}?status=active`, { timeout: 60000 });
-        setOrders(data);
+        // Merge: keep completed orders already loaded, replace active ones
+        setOrders(prev => {
+          const completed = prev.filter(o => o.status === 'completed');
+          return [...data, ...completed];
+        });
         return;
       } catch (error) {
         console.warn(`fetchOrders attempt ${i + 1} failed:`, error?.message);
@@ -3864,11 +3868,11 @@ export default function RestaurantDashboard() {
               /* ── ORDER INTERFACE — 3-column POS ── */
               <div style={{display:'flex', width:'100%', height:'100%', overflow:'hidden'}}>
                 {/* COL 1: Category */}
-                <div style={{width:'96px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderRight:'1px solid #f3f4f6'}}>
+                <div style={{width:'120px', flexShrink:0, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'#fff', borderRight:'1px solid #f3f4f6'}}>
                   <div style={{overflowY:'auto', overflowX:'hidden', flex:1}}>
                     {['all', ...[...new Set(restaurant?.menu?.filter(i => i.available).map(i => i.category) || [])]].map(cat => (
                       <button key={cat} onClick={() => setSelectedCategory(cat)}
-                        className={"px-2 py-2.5 text-xs font-semibold text-center border-b border-gray-100 transition-all w-full " + (selectedCategory === cat ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50')}>
+                        className={"px-2 py-2.5 text-xs font-semibold text-left border-b border-gray-100 transition-all w-full truncate " + (selectedCategory === cat ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50')}>
                         {cat === 'all' ? 'All' : cat}
                       </button>
                     ))}
@@ -3879,22 +3883,22 @@ export default function RestaurantDashboard() {
                   <div className="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap gap-2 items-center" style={{flexShrink:0}}>
                     {staffSelectedTable && staffIsRoom ? (
                       <>
-                        <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', roomNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="flex items-center gap-1 text-xs font-bold text-white bg-gray-700 hover:bg-gray-900 px-2.5 py-1.5 rounded-lg">&#8592; Back</button>
                         <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">{staffSlotLabel}</span>
                       </>
                     ) : staffSelectedTable ? (
                       <>
-                        <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <button onClick={() => { setStaffView('tables'); setStaffSelectedTable(null); setReceptionistOrder(prev => ({ ...prev, orderType: 'takeaway', tableNumber: '', items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="flex items-center gap-1 text-xs font-bold text-white bg-gray-700 hover:bg-gray-900 px-2.5 py-1.5 rounded-lg">&#8592; Back</button>
                         <span className="text-xs font-bold text-white bg-primary px-3 py-1 rounded-lg">T{staffSelectedTable}</span>
                       </>
                     ) : receptionistOrder.orderType === 'takeaway' ? (
                       <>
-                        <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, specialInstructions: '', customerName: '', customerPhone: '' })); }} className="flex items-center gap-1 text-xs font-bold text-white bg-gray-700 hover:bg-gray-900 px-2.5 py-1.5 rounded-lg">&#8592; Back</button>
                         <span className="text-xs font-bold text-white bg-orange-500 px-3 py-1 rounded-lg">TW</span>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, deliveryAddress: '', specialInstructions: '', customerName: '', customerPhone: '' })); }} className="text-xs text-primary font-semibold">Back</button>
+                        <button onClick={() => { setStaffView('tables'); setReceptionistOrder(prev => ({ ...prev, items: [], packagingCharge: 0, deliveryCharge: 0, deliveryAddress: '', specialInstructions: '', customerName: '', customerPhone: '' })); }} className="flex items-center gap-1 text-xs font-bold text-white bg-gray-700 hover:bg-gray-900 px-2.5 py-1.5 rounded-lg">&#8592; Back</button>
                         <span className="text-xs font-bold text-white bg-blue-500 px-3 py-1 rounded-lg">DEL</span>
                         <input type="text" value={receptionistOrder.deliveryAddress} onChange={e => setReceptionistOrder(prev => ({...prev, deliveryAddress: e.target.value}))} placeholder="Address" className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-[100px]" />
                       </>
