@@ -4543,6 +4543,9 @@ export default function RestaurantDashboard() {
                           const restaurantId = localStorage.getItem('restaurantId');
                           await fetchOrders(restaurantId);
                           setShiftModal(null);
+                          setStaffView('tables');
+                          setStaffSelectedTable(null);
+                          setReceptionistOrder(prev => ({ ...prev, items: [], tableNumber: '', roomNumber: '', customerName: '', customerPhone: '', specialInstructions: '' }));
                           showToast('Moved to ' + (shiftModal.type === 'room' ? 'Room' : 'Table') + ' ' + label);
                         } catch(e) { showToast('Shift failed', 'error'); }
                       }}
