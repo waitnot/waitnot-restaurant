@@ -3905,8 +3905,8 @@ export default function RestaurantDashboard() {
                         <div className="flex gap-1">
                           {staffExistingOrders[0] && staffExistingOrders[0].source === 'staff' ? (
                             <>
-                              <button onClick={() => printStaffKOT(staffExistingOrders[0])} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
-                              <button onClick={() => printStaffCustomerBill(staffExistingOrders[0])} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
+                              <button onClick={() => printKitchenOrder(staffSelectedTable, staffExistingOrders)} className="text-xs px-2 py-1 bg-orange-500 text-white rounded font-bold">KOT</button>
+                              <button onClick={() => printReceipt(staffSelectedTable, staffExistingOrders, staffExistingTotal)} className="text-xs px-2 py-1 bg-blue-500 text-white rounded font-bold">Bill</button>
                             </>
                           ) : (
                             <>
@@ -3917,12 +3917,19 @@ export default function RestaurantDashboard() {
                         </div>
                       </div>
                       <div className="px-4 pb-1 max-h-24 overflow-y-auto">
-                        {staffExistingOrders.map((o, oi) => (o.items||[]).map((i, ii) => (
-                          <div key={oi+'-'+ii} className="flex justify-between text-xs text-gray-600 py-0.5">
-                            <span>{i.name} x{i.quantity}</span>
-                            <span>₹{(i.price*i.quantity).toFixed(0)}</span>
-                          </div>
-                        )))}
+                        {(() => {
+                          const merged = {};
+                          staffExistingOrders.forEach(o => (o.items||[]).forEach(i => {
+                            if (merged[i.name]) merged[i.name].quantity += (i.quantity || 1);
+                            else merged[i.name] = { name: i.name, price: parseFloat(i.price) || 0, quantity: i.quantity || 1 };
+                          }));
+                          return Object.values(merged).map((i, idx) => (
+                            <div key={idx} className="flex justify-between text-xs text-gray-600 py-0.5">
+                              <span>{i.name} x{i.quantity}</span>
+                              <span>₹{(i.price * i.quantity).toFixed(0)}</span>
+                            </div>
+                          ));
+                        })()}
                       </div>
                       <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                         <button onClick={() => staffIsRoom ? clearRoomAndSaveToHistory(staffSelectedTable, staffExistingOrders, staffExistingTotal) : clearTableAndSaveToHistory(staffSelectedTable, staffExistingOrders, staffExistingTotal)} className="text-xs px-2.5 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">Clear</button>
