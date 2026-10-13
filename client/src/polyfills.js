@@ -25,3 +25,4 @@ if (typeof Object.assign !== 'function') {
 
 // Promise and fetch are available in all supported browsers (Chrome 40+, Edge 14+, Safari 10+)
 // Do NOT use require() for polyfills — it is not defined in browser ESM bundles
+// build-cache-bust: 2
