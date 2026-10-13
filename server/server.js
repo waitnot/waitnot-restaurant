@@ -125,24 +125,6 @@ app.use('/api/app-version', appVersionRoutes);
 app.use('/api/kitchen', kitchenRoutes);
 
 
-// Runtime polyfill patch — strips browser-crashing require() from old bundle
-if (process.env.NODE_ENV === 'production') {
-  const fs = require('fs');
-  app.get('/assets/*.js', (req, res, next) => {
-    try {
-      const fp = path.join(__dirname, '../client/dist', req.path);
-      let src = fs.readFileSync(fp, 'utf8');
-      if (src.includes('require("es6-promise")')) {
-        src = src.replace(/window\.Promise\|\|\(window\.Promise=require\("es6-promise"\)\.Promise\)/g,'true')
-                 .replace(/window\.fetch\|\|require\("whatwg-fetch"\)/g,'true');
-        res.setHeader('Content-Type','application/javascript');
-        res.setHeader('Cache-Control','no-store');
-        return res.send(src);
-      }
-    } catch(_) {}
-    next();
-  });
-}
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
   // Serve static files from React build
