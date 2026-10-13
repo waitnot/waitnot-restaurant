@@ -23,6 +23,7 @@ import discountRoutes from './routes/discounts.js';
 import staffRoutes from './routes/staff.js';
 import deviceRoutes from './routes/devices.js';
 import appVersionRoutes from './routes/appVersion.js';
+import kitchenRoutes from './routes/kitchen.js';
 
 dotenv.config();
 
@@ -35,8 +36,9 @@ const io = new Server(httpServer, {
 // CORS configuration with Edge browser support and Vercel domains
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://waitnot-restaurant1.onrender.com',
+      'https://waitnot-restaurant.onrender.com',
       'https://waitnot-restaurant-app.vercel.app',
+      'https://your-domain.com',
       'https://localhost',
       'http://localhost',
       'http://localhost:3000',
@@ -66,7 +68,7 @@ app.use(cors({
     if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
       return callback(null, true);
     }
-    if (allowedOrigins.includes(origin) || origin.includes('vercel.app') || origin.includes('onrender.com')) {
+    if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
       return callback(null, true);
     }
     console.log('❌ CORS blocked origin:', origin);
@@ -120,21 +122,14 @@ app.use('/api/discounts', discountRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/app-version', appVersionRoutes);
+app.use('/api/kitchen', kitchenRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
-  // Serve APK downloads
-  app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
-
-  // /updates-apk — in-app update page
-  app.get('/updates-apk', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'updates-apk.html'));
-  });
-
   // Serve static files from React build
   app.use(express.static(path.join(__dirname, '../client/dist')));
-
-  // Handle React routing
+  
+  // Handle React routing - send all non-API requests to React
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
