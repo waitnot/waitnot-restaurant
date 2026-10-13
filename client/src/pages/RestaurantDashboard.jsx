@@ -3799,6 +3799,22 @@ export default function RestaurantDashboard() {
         {/* Staff Management Tab */}
         {activeTab === 'staff-management' && isFeatureEnabled('staffManagement') && (
           <div className="w-full px-3 sm:px-6 py-4 overflow-y-auto">
+            {/* KDS Quick Link */}
+            <a
+              href="/kitchen-display"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-5 py-3.5 mb-4 hover:bg-orange-100 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🍳</span>
+                <div>
+                  <p className="font-bold text-orange-800 text-sm">Kitchen Display System</p>
+                  <p className="text-xs text-orange-600">Open KDS in a new tab — for kitchen staff to manage order preparation</p>
+                </div>
+              </div>
+              <span className="text-orange-400 text-xl font-bold">↗</span>
+            </a>
             <StaffManagement restaurantId={restaurant?._id} />
           </div>
         )}
