@@ -1909,22 +1909,20 @@ export default function StaffDashboard() {
                 ))}
               </div>
 
-              {/* Kitchen Display button — kitchen and manager roles */}
-              {(staff.role === 'kitchen' || staff.role === 'manager') && (
-                <button
-                  onClick={() => navigate('/kitchen-display')}
-                  className="w-full mt-4 flex items-center justify-between bg-orange-500 text-white rounded-2xl p-4 shadow-sm hover:bg-orange-600 active:scale-95 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🍳</span>
-                    <div className="text-left">
-                      <p className="font-bold text-base">Kitchen Display</p>
-                      <p className="text-xs text-orange-200">Open KDS — manage order preparation</p>
-                    </div>
+              {/* Kitchen Display button — all staff roles */}
+              <button
+                onClick={() => navigate('/kitchen-display')}
+                className="w-full mt-4 flex items-center justify-between bg-orange-500 text-white rounded-2xl p-4 shadow-sm hover:bg-orange-600 active:scale-95 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🍳</span>
+                  <div className="text-left">
+                    <p className="font-bold text-base">Kitchen Display</p>
+                    <p className="text-xs text-orange-200">View kitchen order status</p>
                   </div>
-                  <span className="text-xl">›</span>
-                </button>
-              )}
+                </div>
+                <span className="text-xl">›</span>
+              </button>
 
               {/* Check for Updates */}
               {_isCapacitor && (
