@@ -23,6 +23,7 @@ const AdminCreateRestaurant = lazy(() => import('./pages/AdminCreateRestaurant')
 const AdminEditRestaurant = lazy(() => import('./pages/AdminEditRestaurant'));
 const StaffLogin = lazy(() => import('./pages/StaffLogin'));
 const StaffDashboard = lazy(() => import('./pages/StaffDashboard'));
+const KitchenDisplay = lazy(() => import('./pages/KitchenDisplay'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Loading component
@@ -81,6 +82,7 @@ function App() {
                   <Route path="/admin/restaurant/:id/edit" element={<AdminEditRestaurant />} />
                   <Route path="/staff-login" element={<StaffLogin />} />
                   <Route path="/staff-dashboard" element={<StaffDashboard />} />
+                  <Route path="/kitchen-display" element={<KitchenDisplay />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
