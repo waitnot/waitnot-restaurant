@@ -207,12 +207,9 @@ export default function KitchenDisplay() {
           return;
         }
 
-        // Kitchen or manager only
-        if (staffData.role !== 'kitchen' && staffData.role !== 'manager') {
-          setError('KDS requires kitchen or manager role.');
-          setLoading(false);
-          return;
-        }
+        // All staff can view the KDS; only kitchen/manager can change statuses
+        const canChangeStatus = staffData.role === 'kitchen' || staffData.role === 'manager';
+        staffData._canChangeStatus = canChangeStatus;
 
         // Configure axios auth header
         axiosRef.current = axios.create({
