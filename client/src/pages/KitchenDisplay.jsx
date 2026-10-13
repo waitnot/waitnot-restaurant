@@ -289,7 +289,13 @@ export default function KitchenDisplay() {
   // ── Socket ─────────────────────────────────────────────────────────────────
   const connectSocket = useCallback((restaurantId) => {
     const wsUrl = getWebSocketUrl();
-    const sock  = io(wsUrl, { transports: ['websocket', 'polling'] });
+    const sock = io(wsUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+    });
     socketRef.current = sock;
 
     sock.on('connect', () => {
