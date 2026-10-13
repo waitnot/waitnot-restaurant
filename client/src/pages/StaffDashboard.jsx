@@ -253,7 +253,13 @@ export default function StaffDashboard() {
       }
     }
 
-    const newSocket = io(API, { transports: ['websocket', 'polling'] });
+    const newSocket = io(API, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+    });
     setSocket(newSocket);
     newSocket.emit('join-restaurant', s.restaurant_id);
 
