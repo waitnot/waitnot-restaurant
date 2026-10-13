@@ -643,8 +643,8 @@ export default function RestaurantDashboard() {
       timeout: 20000,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
-      maxReconnectionAttempts: 5
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,  // keep trying forever — ERR_INTERNET_DISCONNECTED is transient
     });
     
     socket.emit('join-restaurant', restaurantId);
