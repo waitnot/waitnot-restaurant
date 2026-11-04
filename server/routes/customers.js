@@ -207,4 +207,79 @@ router.get('/:restaurantId/search-by-food', async (req, res) => {
   }
 });
 
+// ── GET /api/customers/:restaurantId/orders/:customerId ──────────────────────
+// Returns all completed orders for a specific customer (by name or phone match)
+router.get('/:restaurantId/orders/:customerId', async (req, res) => {
+  try {
+    const { restaurantId, customerId } = req.params;
+
+    // Get customer first
+    const custResult = await query(
+      'SELECT * FROM customers WHERE id=$1 AND restaurant_id=$2',
+      [customerId, restaurantId]
+    );
+    if (custResult.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
+    const cust = custResult.rows[0];
+
+    // Find orders matching by phone (preferred) or name
+    let ordersResult;
+    if (cust.phone) {
+      ordersResult = await query(`
+        SELECT o.*,
+               COALESCE(json_agg(
+                 json_build_object('_id',oi.id,'name',oi.name,'price',oi.price,'quantity',oi.quantity)
+                 ORDER BY oi.created_at
+               ) FILTER (WHERE oi.id IS NOT NULL), '[]'::json) as items
+        FROM orders o
+        LEFT JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.restaurant_id=$1
+          AND o.status='completed'
+          AND (o.customer_phone=$2 OR LOWER(o.customer_name)=LOWER($3))
+        GROUP BY o.id
+        ORDER BY o.created_at DESC
+        LIMIT 100
+      `, [restaurantId, cust.phone, cust.name]);
+    } else {
+      ordersResult = await query(`
+        SELECT o.*,
+               COALESCE(json_agg(
+                 json_build_object('_id',oi.id,'name',oi.name,'price',oi.price,'quantity',oi.quantity)
+                 ORDER BY oi.created_at
+               ) FILTER (WHERE oi.id IS NOT NULL), '[]'::json) as items
+        FROM orders o
+        LEFT JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.restaurant_id=$1
+          AND o.status='completed'
+          AND LOWER(o.customer_name)=LOWER($2)
+        GROUP BY o.id
+        ORDER BY o.created_at DESC
+        LIMIT 100
+      `, [restaurantId, cust.name]);
+    }
+
+    const orders = ordersResult.rows.map(row => ({
+      _id: row.id,
+      orderNumber: row.order_number,
+      invoiceNumber: row.invoice_number,
+      orderType: row.order_type,
+      tableNumber: row.table_number,
+      roomNumber: row.room_number,
+      status: row.status,
+      totalAmount: parseFloat(row.total_amount),
+      paymentMethod: row.payment_method,
+      paymentStatus: row.payment_status,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      deliveryAddress: row.delivery_address,
+      items: row.items || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    res.json({ customer: cust, orders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

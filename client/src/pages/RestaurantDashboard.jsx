@@ -568,6 +568,9 @@ export default function RestaurantDashboard() {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   // Customer management tab
   const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null); // customer clicked
+  const [customerOrders, setCustomerOrders] = useState([]);       // orders for selected customer
+  const [customerOrdersLoading, setCustomerOrdersLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerFoodSearch, setCustomerFoodSearch] = useState('');
@@ -972,6 +975,43 @@ export default function RestaurantDashboard() {
     }));
     setShowCustomerSuggestions(false);
     setCustomerSuggestions([]);
+  };
+
+  // Print bill from customer history (reuses existing bill builder)
+  const printBillForOrders = (orders, label, total) => {
+    try {
+      const html = buildBillHTML({
+        orders,
+        restaurantName: restaurant?.name || '',
+        restaurantAddress: restaurant?.address || '',
+        restaurantPhone: restaurant?.phone || '',
+        slotLabel: label,
+        total,
+        paymentMethod: orders[0]?.paymentMethod,
+        gstEnabled: restaurant?.features?.gstEnabled,
+        gstNumber: restaurant?.features?.gstNumber,
+        gstRate: restaurant?.features?.gstRate,
+        discountAmount: 0,
+      });
+      const win = window.open('', '_blank', 'width=400,height=600');
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.onload = () => { win.print(); win.close(); };
+      }
+    } catch (e) { showToast('Print failed: ' + e.message, 'error'); }
+  };
+
+  const openCustomerDetail = async (customer) => {
+    setSelectedCustomer(customer);
+    setCustomerOrders([]);
+    setCustomerOrdersLoading(true);
+    const rid = localStorage.getItem('restaurantId');
+    try {
+      const { data } = await axios.get(`/api/customers/${rid}/orders/${customer.id}`);
+      setCustomerOrders(data.orders || []);
+    } catch (e) { console.error('Failed to load customer orders:', e); }
+    finally { setCustomerOrdersLoading(false); }
   };
 
   const fetchCustomers = async (search = '', mode = 'name') => {
@@ -4096,6 +4136,123 @@ export default function RestaurantDashboard() {
           </div>
         )}
 
+        {/* Customer Detail Panel */}
+        {selectedCustomer && (
+          <div className="fixed inset-0 z-50 flex">
+            {/* Backdrop */}
+            <div className="flex-1 bg-black/40" onClick={() => setSelectedCustomer(null)} />
+            {/* Panel slides in from right */}
+            <div className="w-full max-w-md bg-white flex flex-col shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <span className="text-red-600 font-bold">{(selectedCustomer.name||'?')[0].toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900">{selectedCustomer.name}</p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      {selectedCustomer.phone && <span className="text-xs text-gray-500">📞 {selectedCustomer.phone}</span>}
+                      {selectedCustomer.address && <span className="text-xs text-gray-400 truncate max-w-[140px]">📍 {selectedCustomer.address}</span>}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedCustomer(null)}
+                  className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+
+              {/* Stats bar */}
+              <div className="grid grid-cols-3 gap-0 border-b border-gray-100 shrink-0">
+                {[
+                  { label: 'Orders', value: selectedCustomer.order_count },
+                  { label: 'Total Spent', value: `₹${parseFloat(selectedCustomer.total_spent||0).toLocaleString()}` },
+                  { label: 'Last Order', value: selectedCustomer.last_order_at ? new Date(selectedCustomer.last_order_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—' },
+                ].map(s => (
+                  <div key={s.label} className="py-3 px-2 text-center border-r border-gray-100 last:border-0">
+                    <p className="text-base font-bold text-gray-900">{s.value}</p>
+                    <p className="text-xs text-gray-400">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Orders list */}
+              <div className="flex-1 overflow-y-auto">
+                {customerOrdersLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : customerOrders.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <p className="text-sm">No order history found</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {customerOrders.map((order, idx) => (
+                      <div key={order._id} className="px-5 py-3.5">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-800 text-sm">
+                                #{String(order.orderNumber || idx+1).padStart(3,'0')}
+                              </span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                order.orderType==='delivery' ? 'bg-blue-50 text-blue-600' :
+                                order.orderType==='takeaway' ? 'bg-orange-50 text-orange-600' :
+                                'bg-green-50 text-green-600'
+                              }`}>
+                                {order.orderType==='dine-in' ? `Table ${order.tableNumber}` : order.orderType}
+                              </span>
+                              {order.paymentMethod && (
+                                <span className="text-[10px] text-gray-400 capitalize">{order.paymentMethod}</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {new Date(order.createdAt).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-bold text-gray-900">₹{order.totalAmount}</p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const billOrders = [order];
+                                const label = order.orderType === 'dine-in'
+                                  ? `Table ${order.tableNumber}`
+                                  : order.orderType === 'delivery'
+                                    ? `Delivery - ${order.customerName}`
+                                    : `Takeaway - ${order.customerName}`;
+                                printBillForOrders(billOrders, label, order.totalAmount);
+                              }}
+                              className="mt-1 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded-lg flex items-center gap-1 ml-auto transition-colors"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                              Print
+                            </button>
+                          </div>
+                        </div>
+                        {/* Items */}
+                        <div className="space-y-0.5">
+                          {(order.items || []).slice(0,5).map((item, i) => (
+                            <div key={i} className="flex justify-between text-xs text-gray-600">
+                              <span>{item.name} × {item.quantity}</span>
+                              <span>₹{(item.price * item.quantity).toFixed(0)}</span>
+                            </div>
+                          ))}
+                          {(order.items||[]).length > 5 && (
+                            <p className="text-xs text-gray-400">+{order.items.length-5} more items</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Discounts Tab */}
         {activeTab === 'discounts' && (
           <div className="w-full px-3 sm:px-6 py-4 overflow-y-auto">
@@ -4171,7 +4328,7 @@ export default function RestaurantDashboard() {
             {!customersLoading && customers.length > 0 && (
               <div className="space-y-2">
                 {customers.map(c => (
-                  <div key={c.id} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-start justify-between gap-3">
+                  <div key={c.id} onClick={() => openCustomerDetail(c)} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-start justify-between gap-3 cursor-pointer hover:border-red-200 hover:shadow-md transition-all active:scale-[0.99]">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       {/* Avatar */}
                       <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
@@ -4439,6 +4596,33 @@ export default function RestaurantDashboard() {
                   </div>
                   <div style={{flexShrink:0, borderTop:'1px solid #f3f4f6', background:'#fff'}}>
                     <div className="px-4 py-2 space-y-1.5">
+                      {/* Phone for all order types — optional, saves to customer DB */}
+                      {(receptionistOrder.orderType === 'dine-in' || receptionistOrder.orderType === 'room') && (
+                        <div className="relative">
+                          <input type="tel" value={receptionistOrder.customerPhone || ''}
+                            onChange={e => { setReceptionistOrder(prev => ({...prev, customerPhone: e.target.value})); fetchCustomerSuggestions(e.target.value); }}
+                            onBlur={() => setTimeout(() => setShowCustomerSuggestions(false), 200)}
+                            placeholder="Customer phone (optional)"
+                            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary" />
+                          {showCustomerSuggestions && customerSuggestions.length > 0 && (
+                            <div className="absolute z-50 top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-0.5 max-h-40 overflow-y-auto">
+                              {customerSuggestions.map(c => (
+                                <button key={c.id} onMouseDown={() => applyCustomerSuggestion(c)}
+                                  className="w-full text-left px-3 py-2 hover:bg-red-50 border-b border-gray-50 last:border-0">
+                                  <p className="text-xs font-semibold text-gray-800">{c.name}</p>
+                                  <p className="text-[10px] text-gray-400">{[c.phone, c.address].filter(Boolean).join(' · ')}</p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(receptionistOrder.orderType === 'dine-in' || receptionistOrder.orderType === 'room') && (
+                        <input type="text" value={receptionistOrder.customerName || ''}
+                          onChange={e => setReceptionistOrder(prev => ({...prev, customerName: e.target.value}))}
+                          placeholder="Customer name (optional)"
+                          className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary" />
+                      )}
                       <input type="text" value={receptionistOrder.specialInstructions} onChange={e => setReceptionistOrder(prev => ({...prev, specialInstructions: e.target.value}))} placeholder="Special instructions..." className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary" />
                       {receptionistOrder.orderType === 'takeaway' && (
                         <div className="flex items-center gap-2">

@@ -125,14 +125,18 @@ router.post('/', checkOrderRateLimit, async (req, res) => {
       // Don't fail the order creation if socket fails
     }
     
-    // Auto-save customer for delivery/takeaway orders
-    if (['delivery','takeaway'].includes(req.body.orderType) &&
-        (req.body.customerName || req.body.customerPhone)) {
-      upsertCustomer(req.body.restaurantId, {
-        name:    req.body.customerName,
-        phone:   req.body.customerPhone,
-        address: req.body.deliveryAddress,
-      }).catch(() => {});
+    // Auto-save customer for any order type that has a name or phone
+    if (req.body.customerName || req.body.customerPhone) {
+      // Don't save generic waiter/guest names
+      const name = (req.body.customerName || '').trim();
+      const isGeneric = /^(waiter|guest|customer|staff)/i.test(name) || name.length <= 1;
+      if (!isGeneric || req.body.customerPhone) {
+        upsertCustomer(req.body.restaurantId, {
+          name:    isGeneric ? '' : name,
+          phone:   req.body.customerPhone,
+          address: req.body.deliveryAddress,
+        }).catch(() => {});
+      }
     }
 
     res.status(201).json(order);
