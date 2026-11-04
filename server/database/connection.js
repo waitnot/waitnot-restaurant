@@ -49,6 +49,20 @@ setInterval(async () => {
   }
 }, 4 * 60 * 1000);
 
+// Clean up expired staff sessions daily (prevents unbounded table growth)
+async function cleanExpiredSessions() {
+  try {
+    const result = await pool.query(
+      'DELETE FROM staff_sessions WHERE expires_at < NOW() - INTERVAL '1 day''
+    );
+    if (result.rowCount > 0) {
+      console.log(`🧹 Cleaned ${result.rowCount} expired staff sessions`);
+    }
+  } catch (_) {}
+}
+cleanExpiredSessions(); // run once on startup
+setInterval(cleanExpiredSessions, 24 * 60 * 60 * 1000); // then daily
+
 // Initialize database (create tables if they don't exist)
 export async function initDatabase() {
   try {

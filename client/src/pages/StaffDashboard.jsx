@@ -1540,7 +1540,7 @@ export default function StaffDashboard() {
                             const v = parseFloat(e.target.value) || 0;
                             setOrderContext(prev => ({ ...prev, packagingCharge: v }));
                             const key = getSlotKey();
-                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), packagingCharge: v };
+                            chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), packagingCharge: v  };
                           }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
@@ -1555,7 +1555,7 @@ export default function StaffDashboard() {
                             const v = parseFloat(e.target.value) || 0;
                             setOrderContext(prev => ({ ...prev, deliveryCharge: v }));
                             const key = getSlotKey();
-                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), deliveryCharge: v };
+                            chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), deliveryCharge: v  };
                           }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                       </div>
@@ -1568,7 +1568,7 @@ export default function StaffDashboard() {
                           const v = e.target.value;
                           setExtraCharge(prev => ({ ...prev, label: v }));
                           const key = getSlotKey();
-                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeLabel: v };
+                          chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), extraChargeLabel: v  };
                         }}
                         placeholder="Extra charge label"
                         className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
@@ -1578,7 +1578,7 @@ export default function StaffDashboard() {
                           const v = parseFloat(e.target.value) || 0;
                           setExtraCharge(prev => ({ ...prev, amount: v }));
                           const key = getSlotKey();
-                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeAmount: v };
+                          chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), extraChargeAmount: v  };
                         }}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-14 focus:outline-none" />
                     </div>
@@ -1754,7 +1754,7 @@ export default function StaffDashboard() {
                             const v = parseFloat(e.target.value) || 0;
                             setOrderContext(prev => ({ ...prev, packagingCharge: v }));
                             const key = getSlotKey();
-                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), packagingCharge: v };
+                            chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), packagingCharge: v  };
                           }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                       </div>
@@ -1768,7 +1768,7 @@ export default function StaffDashboard() {
                             const v = parseFloat(e.target.value) || 0;
                             setOrderContext(prev => ({ ...prev, deliveryCharge: v }));
                             const key = getSlotKey();
-                            chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), deliveryCharge: v };
+                            chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), deliveryCharge: v  };
                           }}
                           placeholder="0" className="text-xs border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                       </div>
@@ -1780,7 +1780,7 @@ export default function StaffDashboard() {
                           const v = e.target.value;
                           setExtraCharge(prev => ({ ...prev, label: v }));
                           const key = getSlotKey();
-                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeLabel: v };
+                          chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), extraChargeLabel: v  };
                         }}
                         placeholder="Extra charge label" className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none" />
                       <input type="number" min="0" value={extraCharge.amount || ''}
@@ -1788,7 +1788,7 @@ export default function StaffDashboard() {
                           const v = parseFloat(e.target.value) || 0;
                           setExtraCharge(prev => ({ ...prev, amount: v }));
                           const key = getSlotKey();
-                          chargeStore.current[key] = { packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '', ...(chargeStore.current[key] || {}), extraChargeAmount: v };
+                          chargeStore.current[key] = { ...{ packagingCharge: 0, deliveryCharge: 0, extraChargeAmount: 0, extraChargeLabel: '' }, ...(chargeStore.current[key] || {}), extraChargeAmount: v  };
                         }}
                         placeholder="₹0" className="text-xs border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                     </div>
